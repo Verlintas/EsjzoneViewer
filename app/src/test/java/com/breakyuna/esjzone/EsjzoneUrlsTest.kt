@@ -41,6 +41,12 @@ class EsjzoneUrlsTest {
     }
 
     @Test
+    fun coverOrEmpty_preservesFileUri() {
+        val fileUri = "file:///data/user/0/com.breakyuna.esjzone/files/bookmark_covers/cover_123.jpg"
+        assertEquals(fileUri, EsjzoneUrls.coverOrEmpty(fileUri))
+    }
+
+    @Test
     fun coverUrlFromNovelCard_readsLazyAttributesBeforePlaceholderSrc() {
         val card = Jsoup.parse(
             """

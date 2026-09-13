@@ -9,7 +9,8 @@ data class ReaderScrollSnapshot(
     val loadedChapterKeys: List<String>,
     val layoutMatchesLoadedWindow: Boolean,
     val isScrollInProgress: Boolean,
-    val isProgrammaticScroll: Boolean
+    val isProgrammaticScroll: Boolean,
+    val canScrollForward: Boolean = true
 )
 
 data class ReaderWindowAnchor(

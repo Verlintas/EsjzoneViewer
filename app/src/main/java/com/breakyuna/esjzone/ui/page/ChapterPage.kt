@@ -335,19 +335,33 @@ class ChapterPage(
             scope.launch(Dispatchers.IO) {
                 try {
                     val dao = PresentationAccess.database.bookmarkDao()
+                    val finalNovelId = novelId.ifBlank { target.novelId() }
                     if (wasBookmarked) {
                         dao.deleteByChapterUrl(bookmarkChapterUrl)
+                        com.breakyuna.esjzone.database.BookmarkCoverStore.cleanupIfUnused(finalNovelId, bookmarkChapterUrl)
                     } else {
                         dao.insert(
                             com.breakyuna.esjzone.database.entity.Bookmark(
                                 chapterUrl = bookmarkChapterUrl,
-                                novelId = novelId.ifBlank { target.novelId() },
+                                novelId = finalNovelId,
                                 novelName = novelName
                                     .ifBlank { novelId }
                                     .ifBlank { target.novelId() }
                                     .ifBlank { target.name },
                                 chapterName = target.name
                             )
+                        )
+                        val coverSource = novelCoverUrl.ifBlank {
+                            localHistoryPosition.value.novelCoverUrl
+                        }
+                        val currentNovelUrl = novelUrl.ifBlank {
+                            localHistoryPosition.value.novelUrl
+                        }
+                        com.breakyuna.esjzone.database.BookmarkCoverStore.saveCoverFromCacheOrDownload(
+                            novelId = finalNovelId,
+                            coverUrl = coverSource,
+                            novelUrl = currentNovelUrl,
+                            chapterUrl = bookmarkChapterUrl
                         )
                     }
                 } catch (error: CancellationException) {
@@ -486,7 +500,9 @@ class ChapterPage(
         }
         val currentChapterName = currentReadingChapter.name
         var previousBootstrapFor by remember { mutableStateOf<String?>(null) }
-        var suppressPreviousBootstrapFor by remember { mutableStateOf<String?>(null) }
+        var suppressPreviousBootstrapFor by remember {
+            mutableStateOf<String?>(chapterIdentity(chapter))
+        }
 
         fun seekTo(location: ReaderBookLocation) {
             pendingSeekLocation = location
@@ -1177,9 +1193,11 @@ class ChapterPage(
                     loadedChapterKeys = loadedReaderChapterKeys,
                     layoutMatchesLoadedWindow = layoutMatchesLoadedWindow,
                     isScrollInProgress = scrollState.isScrollInProgress,
-                    isProgrammaticScroll = isProgrammaticScroll
+                    isProgrammaticScroll = isProgrammaticScroll,
+                    canScrollForward = scrollState.canScrollForward
                 )
             }.collect { snapshot ->
+                val currentResult = state as? ChapterPageModel.State.Result
                 if (shouldLoadPreviousChapter(
                         previous = previousSnapshot,
                         current = snapshot,
@@ -1188,12 +1206,19 @@ class ChapterPage(
                 ) {
                     chapterPageModel.loadPreviousChapter()
                 }
-                if (shouldLoadNextChapter(
-                        previous = previousSnapshot,
-                        current = snapshot,
-                        threshold = continuousLoadThreshold
-                    )
-                ) {
+                val userScrolledToNext = shouldLoadNextChapter(
+                    previous = previousSnapshot,
+                    current = snapshot,
+                    threshold = continuousLoadThreshold
+                )
+                val contentTailExposed = snapshot.layoutMatchesLoadedWindow &&
+                    snapshot.lastVisibleChapterKey == snapshot.loadedChapterKeys.lastOrNull() &&
+                    !snapshot.canScrollForward &&
+                    !snapshot.isProgrammaticScroll &&
+                    currentResult?.next != null &&
+                    currentResult?.isLoadingNext == false
+
+                if (userScrolledToNext || contentTailExposed) {
                     chapterPageModel.loadNextChapter()
                 }
                 previousSnapshot = snapshot.takeIf { it.layoutMatchesLoadedWindow }

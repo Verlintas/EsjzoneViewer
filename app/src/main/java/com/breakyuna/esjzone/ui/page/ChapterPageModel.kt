@@ -80,6 +80,7 @@ class ChapterPageModel(
     private var pendingNextRequest = false
     private var pendingPreviousRequest = false
     private var initialLoadStarted = false
+    private var failedAppendChapterKey: String? = null
     /** Latest completed reader layout anchor; null means no safe trim point. */
     private var windowAnchor: ReaderWindowAnchor? = null
 
@@ -130,6 +131,7 @@ class ChapterPageModel(
             pendingNextRequest = false
             pendingPreviousRequest = false
             offlineChapterKeys.clear()
+            failedAppendChapterKey = null
             windowAnchor = null
         }
         // Cancel outside the model lock: cancellation handlers may publish or
@@ -203,6 +205,7 @@ class ChapterPageModel(
             if (loadingNext || loadedChapters.isEmpty()) return
             val last = loadedChapters.last()
             val candidate = adjacentChapter(last.chapter, 1, last.detail) ?: return
+            if (chapterKey(candidate) == failedAppendChapterKey) return
             if (loadedChapters.any { sameChapter(it.chapter, candidate) }) return
             nextChapter = candidate
             loadingNext = true
@@ -226,6 +229,7 @@ class ChapterPageModel(
                                 detail = detail,
                                 isOffline = loadedOffline
                             )
+                            failedAppendChapterKey = null
                             trimLoadedChaptersFromStart()
                         }
                     }
@@ -235,6 +239,11 @@ class ChapterPageModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                synchronized(lock) {
+                    if (isCurrentSessionLocked(session)) {
+                        failedAppendChapterKey = chapterKey(chapterToLoad)
+                    }
+                }
                 AppLogger.e(
                     "ChapterPageModel",
                     "Failed to append chapter ${chapterToLoad.name}",

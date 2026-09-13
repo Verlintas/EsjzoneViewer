@@ -63,7 +63,5 @@ internal fun parseHistoryNovels(document: Document): List<HistoryNovel> {
         }
     }
 
-    // The site renders records from oldest to newest; expose the app-facing
-    // contract as newest first so every history entry point behaves alike.
-    return novels.asReversed()
+    return novels
 }

@@ -46,28 +46,94 @@ fun analyseComponents(element: Element): List<Component> {
 
 
 internal fun analyseParagraph(paragraph: Element): List<Component> {
-    val components = mutableListOf<TextComponent>()
+    if (paragraph.tagName() == "img") {
+        val imageUrl = resolveImageUrl(paragraph)
+        return if (imageUrl.isNotBlank()) listOf(ImageComponent(imageUrl)) else emptyList()
+    }
 
-    for (child in paragraph.childNodes()) {
-        if (child is TextNode) {
-            components.add(TextComponent(child.text()))
-        } else if (child is Element) {
-            if (child.tagName() == "img") {
-                val imageUrl = resolveImageUrl(child)
-                return listOf(ImageComponent(imageUrl))
-            } else {
+    if (paragraph.selectFirst("img") == null) {
+        val components = mutableListOf<TextComponent>()
+        for (child in paragraph.childNodes()) {
+            if (child is TextNode) {
+                components.add(TextComponent(child.text()))
+            } else if (child is Element) {
                 components.addAll(analyseText(child, listOf()))
+            }
+        }
+        return components.toSingle()
+    }
+
+    val results = mutableListOf<Component>()
+    val currentTexts = mutableListOf<TextComponent>()
+
+    fun flushTexts() {
+        if (currentTexts.isNotEmpty()) {
+            results.addAll(currentTexts.toSingle())
+            currentTexts.clear()
+        }
+    }
+
+    fun collectMixed(node: Node, styles: List<TextStyle>) {
+        if (node is TextNode) {
+            var component = TextComponent(node.text())
+            for (style in styles) component = component.style(style)
+            currentTexts.add(component)
+        } else if (node is Element) {
+            if (node.tagName() == "img") {
+                val imageUrl = resolveImageUrl(node)
+                if (imageUrl.isNotBlank()) {
+                    flushTexts()
+                    results.add(ImageComponent(imageUrl))
+                }
+                return
+            }
+
+            if (node.selectFirst("img") == null) {
+                currentTexts.addAll(analyseText(node, styles))
+                return
+            }
+
+            val newStyles = mutableListOf<TextStyle>()
+            newStyles.addAll(styles)
+            if (node.nameIs("strong")) {
+                newStyles.add(BoldTextStyle)
+            } else if (node.nameIs("em")) {
+                newStyles.add(ItalicTextStyle)
+            } else if (node.nameIs("u")) {
+                newStyles.add(UnderlineTextStyle)
+            } else if (node.nameIs("s")) {
+                newStyles.add(LineThroughTextStyle)
+            } else if (node.nameIs("span")) {
+                newStyles.addAll(analyseStyles(node.attr("style").replace(" ", "")))
+            }
+
+            for (child in node.childNodes()) {
+                collectMixed(child, newStyles)
             }
         }
     }
 
-    return components.toSingle()
+    for (child in paragraph.childNodes()) {
+        collectMixed(child, emptyList())
+    }
+    flushTexts()
+
+    return results
 }
 
 private fun resolveImageUrl(image: Element): String {
     // A non-empty placeholder src must not hide the real lazy-loaded URL.
     val baseUrl = image.baseUri().trim().ifBlank { EsjzoneUrls.Base }
-    return sequenceOf("data-src", "data-original", "data-lazy-src", "src")
+    return sequenceOf(
+        "data-src",
+        "data-original",
+        "data-lazy-src",
+        "data-actualsrc",
+        "data-url",
+        "data-origin",
+        "data-file",
+        "src"
+    )
         .mapNotNull { attribute ->
             val raw = image.attr(attribute).trim()
             if (raw.startsWith("file://", ignoreCase = true)) raw

@@ -146,6 +146,7 @@ object EsjzoneUrls {
     fun coverOrEmpty(rawUrl: String?): String {
         val value = rawUrl?.trim().orEmpty()
         if (value.isBlank()) return EmptyCover
+        if (value.startsWith("file:", ignoreCase = true)) return value
 
         // The site has used several names for its gray no-cover asset over
         // time.  Compare the URL path (rather than the complete URL) so query

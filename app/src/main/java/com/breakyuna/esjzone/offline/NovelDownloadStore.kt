@@ -136,6 +136,19 @@ object NovelDownloadStore {
         readManifest(directoryFor(novelUrl, create = false))
     }
 
+    fun findDownloadedCover(novelUrl: String): File? = synchronized(ioLock) {
+        val dir = directoryFor(novelUrl, create = false) ?: return@synchronized null
+        val direct = File(dir, "cover.jpg")
+        if (direct.isFile && direct.length() > 0L) return@synchronized direct
+        val imagesDir = File(dir, "images")
+        if (imagesDir.isDirectory) {
+            imagesDir.listFiles()
+                ?.firstOrNull { it.isFile && it.length() > 0L && it.name.startsWith("cover") }
+                ?.let { return@synchronized it }
+        }
+        null
+    }
+
     fun isDownloaded(novelUrl: String): Boolean = manifest(novelUrl)?.complete == true
 
     /**
@@ -312,7 +325,7 @@ object NovelDownloadStore {
                 fileName = fileName,
                 // Chapter files are atomically renamed. A process stopped between
                 // checkpoints can safely recover a completed file on the next run.
-                downloaded = chapterFile.isFile
+                downloaded = isChapterFullyDownloaded(directory, chapterFile)
             )
         }
 
@@ -652,11 +665,15 @@ object NovelDownloadStore {
                         .takeIf(String::isNotBlank)
                 }
                 val saved = downloadedImages.firstOrNull { component ->
-                    component.value in candidates
+                    candidates.any { candidate ->
+                        component.value == candidate ||
+                            EsjzoneUrls.resolve(candidate, baseUrl) == component.value ||
+                            EsjzoneUrls.canonicalPageKey(candidate) == EsjzoneUrls.canonicalPageKey(component.value)
+                    }
                 }
                 val localImage = saved?.localFile
                     ?.let { relative -> resolveLocalFile(novelDirectory, relative) }
-                    ?.takeIf(File::isFile)
+                    ?.takeIf { it.isFile && it.length() > 0L }
                 if (localImage != null) {
                     IMAGE_URL_ATTRIBUTES.forEach(image::removeAttr)
                     image.removeAttr("srcset")
@@ -707,64 +724,92 @@ object NovelDownloadStore {
             val imagePrefix = "image-${digest(url)}."
             val imagesDirectory = File(novelDirectory, "images")
             imagesDirectory.listFiles()
-                ?.firstOrNull { it.isFile && it.name.startsWith(imagePrefix) }
+                ?.firstOrNull { it.isFile && it.length() > 0L && it.name.startsWith(imagePrefix) }
                 ?.let { existing ->
                     return@runCatching DownloadedImage(
                         relativeName = "images/${existing.name}",
                         mediaType = mediaTypeFromUrl(existing.name)
                     )
                 }
-            val response = EsjzoneClient.downloadClient(authorization).newCall(
-                Request.Builder()
-                    .url(url)
-                    .headers(EsjzoneClient.headers)
-                    .get()
-                    .build()
-            ).execute()
-            response.use {
-                if (!it.isSuccessful) error("Image request failed with HTTP ${it.code}")
-                val body = it.body ?: error("Image response is empty")
-                val contentLength = body.contentLength()
-                if (contentLength > MAX_IMAGE_BYTES) error("Chapter image is too large")
+            val client = EsjzoneClient.downloadClient(authorization)
+            val host = runCatching { java.net.URI(url).host }.getOrNull().orEmpty()
+            val refererCandidates = listOfNotNull(
+                baseUrl?.takeIf(String::isNotBlank),
+                if (host.isNotBlank()) "https://$host/" else null,
+                null
+            ).distinct()
 
-                val mediaType = body.contentType()?.toString()?.substringBefore(';')
-                    ?.trim()
-                    ?.takeIf { value -> value.startsWith("image/") }
-                    ?: mediaTypeFromUrl(url)
-                val extension = extensionFor(mediaType, url)
-                if (!imagesDirectory.isDirectory && !imagesDirectory.mkdirs()) {
-                    error("Unable to create the chapter image directory")
-                }
-                val relativeName = "images/$imagePrefix$extension"
-                val destination = File(novelDirectory, relativeName)
-                if (!destination.isFile) {
-                    val temporary = File(imagesDirectory, "${destination.name}.tmp")
-                    try {
-                        body.byteStream().use { input ->
-                            temporary.outputStream().buffered().use { output ->
-                                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                                var total = 0L
-                                while (true) {
-                                    val count = input.read(buffer)
-                                    if (count < 0) break
-                                    total += count
-                                    if (total > MAX_IMAGE_BYTES) {
-                                        error("Chapter image is too large")
+            var lastError: Throwable? = null
+            for (referer in refererCandidates) {
+                try {
+                    val requestBuilder = Request.Builder()
+                        .url(url)
+                        .headers(EsjzoneClient.headers)
+                    if (referer != null) {
+                        requestBuilder.header("Referer", referer)
+                    }
+                    val response = client.newCall(requestBuilder.build()).execute()
+                    response.use {
+                        if (!it.isSuccessful) error("Image request failed with HTTP ${it.code}")
+                        val body = it.body ?: error("Image response is empty")
+                        val contentLength = body.contentLength()
+                        if (contentLength > MAX_IMAGE_BYTES) error("Chapter image is too large")
+
+                        val mediaType = body.contentType()?.toString()?.substringBefore(';')
+                            ?.trim()
+                            ?.takeIf { value -> value.startsWith("image/") }
+                            ?: mediaTypeFromUrl(url)
+                        val extension = extensionFor(mediaType, url)
+                        if (!imagesDirectory.isDirectory && !imagesDirectory.mkdirs()) {
+                            error("Unable to create the chapter image directory")
+                        }
+                        val relativeName = "images/$imagePrefix$extension"
+                        val destination = File(novelDirectory, relativeName)
+                        if (!destination.isFile || destination.length() == 0L) {
+                            val temporary = File(imagesDirectory, "${destination.name}.tmp")
+                            try {
+                                body.byteStream().use { input ->
+                                    temporary.outputStream().buffered().use { output ->
+                                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                                        var total = 0L
+                                        while (true) {
+                                            val count = input.read(buffer)
+                                            if (count < 0) break
+                                            total += count
+                                            if (total > MAX_IMAGE_BYTES) {
+                                                error("Chapter image is too large")
+                                            }
+                                            output.write(buffer, 0, count)
+                                        }
                                     }
-                                    output.write(buffer, 0, count)
                                 }
+                                moveReplacing(temporary, destination)
+                            } finally {
+                                if (temporary.isFile) temporary.delete()
                             }
                         }
-                        moveReplacing(temporary, destination)
-                    } finally {
-                        if (temporary.isFile) temporary.delete()
+                        return@runCatching DownloadedImage(relativeName, mediaType)
                     }
+                } catch (e: Exception) {
+                    lastError = e
                 }
-                DownloadedImage(relativeName, mediaType)
             }
+            if (lastError != null) throw lastError
+            error("Unable to download image from $url")
         }.onFailure { error ->
             AppLogger.w("NovelDownloadStore", "Unable to download a chapter image", error)
         }.getOrNull()
+    }
+
+    private fun isChapterFullyDownloaded(directory: File, chapterFile: File): Boolean {
+        if (!chapterFile.isFile || chapterFile.length() == 0L) return false
+        val content = readJson(chapterFile, DownloadedChapterContent::class.java) ?: return false
+        val images = content.components.filter { it.type == IMAGE_COMPONENT }
+        return images.all { img ->
+            val rel = img.localFile ?: return@all false
+            val file = resolveLocalFile(directory, rel)
+            file?.isFile == true && file.length() > 0L
+        }
     }
 
     private fun writeJson(file: File, value: Any) {
@@ -899,6 +944,10 @@ object NovelDownloadStore {
         "data-src",
         "data-original",
         "data-lazy-src",
+        "data-actualsrc",
+        "data-url",
+        "data-origin",
+        "data-file",
         "src"
     )
 }
