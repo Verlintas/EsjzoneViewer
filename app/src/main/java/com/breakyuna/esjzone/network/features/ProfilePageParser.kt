@@ -16,7 +16,7 @@ private val PROFILE_EXPERIENCE_PATTERN = Regex(
     "(?i)(?<![\\d\\w])([\\d,]+)\\s*(?:exp|經驗值|经验值)"
 )
 private val PROFILE_LEVEL_PATTERN = Regex(
-    "(?i)(?<![\\w])([A-Z]{1,4}\\s*[級级]\\s*(?:Lv\\.?\\s*\\d+|Max))(?![\\w])"
+    "(?i)([A-Za-z]{1,4}\\s*[級级]\\s*(?:Lv\\.?\\s*\\d+|Max))"
 )
 
 /**
@@ -60,7 +60,13 @@ internal fun profileExperience(document: Document): Int? =
         .firstOrNull()
 
 internal fun profileLevel(document: Document): String? =
-    profileCardText(document)
+    profileSelector.first(
+        document,
+        ".profile-level, [data-profile-level], [data-level], .user-level"
+    )?.text()
+        ?.trim()
+        ?.takeIf(String::isNotBlank)
+        ?: profileCardText(document)
         .mapNotNull { PROFILE_LEVEL_PATTERN.find(it)?.groupValues?.getOrNull(1) }
         .map { it.replace(Regex("\\s+"), " ").trim() }
         .firstOrNull()
