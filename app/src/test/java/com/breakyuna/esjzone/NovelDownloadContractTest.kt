@@ -75,7 +75,7 @@ class NovelDownloadContractTest {
     }
 
     @Test
-    fun downloadConcurrency_defaultsToFive() {
-        assertEquals(5, NovelDownloadStore.DEFAULT_DOWNLOAD_CONCURRENCY)
+    fun downloadConcurrency_defaultsToThree() {
+        assertEquals(3, NovelDownloadStore.DEFAULT_DOWNLOAD_CONCURRENCY)
     }
 }

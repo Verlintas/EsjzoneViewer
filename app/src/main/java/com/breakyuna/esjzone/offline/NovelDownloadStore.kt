@@ -109,12 +109,15 @@ object NovelDownloadStore {
     private const val MANIFEST_FILE = "manifest.json"
     private const val TEXT_COMPONENT = "text"
     private const val IMAGE_COMPONENT = "image"
-    const val DEFAULT_DOWNLOAD_CONCURRENCY = 5
+    const val DEFAULT_DOWNLOAD_CONCURRENCY = 3
     private const val CHAPTER_MAX_ATTEMPTS = 2
     private const val PROGRESS_THROTTLE_MS = 150L
+    private const val MANIFEST_CHECKPOINT_INTERVAL = 8
 
     private val gson = Gson()
     private val ioLock = Any()
+    /** Rebuilt on a cache miss; invalidated whenever any manifest changes. */
+    private val chapterIndex = HashMap<String, ChapterMatch>()
 
     @Volatile
     private var rootDirectory: File? = null
@@ -122,6 +125,7 @@ object NovelDownloadStore {
     fun initialize(context: Context) {
         val directory = File(context.applicationContext.filesDir, "downloaded_novels")
         if (directory.isDirectory || directory.mkdirs()) {
+            synchronized(ioLock) { chapterIndex.clear() }
             rootDirectory = directory
         } else {
             AppLogger.e("NovelDownloadStore", "Unable to create the novel download directory")
@@ -173,11 +177,13 @@ object NovelDownloadStore {
      */
     fun delete(novelUrl: String): Boolean = synchronized(ioLock) {
         val directory = directoryFor(novelUrl, create = false) ?: return@synchronized false
+        chapterIndex.clear()
         directory.deleteRecursively()
     }
 
     /** Deletes several novel download directories and returns the number removed. */
     fun deleteAll(novelUrls: Iterable<String>): Int = synchronized(ioLock) {
+        chapterIndex.clear()
         novelUrls.distinct()
             .count { url ->
                 val directory = directoryFor(url, create = false) ?: return@count false
@@ -304,7 +310,9 @@ object NovelDownloadStore {
                 name = chapter.name,
                 url = chapter.url,
                 fileName = fileName,
-                downloaded = previous?.downloaded == true && chapterFile.isFile
+                // Chapter files are atomically renamed. A process stopped between
+                // checkpoints can safely recover a completed file on the next run.
+                downloaded = chapterFile.isFile
             )
         }
 
@@ -338,61 +346,77 @@ object NovelDownloadStore {
             val semaphore = Semaphore(concurrency.coerceAtLeast(1))
             val failedErrors = ConcurrentLinkedQueue<Throwable>()
 
-            supervisorScope {
-                pendingChapters.forEach { record ->
-                    launch(Dispatchers.IO) {
-                        semaphore.withPermit {
-                            currentCoroutineContext().ensureActive()
-                            reportProgress(record.name)
-
-                            var attempt = 0
-                            var success = false
-                            var lastError: Throwable? = null
-
-                            while (attempt < CHAPTER_MAX_ATTEMPTS && !success) {
+            try {
+                supervisorScope {
+                    pendingChapters.forEach { record ->
+                        launch(Dispatchers.IO) {
+                            semaphore.withPermit {
                                 currentCoroutineContext().ensureActive()
-                                attempt++
-                                try {
-                                    downloadSingleChapter(
-                                        authorization = authorization,
-                                        record = record,
-                                        directory = directory,
-                                        baseUrl = baseUrl
-                                    )
-                                    success = true
-                                } catch (ce: CancellationException) {
-                                    throw ce
-                                } catch (error: Throwable) {
-                                    lastError = error
-                                    if (attempt < CHAPTER_MAX_ATTEMPTS) {
-                                        delay(500L * attempt)
+                                reportProgress(record.name)
+
+                                var attempt = 0
+                                var success = false
+                                var lastError: Throwable? = null
+
+                                while (attempt < CHAPTER_MAX_ATTEMPTS && !success) {
+                                    currentCoroutineContext().ensureActive()
+                                    attempt++
+                                    try {
+                                        downloadSingleChapter(
+                                            authorization = authorization,
+                                            record = record,
+                                            directory = directory,
+                                            baseUrl = baseUrl
+                                        )
+                                        success = true
+                                    } catch (ce: CancellationException) {
+                                        throw ce
+                                    } catch (error: Throwable) {
+                                        lastError = error
+                                        if (attempt < CHAPTER_MAX_ATTEMPTS) {
+                                            delay(500L * attempt)
+                                        }
                                     }
                                 }
-                            }
 
-                            if (success) {
-                                val finished = completedCounter.incrementAndGet()
-                                synchronized(ioLock) {
-                                    currentRecords[record.index] = record.copy(downloaded = true)
-                                    currentManifest = manifestFrom(
-                                        novel = novel,
-                                        records = currentRecords.toList(),
-                                        downloadedAt = System.currentTimeMillis(),
-                                        complete = finished == totalCount
+                                if (success) {
+                                    val finished = completedCounter.incrementAndGet()
+                                    synchronized(ioLock) {
+                                        currentRecords[record.index] = record.copy(downloaded = true)
+                                        if (finished % MANIFEST_CHECKPOINT_INTERVAL == 0 ||
+                                            finished == totalCount) {
+                                            currentManifest = manifestFrom(
+                                                novel = novel,
+                                                records = currentRecords.toList(),
+                                                downloadedAt = System.currentTimeMillis(),
+                                                complete = finished == totalCount
+                                            )
+                                            writeManifest(directory, currentManifest)
+                                        }
+                                    }
+                                    reportProgress(record.name)
+                                } else {
+                                    AppLogger.w(
+                                        "NovelDownloadStore",
+                                        "Chapter download failed after $attempt attempts: ${record.name} (${record.url})",
+                                        lastError
                                     )
-                                    writeManifest(directory, currentManifest)
+                                    lastError?.let { failedErrors.add(it) }
                                 }
-                                reportProgress(record.name)
-                            } else {
-                                AppLogger.w(
-                                    "NovelDownloadStore",
-                                    "Chapter download failed after $attempt attempts: ${record.name} (${record.url})",
-                                    lastError
-                                )
-                                lastError?.let { failedErrors.add(it) }
                             }
                         }
                     }
+                }
+            } finally {
+                // Cancellation and partial failure must still publish completed chapters.
+                synchronized(ioLock) {
+                    currentManifest = manifestFrom(
+                        novel = novel,
+                        records = currentRecords.toList(),
+                        downloadedAt = System.currentTimeMillis(),
+                        complete = completedCounter.get() == totalCount
+                    )
+                    writeManifest(directory, currentManifest)
                 }
             }
 
@@ -595,17 +619,19 @@ object NovelDownloadStore {
 
     private fun findChapter(chapterUrl: String): ChapterMatch? {
         val target = chapterKey(chapterUrl)
+        chapterIndex[target]?.let { return it }
         rootDirectory?.listFiles()
             ?.asSequence()
             ?.filter(File::isDirectory)
             ?.forEach { directory ->
                 val manifest = readManifest(directory) ?: return@forEach
-                val record = manifest.chapters.firstOrNull {
-                    it.downloaded && chapterKey(it.url) == target
-                } ?: return@forEach
-                return ChapterMatch(directory, manifest, record)
+                manifest.chapters.filter { it.downloaded }.forEach { record ->
+                    chapterIndex.putIfAbsent(
+                        chapterKey(record.url), ChapterMatch(directory, manifest, record)
+                    )
+                }
             }
-        return null
+        return chapterIndex[target]
     }
 
     private fun restoreComponents(
@@ -666,6 +692,7 @@ object NovelDownloadStore {
 
     private fun writeManifest(directory: File, manifest: DownloadedNovelManifest) {
         writeJson(File(directory, MANIFEST_FILE), manifest)
+        chapterIndex.clear()
     }
 
     private fun downloadImage(

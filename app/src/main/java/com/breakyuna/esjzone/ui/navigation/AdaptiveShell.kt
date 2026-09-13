@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -45,6 +46,7 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +63,8 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -98,6 +102,8 @@ import com.breakyuna.esjzone.ui.designsystem.glass.rememberAppGlassScene
  * floating glass islands so terminal list items are never blocked.
  */
 val LocalFloatingNavPadding = compositionLocalOf { PaddingValues(0.dp) }
+/** Root tab content can yield the floating island to an edit surface or modal. */
+val LocalFloatingNavSuppression = compositionLocalOf<(Boolean) -> Unit> { {} }
 
 private enum class AppTabId(
     val route: AppNavKey,
@@ -130,6 +136,7 @@ fun AdaptiveAppShell(
     var selectedTab by rememberSaveable { mutableStateOf(AppTabId.HOME.name) }
     val widthSizeClass = currentWindowAdaptiveInfoV2().windowSizeClass.windowWidthSizeClass
     val navigationGlassScene = rememberAppGlassScene()
+    val suppressedTabs = remember { mutableStateMapOf<AppTabId, Boolean>() }
     val tab = AppTabId.valueOf(selectedTab)
     val focusManager = LocalFocusManager.current
     val homeNavigator = remember(homeStack, rootNavigator) { rootNavigator.child(homeStack) }
@@ -148,7 +155,7 @@ fun AdaptiveAppShell(
     }
     // A tab bar is a root-level control, not a child-page overlay. Keeping it off a pushed
     // destination prevents a second navigation hierarchy from appearing above detail pages.
-    val showFloatingNavigation = selectedStack.lastOrNull() == tab.route
+    val showFloatingNavigation = selectedStack.lastOrNull() == tab.route && suppressedTabs[tab] != true
 
     val floatingNavPadding = when (widthSizeClass) {
         WindowWidthSizeClass.COMPACT -> PaddingValues(bottom = 96.dp)
@@ -169,6 +176,7 @@ fun AdaptiveAppShell(
                 ) {
                     TabStacksDisplay(
                         selected = tab,
+                        suppressionState = suppressedTabs,
                         homeStack = homeStack,
                         homeNavigator = homeNavigator,
                         historyStack = historyStack,
@@ -205,6 +213,7 @@ fun AdaptiveAppShell(
                 ) {
                     TabStacksDisplay(
                         selected = tab,
+                        suppressionState = suppressedTabs,
                         homeStack = homeStack,
                         homeNavigator = homeNavigator,
                         historyStack = historyStack,
@@ -249,6 +258,7 @@ private fun shellSafeDrawing(top: Boolean, bottom: Boolean): WindowInsets {
 @Composable
 private fun TabStacksDisplay(
     selected: AppTabId,
+    suppressionState: MutableMap<AppTabId, Boolean>,
     homeStack: MutableList<NavKey>,
     homeNavigator: AppNavigator,
     historyStack: MutableList<NavKey>,
@@ -264,6 +274,8 @@ private fun TabStacksDisplay(
     // selected display is placed above the others for input and rendering.
     androidx.compose.foundation.layout.Box(modifier) {
         TabStackDisplay(
+            tabId = AppTabId.HOME,
+            suppressionState = suppressionState,
             stack = homeStack,
             active = selected == AppTabId.HOME,
             navigator = homeNavigator,
@@ -271,9 +283,12 @@ private fun TabStacksDisplay(
                 .fillMaxSize()
                 .zIndex(if (selected == AppTabId.HOME) 1f else -1f)
                 .graphicsLayer { alpha = if (selected == AppTabId.HOME) 1f else 0f }
+                .blockInactiveTabInput(selected == AppTabId.HOME)
                 .then(if (selected != AppTabId.HOME) Modifier.clearAndSetSemantics { } else Modifier)
         )
         TabStackDisplay(
+            tabId = AppTabId.HISTORY,
+            suppressionState = suppressionState,
             stack = historyStack,
             active = selected == AppTabId.HISTORY,
             navigator = historyNavigator,
@@ -281,9 +296,12 @@ private fun TabStacksDisplay(
                 .fillMaxSize()
                 .zIndex(if (selected == AppTabId.HISTORY) 1f else -1f)
                 .graphicsLayer { alpha = if (selected == AppTabId.HISTORY) 1f else 0f }
+                .blockInactiveTabInput(selected == AppTabId.HISTORY)
                 .then(if (selected != AppTabId.HISTORY) Modifier.clearAndSetSemantics { } else Modifier)
         )
         TabStackDisplay(
+            tabId = AppTabId.BOOKSHELF,
+            suppressionState = suppressionState,
             stack = bookshelfStack,
             active = selected == AppTabId.BOOKSHELF,
             navigator = bookshelfNavigator,
@@ -291,9 +309,12 @@ private fun TabStacksDisplay(
                 .fillMaxSize()
                 .zIndex(if (selected == AppTabId.BOOKSHELF) 1f else -1f)
                 .graphicsLayer { alpha = if (selected == AppTabId.BOOKSHELF) 1f else 0f }
+                .blockInactiveTabInput(selected == AppTabId.BOOKSHELF)
                 .then(if (selected != AppTabId.BOOKSHELF) Modifier.clearAndSetSemantics { } else Modifier)
         )
         TabStackDisplay(
+            tabId = AppTabId.PROFILE,
+            suppressionState = suppressionState,
             stack = profileStack,
             active = selected == AppTabId.PROFILE,
             navigator = profileNavigator,
@@ -301,13 +322,25 @@ private fun TabStacksDisplay(
                 .fillMaxSize()
                 .zIndex(if (selected == AppTabId.PROFILE) 1f else -1f)
                 .graphicsLayer { alpha = if (selected == AppTabId.PROFILE) 1f else 0f }
+                .blockInactiveTabInput(selected == AppTabId.PROFILE)
                 .then(if (selected != AppTabId.PROFILE) Modifier.clearAndSetSemantics { } else Modifier)
         )
     }
 }
 
+/** Invisible, retained tab trees must never receive a pointer that missed the active tab. */
+private fun Modifier.blockInactiveTabInput(active: Boolean): Modifier = pointerInput(active) {
+    if (!active) awaitPointerEventScope {
+        while (true) {
+            awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+        }
+    }
+}
+
 @Composable
 private fun TabStackDisplay(
+    tabId: AppTabId,
+    suppressionState: MutableMap<AppTabId, Boolean>,
     stack: MutableList<NavKey>,
     active: Boolean,
     navigator: AppNavigator,
@@ -319,8 +352,12 @@ private fun TabStackDisplay(
         maxLifecycle = if (active) Lifecycle.State.RESUMED else Lifecycle.State.CREATED
     )
     val dispatcherOwner = rememberNavigationEventDispatcherOwner(enabled = active)
+    val suppressNavigation = remember(tabId, suppressionState) {
+        { suppressed: Boolean -> suppressionState[tabId] = suppressed }
+    }
     CompositionLocalProvider(
         LocalBaseNavigator provides navigator,
+        LocalFloatingNavSuppression provides suppressNavigation,
         LocalLifecycleOwner provides lifecycleOwner,
         LocalNavigationEventDispatcherOwner provides dispatcherOwner
     ) {
@@ -359,7 +396,12 @@ private fun AppNavigationBar(
         scene = glassScene,
         selectedFraction = (selected.ordinal + 0.5f) / AppTabId.entries.size,
         itemCount = AppTabId.entries.size,
-        modifier = modifier.fillMaxWidth()
+        // The entire visible capsule owns its touch area. Empty slots cannot activate a card below.
+        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)).clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = {}
+        )
     ) {
         Row(
             modifier = Modifier
@@ -398,7 +440,11 @@ private fun AppSideNavigationBar(
         scene = glassScene,
         selectedFraction = (selected.ordinal + 0.5f) / AppTabId.entries.size,
         itemCount = AppTabId.entries.size,
-        modifier = modifier.wrapContentSize(),
+        modifier = modifier.wrapContentSize().clip(RoundedCornerShape(percent = 50)).clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = {}
+        ),
         vertical = true
     ) {
         Column(

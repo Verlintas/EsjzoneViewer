@@ -101,6 +101,8 @@ URL：/detail/{novelId}.html
 | 章节排序按钮 | #integration button 中的 正序/倒序 文案 |
 | 内容标签 | .widget-tags a, .widget-tags a.tag, a.tag[href*="/tags/"] |
 
+详情页以 `.book-detail h2` 的实际标题为书名；仅在标题缺失时沿用列表入口的书名，避免导航恢复后把数字 ID 写入阅读历史。
+
 详情样本的 button.btn-favorite 文案为 已收藏，类名含 btn-danger；这是当前用户状态，不是通用默认值。
 内容标签容器为 .widget.widget-tags（页面分别在移动端 .widget-tags.hidden-lg-up 与桌面侧栏呈现相同标签），每个标签链接为 a.tag[href^="/tags/"]；解析器去重后得到完整标签列表。包含 R18 标签时作为小说成人内容标识。
 

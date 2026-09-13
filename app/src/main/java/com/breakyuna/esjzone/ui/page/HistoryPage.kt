@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavPadding
+import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavSuppression
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -118,6 +120,11 @@ object HistoryPage : AppDestination {
         var localSelected by remember { mutableStateOf<Set<String>>(emptySet()) }
         var pendingLocalDelete by remember { mutableStateOf<Set<String>>(emptySet()) }
         var showLocalDeleteDialog by remember { mutableStateOf(false) }
+        val suppressFloatingNav = LocalFloatingNavSuppression.current
+        DisposableEffect(localEditing, showLocalDeleteDialog, suppressFloatingNav) {
+            suppressFloatingNav(localEditing || showLocalDeleteDialog)
+            onDispose { suppressFloatingNav(false) }
+        }
         val pager = rememberPagerState(initialPage = 0, pageCount = { 2 })
 
         val localRows = (localState as? LocalHistoryPageModel.State.Result)
@@ -299,7 +306,8 @@ private fun LocalHistoryContent(
                                         history = ChapterStateHolder(chapter),
                                         novelName = activity.novelName,
                                         novelUrl = activity.novelUrl,
-                                        novelCoverUrl = activity.novelCoverUrl
+                                        novelCoverUrl = activity.novelCoverUrl,
+                                        resumeChapterProgress = activity.chapterProgress
                                     ))
                                 }
                             },

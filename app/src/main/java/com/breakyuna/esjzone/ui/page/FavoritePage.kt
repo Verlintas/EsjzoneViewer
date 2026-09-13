@@ -52,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
@@ -74,6 +75,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavPadding
+import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavSuppression
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.database.BookshelfRepository
@@ -138,6 +140,11 @@ object FavoritePage : AppDestination {
         var lastSyncFailed by rememberSaveable { mutableStateOf(false) }
         var showSyncStatusMenu by remember { mutableStateOf(false) }
         var showSortMenu by remember { mutableStateOf(false) }
+        val suppressFloatingNav = LocalFloatingNavSuppression.current
+        DisposableEffect(editing, showDeleteDialog, suppressFloatingNav) {
+            suppressFloatingNav(editing || showDeleteDialog)
+            onDispose { suppressFloatingNav(false) }
+        }
 
         val visible = remember(entries, adult) { entries.filter { adult || !it.isAdult } }
         // The repository stream is intentionally kept in recent-read order so

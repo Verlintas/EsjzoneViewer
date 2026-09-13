@@ -30,7 +30,9 @@ fun EsjzoneClient.getNovelDetail(
         ?: EsjzoneUrls.resolve(novel.url)
     val detailCacheKey = novelDetailCacheKey(authorization, targetUrl)
     if (!includeComments && !forceRefresh) {
-        NovelDetailCache.read(detailCacheKey)?.let { return it }
+        NovelDetailCache.read(detailCacheKey)?.takeIf { cached ->
+            cached.name.isNotBlank() && !cached.name.all(Char::isDigit)
+        }?.let { return it }
     }
 
     AppLogger.i("GetNovelDetail", "Fetching novel detail: ${novel.name} at $targetUrl")
@@ -67,6 +69,8 @@ fun EsjzoneClient.getNovelDetail(
     val words = wordsStr.replace(",", "").replace(Regex("[^0-9]"), "").toIntOrNull() ?: 0
 
     val detailInfo = document.selectFirst(".book-detail")
+    val resolvedName = detailSelector.first(document, ".book-detail h2")?.text()?.trim()
+        ?.takeIf(String::isNotBlank) ?: novel.name
     val type = detailInfo?.let {
         detailSelector.first(it, "ul li[data-field='type'], ul li")?.text()
     }
@@ -128,7 +132,7 @@ fun EsjzoneClient.getNovelDetail(
     }
 
     val detailedNovel = DetailedNovel(
-        novel.name,
+        resolvedName,
         novel.url,
         coverUrl,
         views,

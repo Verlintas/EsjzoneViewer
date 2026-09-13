@@ -96,6 +96,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
@@ -135,7 +136,9 @@ class ChapterPage(
     private val chapterOrder: List<Chapter> = emptyList(),
     private val novelName: String = "",
     private val novelUrl: String = "",
-    private val novelCoverUrl: String = ""
+    private val novelCoverUrl: String = "",
+    private val resumeChapterProgress: Float? = null,
+    private val restoreFromLocalHistory: Boolean = false
 ) : AppDestination {
 
     override val isReaderDestination: Boolean = true
@@ -219,6 +222,31 @@ class ChapterPage(
         var progressPreview by remember { mutableStateOf<ReaderBookLocation?>(null) }
         var progressReturnLocation by remember { mutableStateOf<ReaderBookLocation?>(null) }
         var pendingSeekLocation by remember { mutableStateOf<ReaderBookLocation?>(null) }
+        var resolvedResumeProgress by remember(chapter.url) { mutableStateOf(resumeChapterProgress) }
+        var restoreLookupPending by remember(chapter.url) { mutableStateOf(restoreFromLocalHistory) }
+        // Do not save the initial zero position before the stored location is restored.
+        var resumePending by remember(chapter.url, resumeChapterProgress, restoreFromLocalHistory) {
+            mutableStateOf(resumeChapterProgress != null || restoreFromLocalHistory)
+        }
+        LaunchedEffect(restoreFromLocalHistory, novelId, chapter.url) {
+            if (!restoreFromLocalHistory) return@LaunchedEffect
+            try {
+                val saved = withContext(Dispatchers.IO) {
+                    PresentationAccess.database.localReadingActivityDao()
+                        .getLatestForNovel(novelId)
+                }
+                resolvedResumeProgress = saved?.takeIf { activity ->
+                    EsjzoneUrls.canonicalPageKey(activity.chapterUrl) ==
+                        EsjzoneUrls.canonicalPageKey(chapter.url)
+                }?.chapterProgress
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                AppLogger.w("ChapterPage", "Unable to restore local reading position", error)
+            } finally {
+                restoreLookupPending = false
+            }
+        }
         var isBookProgressDragging by remember { mutableStateOf(false) }
         var isProgrammaticScroll by remember { mutableStateOf(false) }
 
@@ -426,7 +454,8 @@ class ChapterPage(
             )
         )
         LaunchedEffect(localHistoryActivityId) {
-            snapshotFlow { localHistoryPosition.value }
+            snapshotFlow { if (resumePending) null else localHistoryPosition.value }
+                .filterNotNull()
                 .distinctUntilChanged()
                 .debounce(750)
                 .collect { position ->
@@ -440,12 +469,14 @@ class ChapterPage(
         }
         DisposableEffect(localHistoryActivityId) {
             onDispose {
-                LocalReadingHistoryRecorder.upsert(
-                    localHistoryPosition.value.toLocalReadingActivity(
-                        activityId = localHistoryActivityId,
-                        startedAt = localHistoryStartedAt
+                if (!resumePending) {
+                    LocalReadingHistoryRecorder.upsert(
+                        localHistoryPosition.value.toLocalReadingActivity(
+                            activityId = localHistoryActivityId,
+                            startedAt = localHistoryStartedAt
+                        )
                     )
-                )
+                }
             }
         }
         val displayedBookProgress = if (isBookProgressDragging) {
@@ -531,6 +562,24 @@ class ChapterPage(
             }
         }
 
+        LaunchedEffect(resolvedResumeProgress, restoreLookupPending, result?.chapters) {
+            if (!resumePending || pendingSeekLocation != null) return@LaunchedEffect
+            if (restoreLookupPending) return@LaunchedEffect
+            val restored = resolvedResumeProgress ?: run {
+                resumePending = false
+                return@LaunchedEffect
+            }
+            val current = result?.chapters?.firstOrNull {
+                sameReaderChapter(it.chapter, chapter)
+            }?.chapter ?: return@LaunchedEffect
+            pendingSeekLocation = ReaderBookLocation(
+                chapter = current,
+                chapterIndex = 0,
+                chapterProgress = restored.coerceIn(0f, 1f),
+                totalChapters = 1
+            )
+        }
+
         LaunchedEffect(pendingSeekLocation?.chapter?.url, result?.chapters) {
             val target = pendingSeekLocation ?: return@LaunchedEffect
             val targetIndex = result?.chapters?.indexOfFirst {
@@ -561,10 +610,12 @@ class ChapterPage(
                 isProgrammaticScroll = false
             }
             pendingSeekLocation = null
+            resumePending = false
         }
 
         fun openTargetChapter(target: Chapter) {
             pendingSeekLocation = null
+            resumePending = false
             suppressPreviousBootstrapFor = chapterIdentity(target)
             chapterPageModel.openChapter(target)
             scope.launch(Dispatchers.Main) {

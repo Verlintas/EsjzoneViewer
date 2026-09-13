@@ -393,7 +393,8 @@ private fun ReaderRoute.restore(): AppDestination = ChapterPage(
     novelUrl = novelId.takeIf { it.isNotBlank() }
         ?.let { EsjzoneUrls.resolve("/detail/$it.html") }
         .orEmpty(),
-    novelCoverUrl = ""
+    novelCoverUrl = "",
+    restoreFromLocalHistory = true
 )
 
 private fun LegacyRoute.restore(): AppDestination? = when (this) {

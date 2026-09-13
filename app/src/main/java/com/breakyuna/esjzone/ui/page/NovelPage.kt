@@ -91,6 +91,7 @@ import com.breakyuna.esjzone.ui.navigation.rememberAppViewModel
 import com.breakyuna.esjzone.ui.navigation.AppDestination
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.database.BookshelfRepository
+import com.breakyuna.esjzone.database.entity.LocalReadingActivity
 import com.breakyuna.esjzone.database.entity.BookshelfSyncState
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneUrls
@@ -254,6 +255,28 @@ class NovelPage(
                 is NovelPageModel.State.Result -> {
                     val detailed = snapshot.detailed
                     val chapterList = detailed.chapterList
+                    val localReading by remember(detailed.id(), detailed.url) {
+                        PresentationAccess.database.localReadingActivityDao()
+                            .observeLatestForIdentity(detailed.id(), detailed.url)
+                    }.collectAsState(initial = null)
+                    LaunchedEffect(localReading?.activityId, localReading?.novelName, detailed.name) {
+                        val activity = localReading ?: return@LaunchedEffect
+                        if (detailed.name.isNotBlank() && detailed.name != activity.novelId &&
+                            detailed.name != activity.chapterName &&
+                            (activity.novelName.isBlank() || activity.novelName == activity.novelId ||
+                                activity.novelName == activity.chapterName)) {
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    PresentationAccess.database.localReadingActivityDao()
+                                        .updateName(activity.activityId, detailed.name)
+                                }
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (error: Exception) {
+                                AppLogger.w("NovelPage", "Unable to repair local history title", error)
+                            }
+                        }
+                    }
                     val historyState = history.state()
                     val hasHistory = rememberSaveable(novel.url) {
                         mutableStateOf(chapterList.hasHistory)
@@ -278,13 +301,13 @@ class NovelPage(
                         historyState.value != null
                     }
 
-                    LaunchedEffect(chapterList) {
+                    LaunchedEffect(chapterList, localReading) {
                         if (historyState.value == null) historyState.value = chapterList.toRead
                         // A first chapter chosen as the default target is not
                         // a resume marker. Only server history or a chapter
                         // explicitly supplied by the source task means
                         // "Continue reading".
-                        hasHistory.value = chapterList.hasHistory || hasExplicitHistory
+                        hasHistory.value = chapterList.hasHistory || hasExplicitHistory || localReading != null
                     }
 
                     LaunchedEffect(detailed.isFavorite, localShelfEntry?.operationVersion) {
@@ -310,6 +333,7 @@ class NovelPage(
                         authorization = authorization,
                         history = history,
                         historyState = historyState,
+                        localReading = localReading,
                         hasHistory = hasHistory,
                         onExportTxt = {
                             txtLauncher.launch(NovelExporter.suggestedFileName(detailed.name, "txt"))
@@ -376,6 +400,7 @@ private fun NovelDetailContent(
     authorization: Authorization,
     history: ChapterStateHolder,
     historyState: androidx.compose.runtime.MutableState<com.breakyuna.esjzone.novellibrary.novel.Chapter?>,
+    localReading: LocalReadingActivity?,
     hasHistory: androidx.compose.runtime.MutableState<Boolean>,
     onExportTxt: () -> Unit,
     onExportEpub: () -> Unit,
@@ -395,7 +420,13 @@ private fun NovelDetailContent(
     modifier: Modifier = Modifier
 ) {
     val orderedChapters = detailed.chapterList.orderedChapters
-    val targetChapter = historyState.value ?: detailed.chapterList.toRead
+    val localChapter = localReading?.let { activity ->
+        orderedChapters.firstOrNull {
+            EsjzoneUrls.canonicalPageKey(it.url) == EsjzoneUrls.canonicalPageKey(activity.chapterUrl)
+        } ?: activity.chapterUrl.takeIf { it.isNotBlank() }
+            ?.let { Chapter(activity.chapterName, it, true) }
+    }
+    val targetChapter = localChapter ?: historyState.value ?: detailed.chapterList.toRead
     val metrics = rememberAppAdaptiveMetrics()
     var hasVisualOverflow by remember(detailed.description) {
         mutableStateOf(false)
@@ -483,7 +514,11 @@ private fun NovelDetailContent(
                                             chapterOrder = orderedChapters,
                                             novelName = detailed.name,
                                             novelUrl = detailed.url,
-                                            novelCoverUrl = detailed.coverUrl
+                                            novelCoverUrl = detailed.coverUrl,
+                                            resumeChapterProgress = localReading?.chapterProgress
+                                                ?.takeIf { localChapter != null &&
+                                                    EsjzoneUrls.canonicalPageKey(chapter.url) ==
+                                                    EsjzoneUrls.canonicalPageKey(localChapter.url) }
                                         )
                                     )
                                 }
