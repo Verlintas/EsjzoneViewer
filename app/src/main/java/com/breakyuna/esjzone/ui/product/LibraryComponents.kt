@@ -55,7 +55,7 @@ fun DownloadItem(
         shape = AppShapes.standard,
         colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised)
     ) {
-        Row(Modifier.padding(AppSpacing.md), horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(AppSpacing.md), horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), verticalAlignment = Alignment.Top) {
             AppCoverImage(item.cover.model, item.cover.contentDescription, Modifier.size(width = 64.dp, height = 88.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                 Text(item.title, style = AppTypography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -87,7 +87,7 @@ fun HistoryItem(item: HistoryItemModel, modifier: Modifier = Modifier, onClick: 
         modifier = modifier.fillMaxWidth().semantics { if (onClick != null) role = Role.Button },
         colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised)
     ) {
-        Row(Modifier.padding(AppSpacing.md), horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(AppSpacing.md), horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), verticalAlignment = Alignment.Top) {
             AppCoverImage(item.cover.model, item.cover.contentDescription, Modifier.size(width = 64.dp, height = 88.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                 Text(item.title, style = AppTypography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)

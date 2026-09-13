@@ -75,6 +75,10 @@
     <string name="bookshelf_filter_downloaded">Downloaded</string>
     <string name="bookshelf_filter_updates">Updates</string>
     <string name="bookshelf_order_automatic">Automatic order</string>
+    <string name="bookshelf_sort">Sort bookshelf</string>
+    <string name="bookshelf_sort_recent_read">Recently read</string>
+    <string name="bookshelf_sort_recent_added">Recently added</string>
+    <string name="bookshelf_sort_recent_updated">Recently updated</string>
     <string name="bookshelf_selected_header">%1$d selected</string>
     <string name="bookshelf_total_header">/ %1$d total</string>
     <string name="bookshelf_empty">Your bookshelf is empty</string>
@@ -191,6 +195,15 @@
     <string name="history_search_placeholder">Search by novel or chapter</string>
     <string name="history_search_empty">No history matches this search</string>
     <string name="history_local_clear">Clear local history</string>
+    <string name="history_local_edit">Edit local history</string>
+    <string name="history_local_edit_done">Done editing</string>
+    <string name="history_local_select_all">Select all local records</string>
+    <string name="history_local_delete_selected">Delete selected records</string>
+    <string name="history_local_selected">%1$d selected</string>
+    <string name="history_local_delete_title">Delete %1$d local record(s)?</string>
+    <string name="history_local_delete_confirm">Deleted records cannot be recovered. Bookshelf, cloud history, downloads, and bookmarks are not affected.</string>
+    <string name="history_local_delete_confirm_action">Delete records</string>
+    <string name="history_cloud_sync">Sync cloud history</string>
     <string name="history_local_delete">Delete local record</string>
     <string name="history_local_position">Chapter %1$d/%2$d · %3$d%%</string>
     <string name="history_local_percent">%1$d%% of chapter</string>
@@ -199,6 +212,8 @@
     <string name="history_local_duration_minutes">%1$d min</string>
     <string name="history_local_duration_seconds">%1$d sec</string>
     <string name="profile_signed_in">Signed in to ESJ Zone</string>
+    <string name="profile_experience">Experience %1$d</string>
+    <string name="profile_level">Level %1$s</string>
     <string name="profile_favorites_description">Manage saved novels and bookmarks</string>
     <string name="profile_history_description">Pick up where you left off reading</string>
     <string name="downloads">Downloads</string>
@@ -341,6 +356,7 @@
     <string name="forum_reply_count">Replies %1$d</string>
     <string name="forum_view_count">Views %1$d</string>
     <string name="guestbook">Message Board</string>
+    <string name="home_water_cooler">Watering hole</string>
     <string name="comments">Comments</string>
     <string name="comments_empty">No comments yet</string>
     <string name="reader_settings">Reader settings</string>

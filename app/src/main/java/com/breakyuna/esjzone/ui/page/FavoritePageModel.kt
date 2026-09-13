@@ -25,6 +25,9 @@ class FavoritePageModel(private val authorization: Authorization) :
     AppStateViewModel<FavoritePageModel.State>(State.Idle) {
     val entries = BookshelfRepository.observe(authorization)
 
+    /** Full local reading timestamps used only for the optional shelf order. */
+    val readingActivities = PresentationAccess.database.localReadingActivityDao().observeAll()
+
     /** Presence only: entries already reactively sort by lastReadAt in BookshelfRepository. */
     data class ReadingIndex(
         val novelIds: Set<String> = emptySet(),

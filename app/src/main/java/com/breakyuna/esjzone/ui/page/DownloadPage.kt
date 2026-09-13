@@ -243,7 +243,7 @@ private fun DownloadCard(
             .then(if (editing && !deleting) Modifier.clickable { onToggle() } else Modifier)
             .semantics { if (editing) role = Role.Button }
             .padding(AppSpacing.md),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {
         if (editing) Checkbox(checked = selected, onCheckedChange = { onToggle() }, enabled = !deleting)

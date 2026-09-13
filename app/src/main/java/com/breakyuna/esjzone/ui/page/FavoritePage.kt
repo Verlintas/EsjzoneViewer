@@ -32,12 +32,14 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,6 +77,7 @@ import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavPadding
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.database.BookshelfRepository
+import com.breakyuna.esjzone.database.BookshelfSort
 import com.breakyuna.esjzone.database.entity.BookshelfEntry
 import com.breakyuna.esjzone.network.LocalAuthorization
 import com.breakyuna.esjzone.network.LoadFailureKind
@@ -97,6 +100,12 @@ private enum class BookshelfFilter {
     UPDATES
 }
 
+private fun BookshelfSort.Order.labelRes(): Int = when (this) {
+    BookshelfSort.Order.RECENT_READ -> R.string.bookshelf_sort_recent_read
+    BookshelfSort.Order.RECENT_ADDED -> R.string.bookshelf_sort_recent_added
+    BookshelfSort.Order.RECENT_UPDATED -> R.string.bookshelf_sort_recent_updated
+}
+
 /** Local-first bookshelf. Room is the only rendered source; sync is additive. */
 object FavoritePage : AppDestination {
     private fun readResolve(): Any = FavoritePage
@@ -111,6 +120,7 @@ object FavoritePage : AppDestination {
         val authorization = LocalAuthorization.current
         val model = rememberAppViewModel { FavoritePageModel(authorization) }
         val entries by model.entries.collectAsState(initial = emptyList())
+        val readingActivities by model.readingActivities.collectAsState(initial = emptyList())
         val readingIndex by model.readingIndex.collectAsState(initial = FavoritePageModel.ReadingIndex())
         val downloaded by model.downloadedBookKeys.collectAsState()
         val syncState by model.state.collectAsState()
@@ -120,26 +130,32 @@ object FavoritePage : AppDestination {
         val listState = rememberLazyListState()
         var editing by rememberSaveable { mutableStateOf(false) }
         var activeFilter by rememberSaveable { mutableStateOf(BookshelfFilter.ALL) }
+        var activeSort by rememberSaveable { mutableStateOf(BookshelfSort.Order.RECENT_READ) }
         var listView by rememberSaveable { mutableStateOf(false) }
         var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
         var pendingDelete by remember { mutableStateOf<List<BookshelfEntry>>(emptyList()) }
         var showDeleteDialog by remember { mutableStateOf(false) }
         var lastSyncFailed by rememberSaveable { mutableStateOf(false) }
         var showSyncStatusMenu by remember { mutableStateOf(false) }
+        var showSortMenu by remember { mutableStateOf(false) }
 
         val visible = remember(entries, adult) { entries.filter { adult || !it.isAdult } }
-        val shown = remember(visible, downloaded, activeFilter) {
+        // The repository stream is intentionally kept in recent-read order so
+        // the showcase remains stable when the list order is changed below.
+        val recentReads = remember(visible, readingIndex) {
+            visible.asSequence().filter { it in readingIndex }.take(4).toList()
+        }
+        val sortedVisible = remember(visible, readingActivities, activeSort) {
+            BookshelfSort.sort(visible, readingActivities, { url -> BookshelfRepository.keyFor(url) }, activeSort)
+        }
+        val shown = remember(sortedVisible, downloaded, activeFilter) {
             when (activeFilter) {
-                BookshelfFilter.ALL -> visible
-                BookshelfFilter.DOWNLOADED -> visible.filter { it.bookKey in downloaded }
-                BookshelfFilter.UPDATES -> visible.filter { it.hasUpdate }
+                BookshelfFilter.ALL -> sortedVisible
+                BookshelfFilter.DOWNLOADED -> sortedVisible.filter { it.bookKey in downloaded }
+                BookshelfFilter.UPDATES -> sortedVisible.filter { it.hasUpdate }
             }
         }
         val visibleKeys = remember(shown) { shown.mapTo(LinkedHashSet()) { it.bookKey } }
-        // Filter before taking four so hidden/adult/filtered books do not leave empty slots.
-        val recentReads = remember(shown, readingIndex) {
-            shown.asSequence().filter { it in readingIndex }.take(4).toList()
-        }
         val syncing = syncState is FavoritePageModel.State.Syncing
         val deleting = deleteState is FavoritePageModel.DeleteState.Deleting
         val isSyncFailed = syncState is FavoritePageModel.State.Failed || (lastSyncFailed && syncState !is FavoritePageModel.State.Completed)
@@ -416,6 +432,34 @@ object FavoritePage : AppDestination {
                                     label = { Text(stringResource(R.string.bookshelf_filter_updates)) },
                                     modifier = Modifier.padding(start = AppSpacing.sm)
                                 )
+                                Box {
+                                    IconButton(
+                                        onClick = { showSortMenu = true },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Sort,
+                                            contentDescription = stringResource(R.string.bookshelf_sort)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showSortMenu,
+                                        onDismissRequest = { showSortMenu = false }
+                                    ) {
+                                        BookshelfSort.Order.values().forEach { order ->
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(order.labelRes())) },
+                                                onClick = {
+                                                    activeSort = order
+                                                    showSortMenu = false
+                                                },
+                                                leadingIcon = {
+                                                    if (activeSort == order) Icon(Icons.Filled.Check, null)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                             }
                             if (!editing && recentReads.isNotEmpty()) {
                                 AppBookshelfRecentReads(
@@ -632,7 +676,7 @@ private fun ShelfCard(
 private fun ShelfListItem(entry: BookshelfEntry, enabled: Boolean, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(vertical = AppSpacing.xs),
-        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), verticalAlignment = Alignment.Top
     ) {
         Box(Modifier.size(width = 100.dp, height = 140.dp)) {
             AppNovelCover(entry.coverUrl, entry.title, Modifier.fillMaxSize().clip(AppShapes.standard))

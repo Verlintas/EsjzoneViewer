@@ -345,6 +345,10 @@ object GuestbookPage : AppDestination {
         val model = rememberAppViewModel {
             CommentPageModel(authorization, pageUrl)
         }
+        // Unlike chapter comments, the guestbook is a live community feed.
+        // Always bypass the page cache when this destination enters composition
+        // so new messages are visible immediately after navigation.
+        LaunchedEffect(model) { model.load(forceRefresh = true) }
         CommentListPage(
             title = stringResource(id = R.string.guestbook),
             model = model

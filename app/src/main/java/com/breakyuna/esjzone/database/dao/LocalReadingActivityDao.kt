@@ -56,6 +56,9 @@ interface LocalReadingActivityDao {
     @Query("DELETE FROM local_reading_history WHERE activity_id = :activityId")
     fun deleteById(activityId: String)
 
+    @Query("DELETE FROM local_reading_history WHERE activity_id IN (:activityIds)")
+    fun deleteByIds(activityIds: List<String>): Int
+
     @Query("DELETE FROM local_reading_history")
     fun deleteAll()
 }

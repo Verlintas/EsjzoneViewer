@@ -69,9 +69,11 @@ import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
 import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavPadding
 import com.breakyuna.esjzone.ui.navigation.rememberAppViewModel
 import com.breakyuna.esjzone.ui.page.ForumPage
+import com.breakyuna.esjzone.ui.page.ForumPostPage
 import com.breakyuna.esjzone.ui.page.GuestbookPage
 import com.breakyuna.esjzone.ui.page.NovelListPage
 import com.breakyuna.esjzone.ui.page.NovelPage
+import com.breakyuna.esjzone.novellibrary.community.ForumTopic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -105,6 +107,7 @@ object HomeTab : AppTab {
         val browseMoreLabel = stringResource(R.string.home_browse_more)
         val emptyCollectionTitle = stringResource(R.string.home_collection_empty_title)
         val emptyCollectionMessage = stringResource(R.string.home_collection_empty_message)
+        val waterCoolerTitle = stringResource(R.string.home_water_cooler)
 
         val navPadding = LocalFloatingNavPadding.current
         val layoutDirection = LocalLayoutDirection.current
@@ -137,7 +140,24 @@ object HomeTab : AppTab {
                     HomeActions(
                         onCategories = { navigator?.pushIfNotCurrent(CategoryBrowserPage()) },
                         onForum = { navigator?.pushIfNotCurrent(ForumPage) },
-                        onGuestbook = { navigator?.pushIfNotCurrent(GuestbookPage) }
+                        onGuestbook = { navigator?.pushIfNotCurrent(GuestbookPage) },
+                        onWaterCooler = {
+                            navigator?.pushIfNotCurrent(
+                                ForumPostPage(
+                                    ForumTopic(
+                                        boardId = "1585405223",
+                                        id = "103280",
+                                        title = waterCoolerTitle,
+                                        author = null,
+                                        createdAt = null,
+                                        replyCount = null,
+                                        viewCount = null,
+                                        lastReplyAt = null,
+                                        url = WATER_COOLER_URL
+                                    )
+                                )
+                            )
+                        }
                     )
                 }
                 when (val snapshot = state) {
@@ -223,6 +243,9 @@ object HomeTab : AppTab {
 }
 
 private const val WEEKLY_UPDATE_MAX_ITEMS = 18
+
+private const val WATER_COOLER_URL =
+    "https://www.esjzone.cc/forum/1585405223/103280.html"
 
 private fun LazyListScope.weeklyUpdatesCollection(
     days: List<WeeklyUpdateDay>,
@@ -356,12 +379,14 @@ private fun weeklyDayLabel(day: DayOfWeek): String = stringResource(
 private fun HomeActions(
     onCategories: () -> Unit,
     onForum: () -> Unit,
-    onGuestbook: () -> Unit
+    onGuestbook: () -> Unit,
+    onWaterCooler: () -> Unit
 ) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         HomeAction(stringResource(R.string.categories), Icons.Filled.Category, onCategories)
         HomeAction(stringResource(R.string.forum), Icons.Filled.Forum, onForum)
         HomeAction(stringResource(R.string.guestbook), Icons.Filled.Forum, onGuestbook)
+        HomeAction(stringResource(R.string.home_water_cooler), Icons.Filled.Forum, onWaterCooler)
     }
 }
 

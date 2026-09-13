@@ -75,6 +75,10 @@
     <string name="bookshelf_filter_downloaded">已下载</string>
     <string name="bookshelf_filter_updates">有更新</string>
     <string name="bookshelf_order_automatic">自动按阅读顺序</string>
+    <string name="bookshelf_sort">书架排序</string>
+    <string name="bookshelf_sort_recent_read">最近阅读</string>
+    <string name="bookshelf_sort_recent_added">最近添加</string>
+    <string name="bookshelf_sort_recent_updated">最近更新</string>
     <string name="bookshelf_selected_header">已选择 %1$d 本</string>
     <string name="bookshelf_total_header">/ 共 %1$d 本</string>
     <string name="bookshelf_empty">书架还是空的</string>
@@ -191,6 +195,15 @@
     <string name="history_search_placeholder">按书名或章节搜索</string>
     <string name="history_search_empty">没有匹配的阅读记录</string>
     <string name="history_local_clear">清空本地历史</string>
+    <string name="history_local_edit">编辑本地历史</string>
+    <string name="history_local_edit_done">完成编辑</string>
+    <string name="history_local_select_all">全选本地记录</string>
+    <string name="history_local_delete_selected">删除选中记录</string>
+    <string name="history_local_selected">已选择 %1$d 条</string>
+    <string name="history_local_delete_title">确认删除 %1$d 条本地记录？</string>
+    <string name="history_local_delete_confirm">删除后将无法恢复，但不会影响书架、云端历史、下载内容或书签。</string>
+    <string name="history_local_delete_confirm_action">删除记录</string>
+    <string name="history_cloud_sync">同步云端历史</string>
     <string name="history_local_delete">删除本地记录</string>
     <string name="history_local_position">第 %1$d/%2$d 章 · %3$d%%</string>
     <string name="history_local_percent">本章 %1$d%%</string>
@@ -199,6 +212,8 @@
     <string name="history_local_duration_minutes">%1$d分钟</string>
     <string name="history_local_duration_seconds">%1$d秒</string>
     <string name="profile_signed_in">已登录 ESJ Zone</string>
+    <string name="profile_experience">经验值 %1$d</string>
+    <string name="profile_level">等级 %1$s</string>
     <string name="profile_favorites_description">管理收藏的作品和书签</string>
     <string name="profile_history_description">从上次读到的位置继续阅读</string>
     <string name="downloads">下载</string>
@@ -341,6 +356,7 @@
     <string name="forum_reply_count">回复 %1$d</string>
     <string name="forum_view_count">浏览 %1$d</string>
     <string name="guestbook">留言板</string>
+    <string name="home_water_cooler">水楼</string>
     <string name="comments">评论</string>
     <string name="comments_empty">还没有评论</string>
     <string name="reader_settings">阅读设置</string>

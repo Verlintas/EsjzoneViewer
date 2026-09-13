@@ -10,6 +10,8 @@ import com.breakyuna.esjzone.network.features.parseForumTopicRows
 import com.breakyuna.esjzone.network.features.parseNovelCard
 import com.breakyuna.esjzone.network.features.hasProfileMarker
 import com.breakyuna.esjzone.network.features.profileAvatarUrl
+import com.breakyuna.esjzone.network.features.profileExperience
+import com.breakyuna.esjzone.network.features.profileLevel
 import com.breakyuna.esjzone.network.features.profileName
 import com.breakyuna.esjzone.novellibrary.component.ImageComponent
 import com.breakyuna.esjzone.novellibrary.component.analyseComponents
@@ -154,6 +156,8 @@ class EsjHtmlCorpusBaselineTest {
         val profile = fixture("profile.html")
         assertEquals("Fixture Profile User", profileName(profile))
         assertEquals("/uploads/fixture-profile.jpg", profileAvatarUrl(profile))
+        assertEquals(7264, profileExperience(profile))
+        assertEquals("F級 Lv2", profileLevel(profile))
         assertEquals("Fixture Profile User", profile.selectFirst("input[name=nickname]")?.attr("value"))
 
         val authorizedDocument = fixture("authorized.html")

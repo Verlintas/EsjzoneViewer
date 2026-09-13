@@ -227,6 +227,8 @@ table.table a[href*="/forum/"]
 
 页面：/my/view。
 
+已核验登录态页面的 `table.table` 行顺序为旧记录到新记录；客户端解析后统一反转为最新记录在前，保证历史页首项就是最近一次观看。该顺序契约由 `history.html` parser fixture 固定测试。
+
 选择器：
 
 ~~~css

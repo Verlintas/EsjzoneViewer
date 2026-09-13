@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,7 +23,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -111,7 +114,17 @@ object HistoryPage : AppDestination {
         var selectedPage by rememberSaveable { mutableIntStateOf(0) }
         var searchOpen by rememberSaveable { mutableStateOf(false) }
         var query by rememberSaveable { mutableStateOf("") }
+        var localEditing by rememberSaveable { mutableStateOf(false) }
+        var localSelected by remember { mutableStateOf<Set<String>>(emptySet()) }
+        var pendingLocalDelete by remember { mutableStateOf<Set<String>>(emptySet()) }
+        var showLocalDeleteDialog by remember { mutableStateOf(false) }
         val pager = rememberPagerState(initialPage = 0, pageCount = { 2 })
+
+        val localRows = (localState as? LocalHistoryPageModel.State.Result)
+            ?.activities
+            ?.filter { query.isBlank() || it.novelName.contains(query, true) || it.chapterName.contains(query, true) }
+            .orEmpty()
+        val localRowIds = remember(localRows) { localRows.mapTo(LinkedHashSet()) { it.activityId } }
 
         LaunchedEffect(Unit) { localModel.observe() }
         LaunchedEffect(selectedPage) {
@@ -119,6 +132,19 @@ object HistoryPage : AppDestination {
             if (selectedPage == 1) cloudModel.getNovels()
         }
         LaunchedEffect(pager) { snapshotFlow { pager.currentPage }.collect { selectedPage = it } }
+        LaunchedEffect(localRowIds) { localSelected = localSelected.intersect(localRowIds) }
+
+        fun finishLocalEditing() {
+            localEditing = false
+            localSelected = emptySet()
+            pendingLocalDelete = emptySet()
+            showLocalDeleteDialog = false
+        }
+
+        fun requestLocalDelete() {
+            pendingLocalDelete = localSelected
+            showLocalDeleteDialog = localSelected.isNotEmpty()
+        }
 
         Scaffold(
             topBar = {
@@ -129,8 +155,34 @@ object HistoryPage : AppDestination {
                         IconButton(onClick = { searchOpen = !searchOpen; if (!searchOpen) query = "" }) {
                             Icon(if (searchOpen) Icons.Filled.Close else Icons.Filled.Search, stringResource(R.string.history_search))
                         }
-                        if (selectedPage == 0) IconButton(onClick = localModel::clear) {
-                            Icon(Icons.Filled.DeleteSweep, stringResource(R.string.history_local_clear))
+                        if (selectedPage == 0) {
+                            if (localEditing) {
+                                IconButton(
+                                    onClick = {
+                                        localSelected = if (localSelected == localRowIds) emptySet() else localRowIds
+                                    },
+                                    enabled = localRowIds.isNotEmpty()
+                                ) {
+                                    Icon(Icons.Filled.Check, stringResource(R.string.history_local_select_all))
+                                }
+                                IconButton(onClick = ::requestLocalDelete, enabled = localSelected.isNotEmpty()) {
+                                    Icon(Icons.Filled.Delete, stringResource(R.string.history_local_delete_selected))
+                                }
+                                IconButton(onClick = ::finishLocalEditing) {
+                                    Icon(Icons.Filled.Check, stringResource(R.string.history_local_edit_done))
+                                }
+                            } else {
+                                IconButton(onClick = { localEditing = true; localSelected = emptySet() }) {
+                                    Icon(Icons.Filled.Edit, stringResource(R.string.history_local_edit))
+                                }
+                            }
+                        } else {
+                            IconButton(
+                                onClick = cloudModel::reload,
+                                enabled = cloudState !is HistoryPageModel.State.Loading
+                            ) {
+                                Icon(Icons.Filled.CloudSync, stringResource(R.string.history_cloud_sync))
+                            }
                         }
                     }
                 )
@@ -153,12 +205,43 @@ object HistoryPage : AppDestination {
                 }
                 HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
                     if (page == 0) {
-                        LocalHistoryContent(localState, query, localModel, navigator)
+                        LocalHistoryContent(
+                            state = localState,
+                            query = query,
+                            model = localModel,
+                            navigator = navigator,
+                            editing = localEditing,
+                            selected = localSelected,
+                            onToggleSelected = { id ->
+                                localSelected = if (id in localSelected) localSelected - id else localSelected + id
+                            }
+                        )
                     } else {
                         CloudHistoryContent(cloudState, query, cloudModel, authorization, navigator)
                     }
                 }
             }
+        }
+
+        if (showLocalDeleteDialog) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showLocalDeleteDialog = false },
+                title = { Text(stringResource(R.string.history_local_delete_title, pendingLocalDelete.size)) },
+                text = { Text(stringResource(R.string.history_local_delete_confirm)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        localModel.delete(pendingLocalDelete)
+                        finishLocalEditing()
+                    }) {
+                        Text(stringResource(R.string.history_local_delete_confirm_action), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLocalDeleteDialog = false }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                }
+            )
         }
     }
 }
@@ -168,7 +251,10 @@ private fun LocalHistoryContent(
     state: LocalHistoryPageModel.State,
     query: String,
     model: LocalHistoryPageModel,
-    navigator: com.breakyuna.esjzone.ui.navigation.AppNavigator?
+    navigator: com.breakyuna.esjzone.ui.navigation.AppNavigator?,
+    editing: Boolean,
+    selected: Set<String>,
+    onToggleSelected: (String) -> Unit
 ) {
     when (val current = state) {
         LocalHistoryPageModel.State.Loading -> HistoryListSkeleton()
@@ -203,17 +289,23 @@ private fun LocalHistoryContent(
                             activity = activity,
                             coverUrl = model.coverUrlFor(activity),
                             onOpen = {
-                                val chapter = Chapter(activity.chapterName, activity.chapterUrl, true)
-                                navigator?.pushIfNotCurrent(ChapterPage(
-                                    novelId = activity.novelId.ifBlank { chapter.novelId() },
-                                    chapter = chapter,
-                                    history = ChapterStateHolder(chapter),
-                                    novelName = activity.novelName,
-                                    novelUrl = activity.novelUrl,
-                                    novelCoverUrl = activity.novelCoverUrl
-                                ))
+                                if (editing) {
+                                    onToggleSelected(activity.activityId)
+                                } else {
+                                    val chapter = Chapter(activity.chapterName, activity.chapterUrl, true)
+                                    navigator?.pushIfNotCurrent(ChapterPage(
+                                        novelId = activity.novelId.ifBlank { chapter.novelId() },
+                                        chapter = chapter,
+                                        history = ChapterStateHolder(chapter),
+                                        novelName = activity.novelName,
+                                        novelUrl = activity.novelUrl,
+                                        novelCoverUrl = activity.novelCoverUrl
+                                    ))
+                                }
                             },
-                            onCoverNeeded = { model.loadCover(activity) }
+                            onCoverNeeded = { model.loadCover(activity) },
+                            editing = editing,
+                            selected = activity.activityId in selected
                         )
                     }
                 }
@@ -227,7 +319,9 @@ private fun LocalHistoryCard(
     activity: LocalReadingActivity,
     coverUrl: String,
     onOpen: () -> Unit,
-    onCoverNeeded: () -> Unit
+    onCoverNeeded: () -> Unit,
+    editing: Boolean,
+    selected: Boolean
 ) {
     if (coverUrl.isBlank()) LaunchedEffect(activity.activityId) { onCoverNeeded() }
     val progress = (fullBookProgress(activity.chapterIndex, activity.totalChapters, activity.chapterProgress) * 100).roundToInt()
@@ -238,14 +332,15 @@ private fun LocalHistoryCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primaryContainer) else Modifier)
             .clickable(onClick = onOpen)
             .semantics { role = Role.Button }
     ) {
-        Row(Modifier.fillMaxWidth().padding(AppSpacing.md), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+        Row(Modifier.fillMaxWidth().padding(AppSpacing.md), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             AppNovelCover(
                 coverUrl = coverUrl,
                 title = activity.novelName,
-                modifier = Modifier.size(width = 64.dp, height = 88.dp)
+                modifier = Modifier.size(width = 84.dp, height = 116.dp)
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                 Text(activity.novelName.ifBlank { activity.novelId }, style = AppTypography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -253,6 +348,9 @@ private fun LocalHistoryCard(
                 androidx.compose.material3.LinearProgressIndicator(progress = fullBookProgress(activity.chapterIndex, activity.totalChapters, activity.chapterProgress), modifier = Modifier.fillMaxWidth())
                 Text(position, style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.history_local_meta, relative, localDurationText(activity.durationMs)), style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            if (editing) {
+                androidx.compose.material3.Checkbox(checked = selected, onCheckedChange = { onOpen() })
             }
         }
     }
@@ -351,13 +449,13 @@ private fun CloudHistoryCard(
             .clickable(onClick = onOpen)
             .semantics { role = Role.Button }
             .padding(vertical = AppSpacing.md),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {
         AppNovelCover(
             coverUrl = coverUrl,
             title = history.name,
-            modifier = Modifier.size(width = 64.dp, height = 88.dp)
+            modifier = Modifier.size(width = 84.dp, height = 116.dp)
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
             Text(history.name, style = AppTypography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -399,7 +497,7 @@ private fun HistoryItemSkeleton(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {
         AppShimmerPlaceholder(
-            modifier = Modifier.size(width = 64.dp, height = 88.dp),
+            modifier = Modifier.size(width = 84.dp, height = 116.dp),
             shape = AppShapes.compact
         )
         Column(
@@ -473,6 +571,17 @@ class LocalHistoryPageModel(private val authorization: Authorization) : AppState
     fun retry() { observeStarted = false; mutableState.value = State.Loading; observe() }
 
     fun clear() { viewModelScope.launch(Dispatchers.IO) { runCatching { PresentationAccess.database.localReadingActivityDao().deleteAll() }.onFailure { AppLogger.e("LocalHistoryPageModel", "Failed to clear local history", it) } } }
+
+    fun delete(activityIds: Set<String>) {
+        if (activityIds.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                PresentationAccess.database.localReadingActivityDao().deleteByIds(activityIds.toList())
+            }.onFailure {
+                AppLogger.e("LocalHistoryPageModel", "Failed to delete selected local history", it)
+            }
+        }
+    }
 
     fun coverUrlFor(activity: LocalReadingActivity): String {
         val stored = EsjzoneUrls.coverOrEmpty(activity.novelCoverUrl)

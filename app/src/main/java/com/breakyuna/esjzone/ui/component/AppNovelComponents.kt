@@ -196,7 +196,8 @@ fun AppFeaturedNovelCard(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
+            verticalAlignment = Alignment.Top
         ) {
             AppNovelCover(
                 coverUrl = novel.coverUrl,
@@ -262,7 +263,7 @@ fun AppNovelListItem(
                 .fillMaxWidth()
                 .padding(vertical = if (compact) AppSpacing.sm else AppSpacing.md),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             AppNovelCover(
                 coverUrl = novel.coverUrl,

@@ -20,9 +20,13 @@ fun EsjzoneClient.getUserProfile(authorization: Authorization): UserProfile {
 
     val name = profileName(document)
     val avatarUrl = profileAvatarUrl(document)
+    val experience = profileExperience(document)
+    val level = profileLevel(document)
 
     return UserProfile(
         name,
         avatarUrl,
+        experience,
+        level,
     )
 }

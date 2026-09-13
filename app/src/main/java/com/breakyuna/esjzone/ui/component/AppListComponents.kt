@@ -222,7 +222,7 @@ private fun AppListSurface(
             .heightIn(min = 72.dp)
             .padding(AppSpacing.md),
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         content = content
     )
 }

@@ -93,9 +93,11 @@ object ProfileTab : AppTab {
         val domain = authorization.domain.ifBlank { PresentationAccess.settings.domain.value }
         var profileName by rememberSaveable(domain, authorization.ewsKey) { mutableStateOf<String?>(null) }
         var profileAvatar by rememberSaveable(domain, authorization.ewsKey) { mutableStateOf("") }
+        var profileExp by rememberSaveable(domain, authorization.ewsKey) { mutableStateOf<Int?>(null) }
+        var profileLevel by rememberSaveable(domain, authorization.ewsKey) { mutableStateOf<String?>(null) }
         var loading by remember(domain, authorization) { mutableStateOf(true) }
         var retry by remember { mutableStateOf(0) }
-        val profile = profileName?.let { UserProfile(it, profileAvatar) }
+        val profile = profileName?.let { UserProfile(it, profileAvatar, profileExp, profileLevel) }
         val menuItems = profileMenuItems()
 
         LaunchedEffect(domain, authorization.ewsKey, authorization.ewsToken, retry) {
@@ -106,18 +108,29 @@ object ProfileTab : AppTab {
                     val dao = PresentationAccess.database.cacheDao()
                     val name = dao.findByKey("${prefix}name")?.value
                     val avatar = dao.findByKey("${prefix}avatar")?.value.orEmpty()
-                    name?.takeIf(String::isNotBlank)?.let { UserProfile(it, avatar) }
+                    val experience = dao.findByKey("${prefix}experience")?.value?.toIntOrNull()
+                    val level = dao.findByKey("${prefix}level")?.value?.takeIf(String::isNotBlank)
+                    name?.takeIf(String::isNotBlank)?.let { UserProfile(it, avatar, experience, level) }
                 }
-                if (cached != null) { profileName = cached.name; profileAvatar = cached.avatarUrl }
+                if (cached != null) {
+                    profileName = cached.name
+                    profileAvatar = cached.avatarUrl
+                    profileExp = cached.exp
+                    profileLevel = cached.level
+                }
             } catch (e: CancellationException) { throw e } catch (e: Exception) { AppLogger.w("ProfileTab", "Failed to read cached profile", e) }
             try {
                 val fresh = withContext(Dispatchers.IO) { PresentationAccess.client.getUserProfile(authorization) }
                 profileName = fresh.name
                 profileAvatar = fresh.avatarUrl
+                profileExp = fresh.exp
+                profileLevel = fresh.level
                 withContext(Dispatchers.IO) {
                     val dao = PresentationAccess.database.cacheDao()
                     dao.put("${prefix}name", fresh.name)
                     dao.put("${prefix}avatar", fresh.avatarUrl)
+                    dao.put("${prefix}experience", fresh.exp?.toString().orEmpty())
+                    dao.put("${prefix}level", fresh.level.orEmpty())
                 }
             } catch (e: CancellationException) { throw e } catch (e: Exception) { AppLogger.w("ProfileTab", "Profile unavailable; using local snapshot", e) } finally { loading = false }
         }
@@ -193,6 +206,20 @@ private fun ProfileHero(profile: UserProfile?, domain: String, loading: Boolean,
                 } else {
                     Text(profile.name, style = AppTypography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
                     Text(stringResource(R.string.profile_signed_in), style = AppTypography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.76f))
+                    profile.exp?.let {
+                        Text(
+                            text = stringResource(R.string.profile_experience, it),
+                            style = AppTypography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    profile.level?.let {
+                        Text(
+                            text = stringResource(R.string.profile_level, it),
+                            style = AppTypography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
                 Text(domain, style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
             }

@@ -28,10 +28,16 @@ class FavoriteHistoryCssAdapterTest {
     }
 
     @Test
-    fun historyFixture_preservesNewestFirstOrderChapterLinksAndDeleteIds() {
+    fun historyFixture_domOrderIsOldestFirstAndParserExposesNewestFirst() {
         val document = fixture("history.html")
         val histories = parseHistoryNovels(document)
 
+        // The captured /my/view DOM is oldest -> newest; the app contract is
+        // newest -> oldest so the first card is always the latest record.
+        assertEquals(
+            listOf("9060", "9061"),
+            document.select("tr[id^='novel-']").map { it.id().removePrefix("novel-") }
+        )
         assertEquals(
             listOf("9061", "9060"),
             histories.map { it.vid }
