@@ -22,7 +22,11 @@ class BookshelfSortTest {
 
         assertEquals(
             listOf("new-read", "old-read", "unread"),
-            BookshelfSort.sort(entries, activities) { it.trim() }.map { it.bookKey }
+            BookshelfSort.sort(
+                entries = entries,
+                activities = activities,
+                keyForUrl = { it.trim() }
+            ).map { it.bookKey }
         )
     }
 
@@ -38,9 +42,13 @@ class BookshelfSortTest {
 
         assertEquals(
             listOf("/detail/a", "/detail/b"),
-            BookshelfSort.sort(entries, activities) { url ->
-                url.substringAfter("/detail/").substringBefore(".html").let { "/detail/$it" }
-            }.map { it.bookKey }
+            BookshelfSort.sort(
+                entries = entries,
+                activities = activities,
+                keyForUrl = { url ->
+                    url.substringAfter("/detail/").substringBefore(".html").let { "/detail/$it" }
+                }
+            ).map { it.bookKey }
         )
     }
 
