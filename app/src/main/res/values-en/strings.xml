@@ -213,7 +213,7 @@
     <string name="history_local_duration_seconds">%1$d sec</string>
     <string name="profile_signed_in">Signed in to ESJ Zone</string>
     <string name="profile_experience">Experience %1$d</string>
-    <string name="profile_level">Level %1$s</string>
+    <string name="profile_level">%1$s</string>
     <string name="profile_favorites_description">Manage saved novels and bookmarks</string>
     <string name="profile_history_description">Pick up where you left off reading</string>
     <string name="downloads">Downloads</string>

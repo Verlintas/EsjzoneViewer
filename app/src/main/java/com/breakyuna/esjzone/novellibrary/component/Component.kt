@@ -136,10 +136,13 @@ private fun resolveImageUrl(image: Element): String {
     )
         .mapNotNull { attribute ->
             val raw = image.attr(attribute).trim()
-            if (raw.startsWith("file://", ignoreCase = true)) raw
-            else EsjzoneUrls.resolve(raw, baseUrl)
-                .trim()
-                .takeIf { it.isNotBlank() }
+            if (raw.startsWith("file:", ignoreCase = true)) {
+                raw.takeIf { it.removePrefix("file:").trim().isNotBlank() }
+            } else {
+                EsjzoneUrls.resolve(raw, baseUrl)
+                    .trim()
+                    .takeIf { it.isNotBlank() }
+            }
         }
         .firstOrNull()
         .orEmpty()

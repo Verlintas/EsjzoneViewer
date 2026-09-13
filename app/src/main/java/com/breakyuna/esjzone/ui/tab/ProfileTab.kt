@@ -204,35 +204,28 @@ private fun ProfileHero(profile: UserProfile?, domain: String, loading: Boolean,
                     Text(stringResource(R.string.navigation_profile), style = AppTypography.titleLarge)
                     TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
                 } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-                    ) {
+                    Text(
+                        text = profile.name,
+                        style = AppTypography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    profile.exp?.let {
                         Text(
-                            text = profile.name,
-                            style = AppTypography.titleLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f, fill = false)
+                            text = stringResource(R.string.profile_experience, it),
+                            style = AppTypography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
                         )
-                        profile.exp?.let {
-                            Text(
-                                text = stringResource(R.string.profile_experience, it),
-                                style = AppTypography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        }
-                        profile.level?.let {
-                            Text(
-                                text = stringResource(R.string.profile_level, it),
-                                style = AppTypography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                maxLines = 1
-                            )
-                        }
+                    }
+                    profile.level?.let {
+                        Text(
+                            text = it.trim(),
+                            style = AppTypography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1
+                        )
                     }
                     Text(stringResource(R.string.profile_signed_in), style = AppTypography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.76f))
                 }

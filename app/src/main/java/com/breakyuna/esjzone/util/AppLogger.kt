@@ -17,11 +17,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 
 enum class LogLevel { DEBUG, INFO, WARN, ERROR, CRASH }
 
+private val logSequence = AtomicLong(0L)
+
 data class LogEntry(
-    val id: Long = System.nanoTime(),
+    val id: Long = logSequence.incrementAndGet(),
     val timestamp: Long = System.currentTimeMillis(),
     val level: LogLevel,
     val tag: String,

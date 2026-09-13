@@ -99,7 +99,7 @@ object LogsPage : AppDestination {
             logs.asReversed().filter { entry ->
                 (filter == null || entry.level == filter) &&
                     (query.isBlank() || entry.tag.contains(query, true) || entry.message.contains(query, true) || entry.stackTrace.orEmpty().contains(query, true))
-            }
+            }.distinctBy { it.id }
         }
         Scaffold(
             topBar = {
