@@ -466,16 +466,28 @@ private fun NovelDetailContent(
         )
     }
 
+    val horizontalPadding = when (metrics.sizeClass) {
+        AppWindowSizeClass.Compact -> AppSpacing.sm
+        AppWindowSizeClass.Medium -> AppSpacing.md
+        AppWindowSizeClass.Expanded -> AppSpacing.lg
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
-                .widthIn(max = metrics.contentMaxWidth)
+                .then(
+                    if (metrics.sizeClass != AppWindowSizeClass.Compact) {
+                        Modifier.widthIn(max = metrics.contentMaxWidth)
+                    } else {
+                        Modifier
+                    }
+                )
                 .fillMaxWidth()
                 .align(Alignment.CenterHorizontally),
             contentPadding = PaddingValues(
-                start = metrics.horizontalPadding,
-                end = metrics.horizontalPadding,
+                start = horizontalPadding,
+                end = horizontalPadding,
                 bottom = AppSpacing.lg
             ),
             verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
@@ -872,10 +884,7 @@ private fun RebuiltNovelHero(novel: DetailedNovel, metrics: AppAdaptiveMetrics) 
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(
-                horizontal = if (metrics.sizeClass == AppWindowSizeClass.Compact) AppSpacing.zero else AppSpacing.md,
-                vertical = AppSpacing.md
-            )
+            .padding(vertical = AppSpacing.sm)
     )
 }
 

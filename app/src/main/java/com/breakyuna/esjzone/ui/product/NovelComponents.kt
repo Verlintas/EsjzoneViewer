@@ -171,16 +171,16 @@ fun NovelHero(
     actionLabel: String? = null
 ) {
     Surface(modifier = modifier.fillMaxWidth(), shape = AppShapes.prominent, tonalElevation = 2.dp) {
-        Row(modifier = Modifier.padding(AppSpacing.lg), horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
-            NovelCover(novel.cover, Modifier.width(132.dp))
+        Row(modifier = Modifier.padding(AppSpacing.md), horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+            NovelCover(novel.cover, Modifier.width(104.dp))
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 188.dp),
+                    .heightIn(min = 148.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-                    Text(novel.title, style = AppTypography.displayMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    Text(novel.title, style = AppTypography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
                     NovelMetadata(novel.metadata, showMetrics = false)
                 }
                 if (novel.metadata.metrics.isNotEmpty() || (actionLabel != null && onAction != null)) {
@@ -212,7 +212,7 @@ private fun NovelCardPreview() {
 @Preview(showBackground = true, widthDp = 700)
 @Composable
 private fun NovelHeroPreview() {
-    AppTheme { NovelHero(sampleNovel(), Modifier.padding(AppSpacing.lg), actionLabel = "继续阅读", onAction = {}) }
+    AppTheme { NovelHero(sampleNovel(), Modifier.padding(AppSpacing.md), actionLabel = "继续阅读", onAction = {}) }
 }
 
 private fun sampleNovel() = NovelCardModel(

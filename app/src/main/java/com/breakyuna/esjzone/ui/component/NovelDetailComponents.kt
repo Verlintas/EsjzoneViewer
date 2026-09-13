@@ -116,7 +116,7 @@ fun NovelDetailHero(
             coverUrl = novel.coverUrl,
             title = novel.name,
             isAdult = novel.isAdult,
-            modifier = Modifier.size(width = 148.dp, height = 208.dp)
+            modifier = Modifier.size(width = 104.dp, height = 148.dp)
         )
         Column(
             modifier = Modifier.weight(1f),
@@ -124,10 +124,7 @@ fun NovelDetailHero(
         ) {
             Text(
                 text = novel.name,
-                style = AppTypography.displayMedium.copy(
-                    fontSize = 24.sp,
-                    lineHeight = 31.sp
-                ),
+                style = AppTypography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
