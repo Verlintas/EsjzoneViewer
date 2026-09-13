@@ -327,54 +327,6 @@ class ChapterPage(
             }
         }
 
-        fun toggleBookmark() {
-            val target = bookmarkChapter
-            if (bookmarkChapterUrl.isBlank()) return
-            val wasBookmarked = isBookmarked
-            isBookmarked = !wasBookmarked
-            scope.launch(Dispatchers.IO) {
-                try {
-                    val dao = PresentationAccess.database.bookmarkDao()
-                    val finalNovelId = novelId.ifBlank { target.novelId() }
-                    if (wasBookmarked) {
-                        dao.deleteByChapterUrl(bookmarkChapterUrl)
-                        com.breakyuna.esjzone.database.BookmarkCoverStore.cleanupIfUnused(finalNovelId, bookmarkChapterUrl)
-                    } else {
-                        dao.insert(
-                            com.breakyuna.esjzone.database.entity.Bookmark(
-                                chapterUrl = bookmarkChapterUrl,
-                                novelId = finalNovelId,
-                                novelName = novelName
-                                    .ifBlank { novelId }
-                                    .ifBlank { target.novelId() }
-                                    .ifBlank { target.name },
-                                chapterName = target.name
-                            )
-                        )
-                        val coverSource = novelCoverUrl.ifBlank {
-                            localHistoryPosition.value.novelCoverUrl
-                        }
-                        val currentNovelUrl = novelUrl.ifBlank {
-                            localHistoryPosition.value.novelUrl
-                        }
-                        com.breakyuna.esjzone.database.BookmarkCoverStore.saveCoverFromCacheOrDownload(
-                            novelId = finalNovelId,
-                            coverUrl = coverSource,
-                            novelUrl = currentNovelUrl,
-                            chapterUrl = bookmarkChapterUrl
-                        )
-                    }
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    withContext(Dispatchers.Main) {
-                        isBookmarked = wasBookmarked
-                    }
-                    AppLogger.e("ChapterPage", "Failed to update local bookmark", error)
-                }
-            }
-        }
-
         val measuredChapterProgress = chapterProgressFor(
             itemOffset = activeChapterItem?.offset,
             itemSize = activeChapterItem?.size
@@ -467,6 +419,54 @@ class ChapterPage(
                 chapterProgress = currentBookLocation?.chapterProgress ?: 0f
             )
         )
+
+        fun toggleBookmark() {
+            val target = bookmarkChapter
+            if (bookmarkChapterUrl.isBlank()) return
+            val wasBookmarked = isBookmarked
+            isBookmarked = !wasBookmarked
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val dao = PresentationAccess.database.bookmarkDao()
+                    val finalNovelId = novelId.ifBlank { target.novelId() }
+                    if (wasBookmarked) {
+                        dao.deleteByChapterUrl(bookmarkChapterUrl)
+                        com.breakyuna.esjzone.database.BookmarkCoverStore.cleanupIfUnused(finalNovelId, bookmarkChapterUrl)
+                    } else {
+                        dao.insert(
+                            com.breakyuna.esjzone.database.entity.Bookmark(
+                                chapterUrl = bookmarkChapterUrl,
+                                novelId = finalNovelId,
+                                novelName = novelName
+                                    .ifBlank { novelId }
+                                    .ifBlank { target.novelId() }
+                                    .ifBlank { target.name },
+                                chapterName = target.name
+                            )
+                        )
+                        val coverSource = novelCoverUrl.ifBlank {
+                            localHistoryPosition.value.novelCoverUrl
+                        }
+                        val currentNovelUrl = novelUrl.ifBlank {
+                            localHistoryPosition.value.novelUrl
+                        }
+                        com.breakyuna.esjzone.database.BookmarkCoverStore.saveCoverFromCacheOrDownload(
+                            novelId = finalNovelId,
+                            coverUrl = coverSource,
+                            novelUrl = currentNovelUrl,
+                            chapterUrl = bookmarkChapterUrl
+                        )
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    withContext(Dispatchers.Main) {
+                        isBookmarked = wasBookmarked
+                    }
+                    AppLogger.e("ChapterPage", "Failed to update local bookmark", error)
+                }
+            }
+        }
         LaunchedEffect(localHistoryActivityId) {
             snapshotFlow { if (resumePending) null else localHistoryPosition.value }
                 .filterNotNull()
