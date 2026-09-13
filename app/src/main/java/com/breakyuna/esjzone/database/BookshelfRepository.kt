@@ -101,7 +101,11 @@ object BookshelfRepository {
         localReadingDao.observeAll()
     ) { entries, activities ->
         withContext(Dispatchers.Default) {
-            BookshelfSort.sort(entries, activities) { url -> keyFor(url) }
+            BookshelfSort.sort(
+                entries = entries,
+                activities = activities,
+                keyForUrl = ::keyFor
+            )
         }
     }.distinctUntilChanged()
 
