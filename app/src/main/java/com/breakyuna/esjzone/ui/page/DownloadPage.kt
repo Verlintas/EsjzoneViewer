@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.SelectAll
@@ -57,7 +56,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.breakyuna.esjzone.ui.designsystem.AccountSummary
 import com.breakyuna.esjzone.ui.designsystem.accountContentWidth
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
@@ -200,19 +198,11 @@ private fun DownloadList(
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val totalBytes = novels.sumOf { it.storageBytes }
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(AppSpacing.lg),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
     ) {
-        item(key = "download-summary") {
-            AccountSummary(
-                Icons.Filled.Download,
-                stringResource(R.string.download_library),
-                stringResource(R.string.download_total_summary, novels.size, formatStorageSize(totalBytes))
-            )
-        }
         items(novels, key = { it.novelUrl }, contentType = { "download" }) { summary ->
             DownloadCard(summary, editing, summary.novelUrl in selected, deleting, { onToggle(summary.novelUrl) }, { onDelete(summary.novelUrl) })
         }
@@ -232,7 +222,6 @@ private fun DownloadCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppShapes.standard)
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .then(
                 if (selected) {
                     Modifier
@@ -242,7 +231,7 @@ private fun DownloadCard(
             )
             .then(if (editing && !deleting) Modifier.clickable { onToggle() } else Modifier)
             .semantics { if (editing) role = Role.Button }
-            .padding(AppSpacing.md),
+            .padding(vertical = AppSpacing.sm, horizontal = if (selected) AppSpacing.sm else AppSpacing.xs),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {

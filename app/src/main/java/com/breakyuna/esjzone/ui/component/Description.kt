@@ -9,7 +9,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,7 +38,6 @@ import com.breakyuna.esjzone.ui.designsystem.AppImage
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
-import com.breakyuna.esjzone.ui.designsystem.appSurfaceColors
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -54,52 +52,44 @@ fun Description(
     val textStyle = LocalTextStyle.current
     val density = LocalDensity.current
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = AppShapes.standard,
-        colors = CardDefaults.cardColors(
-            containerColor = appSurfaceColors().subtle
-        )
+    Column(
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.padding(AppSpacing.lg)
-        ) {
-            if (showHeader) {
-                Text(
-                    text = stringResource(id = R.string.description),
-                    style = AppTypography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.primary
+        if (showHeader) {
+            Text(
+                text = stringResource(id = R.string.description),
+                style = AppTypography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold
+                ),
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(AppSpacing.sm))
+        }
+        for (component in description.components) {
+            if (component is TextComponent) {
+                val (str, inlines) = component.toInlineAnnotatedString(
+                    textMeasurer,
+                    textStyle,
+                    density
                 )
-                Spacer(modifier = Modifier.height(AppSpacing.sm))
-            }
-            for (component in description.components) {
-                if (component is TextComponent) {
-                    val (str, inlines) = component.toInlineAnnotatedString(
-                        textMeasurer,
-                        textStyle,
-                        density
-                    )
-                    Text(
-                        text = str,
-                        inlineContent = inlines,
-                        style = AppTypography.bodyMedium.copy(
-                            lineHeight = 22.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                } else if (component is ImageComponent) {
-                    AppImage(
-                        model = component.url,
-                        contentDescription = null,
-                        contentScale = ContentScale.FillWidth,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp)
-                            .clip(AppShapes.compact)
-                    )
-                }
+                Text(
+                    text = str,
+                    inlineContent = inlines,
+                    style = AppTypography.bodyMedium.copy(
+                        lineHeight = 22.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            } else if (component is ImageComponent) {
+                AppImage(
+                    model = component.url,
+                    contentDescription = null,
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                        .clip(AppShapes.compact)
+                )
             }
         }
     }

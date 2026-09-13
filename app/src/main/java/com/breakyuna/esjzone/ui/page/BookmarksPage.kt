@@ -2,7 +2,6 @@ package com.breakyuna.esjzone.ui.page
 
 import androidx.lifecycle.viewModelScope
 
-import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -39,7 +37,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
-import com.breakyuna.esjzone.ui.designsystem.AccountSummary
 import com.breakyuna.esjzone.ui.designsystem.accountContentWidth
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
@@ -103,15 +100,8 @@ object BookmarksPage : AppDestination {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().accountContentWidth().padding(padding),
                         contentPadding = PaddingValues(AppSpacing.lg),
-                        verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                        verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
-                        item(key = "bookmark-header") {
-                            AccountSummary(
-                                Icons.Filled.Bookmark,
-                                stringResource(R.string.bookmarks),
-                                stringResource(R.string.bookmarks_description)
-                            )
-                        }
                         items(
                             current.bookmarks,
                             key = { "bookmark:${it.chapterUrl}" },
@@ -155,10 +145,9 @@ private fun BookmarkCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppShapes.standard)
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable(onClick = onOpen)
             .semantics { role = Role.Button }
-            .padding(AppSpacing.md),
+            .padding(vertical = AppSpacing.sm, horizontal = AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {

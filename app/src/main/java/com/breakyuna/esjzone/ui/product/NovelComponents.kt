@@ -18,7 +18,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -170,32 +169,33 @@ fun NovelHero(
     onAction: (() -> Unit)? = null,
     actionLabel: String? = null
 ) {
-    Surface(modifier = modifier.fillMaxWidth(), shape = AppShapes.prominent, tonalElevation = 2.dp) {
-        Row(modifier = Modifier.padding(AppSpacing.md), horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            NovelCover(novel.cover, Modifier.width(104.dp))
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 148.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+    ) {
+        NovelCover(novel.cover, Modifier.width(104.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 148.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+                Text(novel.title, style = AppTypography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                NovelMetadata(novel.metadata, showMetrics = false)
+            }
+            if (novel.metadata.metrics.isNotEmpty() || (actionLabel != null && onAction != null)) {
                 Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-                    Text(novel.title, style = AppTypography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    NovelMetadata(novel.metadata, showMetrics = false)
-                }
-                if (novel.metadata.metrics.isNotEmpty() || (actionLabel != null && onAction != null)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-                        if (novel.metadata.metrics.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
-                            ) {
-                                novel.metadata.metrics.forEach { NovelMetric(it) }
-                            }
+                    if (novel.metadata.metrics.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                        ) {
+                            novel.metadata.metrics.forEach { NovelMetric(it) }
                         }
-                        if (actionLabel != null && onAction != null) {
-                            androidx.compose.material3.TextButton(onClick = onAction) { Text(actionLabel) }
-                        }
+                    }
+                    if (actionLabel != null && onAction != null) {
+                        androidx.compose.material3.TextButton(onClick = onAction) { Text(actionLabel) }
                     }
                 }
             }

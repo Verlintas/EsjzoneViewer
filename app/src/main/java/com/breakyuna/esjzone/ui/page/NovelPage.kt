@@ -121,7 +121,6 @@ import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
 import com.breakyuna.esjzone.ui.designsystem.AppTouchTarget
 import com.breakyuna.esjzone.ui.designsystem.appStateColors
-import com.breakyuna.esjzone.ui.designsystem.appSurfaceColors
 import com.breakyuna.esjzone.ui.designsystem.AppAdaptiveMetrics
 import com.breakyuna.esjzone.ui.designsystem.AppWindowSizeClass
 import com.breakyuna.esjzone.ui.designsystem.rememberAppAdaptiveMetrics
@@ -214,7 +213,6 @@ class NovelPage(
                 .background(MaterialTheme.colorScheme.surface)
         ) {
             RebuiltDetailTopBar(
-                title = novel.name,
                 onBack = { navigator?.pop() },
                 onOpenExternal = {
                     openExternal(
@@ -643,7 +641,7 @@ private fun NovelDetailContent(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
-                            Card(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .then(
@@ -652,30 +650,22 @@ private fun NovelDetailContent(
                                         } else {
                                             Modifier
                                         }
-                                    ),
-                                shape = AppShapes.standard,
-                                colors = CardDefaults.cardColors(
-                                    containerColor = appSurfaceColors().subtle
-                                )
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(AppSpacing.lg)
-                                ) {
-                                    Text(
-                                        text = descriptionText,
-                                        style = AppTypography.bodyMedium.copy(
-                                            lineHeight = 22.sp
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 5,
-                                        overflow = TextOverflow.Ellipsis,
-                                        onTextLayout = { result ->
-                                            if (result.hasVisualOverflow) {
-                                                hasVisualOverflow = true
-                                            }
-                                        }
                                     )
-                                }
+                            ) {
+                                Text(
+                                    text = descriptionText,
+                                    style = AppTypography.bodyMedium.copy(
+                                        lineHeight = 22.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 5,
+                                    overflow = TextOverflow.Ellipsis,
+                                    onTextLayout = { result ->
+                                        if (result.hasVisualOverflow) {
+                                            hasVisualOverflow = true
+                                        }
+                                    }
+                                )
                             }
                         }
                         if (showDescriptionToggle) {
@@ -891,20 +881,12 @@ private fun RebuiltNovelHero(novel: DetailedNovel, metrics: AppAdaptiveMetrics) 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RebuiltDetailTopBar(
-    title: String,
     onBack: () -> Unit,
     onOpenExternal: () -> Unit,
     onMore: () -> Unit
 ) {
     CenterAlignedTopAppBar(
-        title = {
-            Text(
-                title,
-                style = AppTypography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        },
+        title = {},
         navigationIcon = {
             IconButton(onClick = onBack, modifier = Modifier.size(AppTouchTarget.minimum)) {
                 Icon(
