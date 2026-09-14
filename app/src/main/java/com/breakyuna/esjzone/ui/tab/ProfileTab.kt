@@ -50,7 +50,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
-import com.breakyuna.esjzone.database.dao.put
+import com.breakyuna.esjzone.app.cacheUserProfile
+import com.breakyuna.esjzone.app.profileCachePrefix
 import com.breakyuna.esjzone.novellibrary.user.UserProfile
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.LocalAuthorization
@@ -74,8 +75,6 @@ import com.breakyuna.esjzone.util.LocaleHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 
 /** Account hub. Cached profile data makes this tab useful while offline. */
@@ -125,13 +124,7 @@ object ProfileTab : AppTab {
                 profileAvatar = fresh.avatarUrl
                 profileExp = fresh.exp
                 profileLevel = fresh.level
-                withContext(Dispatchers.IO) {
-                    val dao = PresentationAccess.database.cacheDao()
-                    dao.put("${prefix}name", fresh.name)
-                    dao.put("${prefix}avatar", fresh.avatarUrl)
-                    dao.put("${prefix}experience", fresh.exp?.toString().orEmpty())
-                    dao.put("${prefix}level", fresh.level.orEmpty())
-                }
+                withContext(Dispatchers.IO) { cacheUserProfile(authorization, domain, fresh) }
             } catch (e: CancellationException) { throw e } catch (e: Exception) { AppLogger.w("ProfileTab", "Profile unavailable; using local snapshot", e) } finally { loading = false }
         }
 
@@ -204,20 +197,27 @@ private fun ProfileHero(profile: UserProfile?, domain: String, loading: Boolean,
                     Text(stringResource(R.string.navigation_profile), style = AppTypography.titleLarge)
                     TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
                 } else {
-                    Text(
-                        text = profile.name,
-                        style = AppTypography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    profile.exp?.let {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+                    ) {
                         Text(
-                            text = stringResource(R.string.profile_experience, it),
-                            style = AppTypography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
+                            text = profile.name,
+                            style = AppTypography.titleLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
                         )
+                        profile.exp?.let {
+                            Text(
+                                text = stringResource(R.string.profile_experience, it),
+                                style = AppTypography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
                     }
                     profile.level?.let {
                         Text(
@@ -227,7 +227,6 @@ private fun ProfileHero(profile: UserProfile?, domain: String, loading: Boolean,
                             maxLines = 1
                         )
                     }
-                    Text(stringResource(R.string.profile_signed_in), style = AppTypography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.76f))
                 }
                 Text(domain, style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
             }
@@ -244,9 +243,4 @@ private fun ProfileAction(item: ProfileMenuItem, onClick: () -> Unit) {
             Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
     }
-}
-
-private fun profileCachePrefix(authorization: com.breakyuna.esjzone.network.Authorization, domain: String): String {
-    val digest = MessageDigest.getInstance("SHA-256").digest("${authorization.ewsKey}:${authorization.ewsToken}".toByteArray(StandardCharsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 0xff) }
-    return "profile:$domain:$digest:"
 }

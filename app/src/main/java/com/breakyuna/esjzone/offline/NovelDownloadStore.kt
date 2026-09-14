@@ -109,7 +109,7 @@ object NovelDownloadStore {
     private const val MANIFEST_FILE = "manifest.json"
     private const val TEXT_COMPONENT = "text"
     private const val IMAGE_COMPONENT = "image"
-    const val DEFAULT_DOWNLOAD_CONCURRENCY = 3
+    const val DEFAULT_DOWNLOAD_CONCURRENCY = 5
     private const val CHAPTER_MAX_ATTEMPTS = 2
     private const val PROGRESS_THROTTLE_MS = 150L
     private const val MANIFEST_CHECKPOINT_INTERVAL = 8

@@ -196,6 +196,9 @@ fun AdaptiveAppShell(
                             glassScene = navigationGlassScene,
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
+                                // Navigation sits just above ordinary tab content, not above
+                                // page-owned overlays (which reserve higher levels).
+                                .zIndex(1f)
                                 .windowInsetsPadding(WindowInsets.navigationBars)
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -233,6 +236,7 @@ fun AdaptiveAppShell(
                             glassScene = navigationGlassScene,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
+                                .zIndex(1f)
                                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start))
                                 .padding(start = 16.dp)
                         )
@@ -281,7 +285,7 @@ private fun TabStacksDisplay(
             navigator = homeNavigator,
             modifier = Modifier
                 .fillMaxSize()
-                .zIndex(if (selected == AppTabId.HOME) 1f else -1f)
+                .zIndex(if (selected == AppTabId.HOME) 0f else -1f)
                 .graphicsLayer { alpha = if (selected == AppTabId.HOME) 1f else 0f }
                 .blockInactiveTabInput(selected == AppTabId.HOME)
                 .then(if (selected != AppTabId.HOME) Modifier.clearAndSetSemantics { } else Modifier)
@@ -294,7 +298,7 @@ private fun TabStacksDisplay(
             navigator = historyNavigator,
             modifier = Modifier
                 .fillMaxSize()
-                .zIndex(if (selected == AppTabId.HISTORY) 1f else -1f)
+                .zIndex(if (selected == AppTabId.HISTORY) 0f else -1f)
                 .graphicsLayer { alpha = if (selected == AppTabId.HISTORY) 1f else 0f }
                 .blockInactiveTabInput(selected == AppTabId.HISTORY)
                 .then(if (selected != AppTabId.HISTORY) Modifier.clearAndSetSemantics { } else Modifier)
@@ -307,7 +311,7 @@ private fun TabStacksDisplay(
             navigator = bookshelfNavigator,
             modifier = Modifier
                 .fillMaxSize()
-                .zIndex(if (selected == AppTabId.BOOKSHELF) 1f else -1f)
+                .zIndex(if (selected == AppTabId.BOOKSHELF) 0f else -1f)
                 .graphicsLayer { alpha = if (selected == AppTabId.BOOKSHELF) 1f else 0f }
                 .blockInactiveTabInput(selected == AppTabId.BOOKSHELF)
                 .then(if (selected != AppTabId.BOOKSHELF) Modifier.clearAndSetSemantics { } else Modifier)
@@ -320,7 +324,7 @@ private fun TabStacksDisplay(
             navigator = profileNavigator,
             modifier = Modifier
                 .fillMaxSize()
-                .zIndex(if (selected == AppTabId.PROFILE) 1f else -1f)
+                .zIndex(if (selected == AppTabId.PROFILE) 0f else -1f)
                 .graphicsLayer { alpha = if (selected == AppTabId.PROFILE) 1f else 0f }
                 .blockInactiveTabInput(selected == AppTabId.PROFILE)
                 .then(if (selected != AppTabId.PROFILE) Modifier.clearAndSetSemantics { } else Modifier)

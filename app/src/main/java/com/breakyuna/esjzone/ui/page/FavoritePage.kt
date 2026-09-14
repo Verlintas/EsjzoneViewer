@@ -166,7 +166,6 @@ object FavoritePage : AppDestination {
         val syncing = syncState is FavoritePageModel.State.Syncing
         val deleting = deleteState is FavoritePageModel.DeleteState.Deleting
         val isSyncFailed = syncState is FavoritePageModel.State.Failed || (lastSyncFailed && syncState !is FavoritePageModel.State.Completed)
-        val indicatorColor = if (isSyncFailed) Color(0xFF9E9E9E) else Color(0xFF4CAF50)
         val syncAddedMessage = stringResource(R.string.bookshelf_sync_added)
         val syncDoneMessage = stringResource(R.string.bookshelf_sync_done)
         val networkErrorMessage = stringResource(R.string.load_network_error)
@@ -238,7 +237,16 @@ object FavoritePage : AppDestination {
 
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            snackbarHost = { SnackbarHost(snackbar) },
+            // The floating navigation is rendered by the shell rather than Scaffold.
+            // Reserve its height here so transient feedback is never obscured by it.
+            snackbarHost = {
+                SnackbarHost(
+                    snackbar,
+                    modifier = Modifier.padding(
+                        bottom = LocalFloatingNavPadding.current.calculateBottomPadding()
+                    )
+                )
+            },
             topBar = {
                 BookshelfTopBar(
                     showBack = showBack,
@@ -246,9 +254,13 @@ object FavoritePage : AppDestination {
                     selectedCount = selected.size,
                     totalCount = shown.size,
                     syncing = syncing,
+                    isSyncFailed = isSyncFailed,
+                    showSyncStatusMenu = showSyncStatusMenu,
                     deleting = deleting,
                     onBack = { if (editing) exitEdit() else navigator?.pop() },
                     onRefresh = { if (!syncing) model.sync() },
+                    onSyncStatusMenuChange = { showSyncStatusMenu = it },
+                    onRetrySync = { if (!syncing) model.sync() },
                     listView = listView,
                     onToggleView = { focusManager.clearFocus(force = true); listView = !listView },
                     onEdit = { editing = true; selected = emptySet() },
@@ -335,86 +347,6 @@ object FavoritePage : AppDestination {
                                         style = AppTypography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Box {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(AppSpacing.xl)
-                                                .clip(CircleShape)
-                                                .clickable(
-                                                    onClickLabel = stringResource(
-                                                        if (isSyncFailed) R.string.bookshelf_sync_status_failed
-                                                        else R.string.bookshelf_sync_status_success
-                                                    )
-                                                ) {
-                                                    showSyncStatusMenu = true
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Surface(
-                                                modifier = Modifier.size(AppSpacing.sm),
-                                                shape = CircleShape,
-                                                color = indicatorColor
-                                            ) {}
-                                        }
-                                        DropdownMenu(
-                                            expanded = showSyncStatusMenu,
-                                            onDismissRequest = { showSyncStatusMenu = false },
-                                            modifier = Modifier.widthIn(min = 200.dp, max = 280.dp)
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
-                                                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-                                            ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-                                                ) {
-                                                    Surface(
-                                                        modifier = Modifier.size(AppSpacing.sm),
-                                                        shape = CircleShape,
-                                                        color = indicatorColor
-                                                    ) {}
-                                                    Text(
-                                                        text = stringResource(
-                                                            when {
-                                                                syncing -> R.string.bookshelf_sync_running_short
-                                                                isSyncFailed -> R.string.bookshelf_sync_status_failed
-                                                                else -> R.string.bookshelf_sync_status_success
-                                                            }
-                                                        ),
-                                                        style = AppTypography.labelLarge,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                                Text(
-                                                    text = stringResource(
-                                                        when {
-                                                            syncing -> R.string.bookshelf_sync_running_short
-                                                            isSyncFailed -> R.string.bookshelf_sync_failed
-                                                            else -> R.string.bookshelf_sync_done
-                                                        }
-                                                    ),
-                                                    style = AppTypography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                if (isSyncFailed && !syncing) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.End
-                                                    ) {
-                                                        TextButton(
-                                                            onClick = {
-                                                                showSyncStatusMenu = false
-                                                                model.sync()
-                                                            }
-                                                        ) {
-                                                            Text(stringResource(R.string.retry))
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
                                 }
                                 FilterChip(
                                     selected = activeFilter == BookshelfFilter.DOWNLOADED,
@@ -577,11 +509,15 @@ private fun BookshelfTopBar(
     selectedCount: Int,
     totalCount: Int,
     syncing: Boolean,
+    isSyncFailed: Boolean,
+    showSyncStatusMenu: Boolean,
     listView: Boolean,
     onToggleView: () -> Unit,
     deleting: Boolean,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onSyncStatusMenuChange: (Boolean) -> Unit,
+    onRetrySync: () -> Unit,
     onEdit: () -> Unit,
     onDone: () -> Unit,
     onSelectAll: () -> Unit,
@@ -594,13 +530,24 @@ private fun BookshelfTopBar(
         ) {
             if (showBack) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.reader_back)) }
             Column(Modifier.weight(1f).padding(horizontal = AppSpacing.sm)) {
-                Text(
-                    if (editing) stringResource(R.string.bookshelf_selected_header, selectedCount)
-                    else stringResource(R.string.bookshelf),
-                    style = AppTypography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+                    Text(
+                        if (editing) stringResource(R.string.bookshelf_selected_header, selectedCount)
+                        else stringResource(R.string.bookshelf),
+                        style = AppTypography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (!editing) {
+                        BookshelfSyncStatusIndicator(
+                            syncing = syncing,
+                            isSyncFailed = isSyncFailed,
+                            expanded = showSyncStatusMenu,
+                            onExpandedChange = onSyncStatusMenuChange,
+                            onRetry = onRetrySync
+                        )
+                    }
+                }
                 if (editing) Text(
                     stringResource(R.string.bookshelf_total_header, totalCount),
                     style = AppTypography.bodySmall,
@@ -624,6 +571,74 @@ private fun BookshelfTopBar(
                     Icon(if (listView) Icons.Filled.GridView else Icons.Filled.ViewList, "切换书架展示方式")
                 }
                 IconButton(onClick = onEdit, enabled = totalCount > 0) { Icon(Icons.Filled.Edit, stringResource(R.string.bookshelf_edit)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookshelfSyncStatusIndicator(
+    syncing: Boolean,
+    isSyncFailed: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onRetry: () -> Unit
+) {
+    val indicatorColor = if (isSyncFailed) Color(0xFF9E9E9E) else Color(0xFF4CAF50)
+    Box {
+        Box(
+            modifier = Modifier
+                .size(AppSpacing.xl)
+                .clip(CircleShape)
+                .clickable(
+                    onClickLabel = stringResource(
+                        if (isSyncFailed) R.string.bookshelf_sync_status_failed
+                        else R.string.bookshelf_sync_status_success
+                    )
+                ) { onExpandedChange(true) },
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+            modifier = Modifier.widthIn(min = 200.dp, max = 280.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                    Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+                    Text(
+                        text = stringResource(
+                            when {
+                                syncing -> R.string.bookshelf_sync_running_short
+                                isSyncFailed -> R.string.bookshelf_sync_status_failed
+                                else -> R.string.bookshelf_sync_status_success
+                            }
+                        ),
+                        style = AppTypography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    text = stringResource(
+                        when {
+                            syncing -> R.string.bookshelf_sync_running_short
+                            isSyncFailed -> R.string.bookshelf_sync_failed
+                            else -> R.string.bookshelf_sync_done
+                        }
+                    ),
+                    style = AppTypography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (isSyncFailed && !syncing) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { onExpandedChange(false); onRetry() }) { Text(stringResource(R.string.retry)) }
+                    }
+                }
             }
         }
     }

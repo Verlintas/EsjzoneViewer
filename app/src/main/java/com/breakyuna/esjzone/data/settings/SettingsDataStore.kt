@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
@@ -27,6 +28,10 @@ import java.io.IOException
 /** Stable application setting keys and values shared by the DataStore boundary and UI adapter. */
 object SettingsDefaults {
     const val READER_AUTO_SAVE_KEY = "reader_auto_save"
+    const val DOWNLOAD_CONCURRENCY_KEY = "download_concurrency"
+    const val DEFAULT_DOWNLOAD_CONCURRENCY = 5
+    const val MIN_DOWNLOAD_CONCURRENCY = 1
+    const val MAX_DOWNLOAD_CONCURRENCY = 8
     val DOMAINS: List<String> = listOf("www.esjzone.cc", "www.esjzone.one")
 }
 
@@ -58,6 +63,8 @@ class SettingsDataStore(
         .stateIn(scope, SharingStarted.Eagerly, defaults.language)
     override val readerAutoSave: StateFlow<Boolean> = values.map { it.readerAutoSave }
         .stateIn(scope, SharingStarted.Eagerly, defaults.readerAutoSave)
+    override val downloadConcurrency: StateFlow<Int> = values.map { it.downloadConcurrency }
+        .stateIn(scope, SharingStarted.Eagerly, defaults.downloadConcurrency)
 
     override fun setAdult(value: Boolean) = write { it[ADULT] = value }
     override fun setTheme(value: AppThemeVariant) = write { it[THEME] = value.name }
@@ -66,6 +73,12 @@ class SettingsDataStore(
     }
     override fun setLanguage(value: AppLanguage) = write { it[LANGUAGE] = value.code }
     override fun setReaderAutoSave(value: Boolean) = write { it[READER_AUTO_SAVE] = value }
+    override fun setDownloadConcurrency(value: Int) = write {
+        it[DOWNLOAD_CONCURRENCY] = value.coerceIn(
+            SettingsDefaults.MIN_DOWNLOAD_CONCURRENCY,
+            SettingsDefaults.MAX_DOWNLOAD_CONCURRENCY
+        )
+    }
 
     /** Copies legacy Room preferences once; authentication/session keys are intentionally excluded. */
     suspend fun migrateFromLegacy(database: GeneralDatabase) {
@@ -81,6 +94,10 @@ class SettingsDataStore(
             preferences[LANGUAGE] = cache.findByKey("language")?.value ?: defaults.language.code
             preferences[READER_AUTO_SAVE] = cache.findByKey(READER_AUTO_SAVE_KEY)
                 ?.value?.toBooleanStrictOrNull() ?: defaults.readerAutoSave
+            preferences[DOWNLOAD_CONCURRENCY] = cache.findByKey(DOWNLOAD_CONCURRENCY_KEY)
+                ?.value?.toIntOrNull()
+                ?.coerceIn(SettingsDefaults.MIN_DOWNLOAD_CONCURRENCY, SettingsDefaults.MAX_DOWNLOAD_CONCURRENCY)
+                ?: defaults.downloadConcurrency
             preferences[MIGRATION_COMPLETE] = true
         }
 
@@ -95,6 +112,7 @@ class SettingsDataStore(
             database.cacheDao().deleteByKey("domain")
             database.cacheDao().deleteByKey("language")
             database.cacheDao().deleteByKey(READER_AUTO_SAVE_KEY)
+            database.cacheDao().deleteByKey(DOWNLOAD_CONCURRENCY_KEY)
         }
     }
 
@@ -107,7 +125,8 @@ class SettingsDataStore(
         val theme: AppThemeVariant = AppThemeVariant.DEFAULT,
         val domain: String = SettingsDefaults.DOMAINS.first(),
         val language: AppLanguage = AppLanguage.SYSTEM,
-        val readerAutoSave: Boolean = true
+        val readerAutoSave: Boolean = true,
+        val downloadConcurrency: Int = SettingsDefaults.DEFAULT_DOWNLOAD_CONCURRENCY
     )
 
     private fun Preferences.toSettingsValues(): SettingsValues = SettingsValues(
@@ -116,7 +135,10 @@ class SettingsDataStore(
             ?: defaults.theme,
         domain = this[DOMAIN]?.takeIf { it in SettingsDefaults.DOMAINS } ?: defaults.domain,
         language = AppLanguage.fromCode(this[LANGUAGE]),
-        readerAutoSave = this[READER_AUTO_SAVE] ?: defaults.readerAutoSave
+        readerAutoSave = this[READER_AUTO_SAVE] ?: defaults.readerAutoSave,
+        downloadConcurrency = this[DOWNLOAD_CONCURRENCY]
+            ?.coerceIn(SettingsDefaults.MIN_DOWNLOAD_CONCURRENCY, SettingsDefaults.MAX_DOWNLOAD_CONCURRENCY)
+            ?: defaults.downloadConcurrency
     )
 
     private companion object {
@@ -127,6 +149,7 @@ class SettingsDataStore(
         val DOMAIN = stringPreferencesKey("domain")
         val LANGUAGE = stringPreferencesKey("language")
         val READER_AUTO_SAVE = booleanPreferencesKey("reader_auto_save")
+        val DOWNLOAD_CONCURRENCY = intPreferencesKey("download_concurrency")
         val MIGRATION_COMPLETE = booleanPreferencesKey("legacy_room_migration_complete")
     }
 }

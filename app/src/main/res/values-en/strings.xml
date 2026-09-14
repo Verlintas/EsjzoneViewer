@@ -178,6 +178,10 @@
     <string name="download_settings">Download settings</string>
     <string name="download_auto_save">Save while reading</string>
     <string name="download_auto_save_description">Automatically save chapters as they load</string>
+    <string name="settings_download_section">Downloads</string>
+    <string name="settings_download_concurrency_description">Maximum chapters downloaded at the same time. Takes effect for new download tasks.</string>
+    <string name="settings_download_concurrency_value">%1$d simultaneous downloads</string>
+    <string name="settings_download_concurrency_default">Default</string>
     <string name="novel_download_deleted">Deleted downloads for %1$s</string>
     <string name="novel_download_delete_title">Delete downloaded content</string>
     <string name="novel_download_delete_message">Delete all downloaded chapters for %1$s? This will not affect the bookshelf, reading history, or bookmarks.</string>
@@ -204,6 +208,9 @@
     <string name="history_local_delete_confirm">Deleted records cannot be recovered. Bookshelf, cloud history, downloads, and bookmarks are not affected.</string>
     <string name="history_local_delete_confirm_action">Delete records</string>
     <string name="history_cloud_sync">Sync cloud history</string>
+    <string name="history_cloud_sync_running">Syncing cloud history</string>
+    <string name="history_cloud_sync_success">Cloud history synced</string>
+    <string name="history_cloud_sync_failed">Cloud history sync failed</string>
     <string name="history_local_delete">Delete local record</string>
     <string name="history_local_position">Chapter %1$d/%2$d · %3$d%%</string>
     <string name="history_local_percent">%1$d%% of chapter</string>

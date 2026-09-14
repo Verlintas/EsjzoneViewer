@@ -37,11 +37,13 @@ interface SettingsRepository {
     val domain: StateFlow<String>
     val language: StateFlow<AppLanguage>
     val readerAutoSave: StateFlow<Boolean>
+    val downloadConcurrency: StateFlow<Int>
     fun setAdult(value: Boolean)
     fun setTheme(value: AppThemeVariant)
     fun setDomain(value: String)
     fun setLanguage(value: AppLanguage)
     fun setReaderAutoSave(value: Boolean)
+    fun setDownloadConcurrency(value: Int)
 }
 
 interface NovelRepository {

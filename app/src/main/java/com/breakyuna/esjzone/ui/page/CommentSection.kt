@@ -2,6 +2,7 @@ package com.breakyuna.esjzone.ui.page
 
 import androidx.lifecycle.viewModelScope
 import com.breakyuna.esjzone.app.PresentationAccess
+import com.breakyuna.esjzone.app.cacheUserProfile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -78,6 +79,7 @@ import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.network.features.CommentSubmissionNotVerifiedException
 import com.breakyuna.esjzone.network.features.ForumReplyBusinessException
 import com.breakyuna.esjzone.network.features.getPageComments
+import com.breakyuna.esjzone.network.features.getUserProfile
 import com.breakyuna.esjzone.network.features.submitForumComment
 import com.breakyuna.esjzone.novellibrary.novel.COMMENT_PAGE_SIZE
 import com.breakyuna.esjzone.novellibrary.novel.Comment
@@ -949,6 +951,7 @@ internal class CommentPageModel(
                 draft.value = ""
                 this@CommentPageModel.replyToken.value = null
                 this@CommentPageModel.replyAuthor.value = null
+                viewModelScope.launch(Dispatchers.IO) { refreshProfileSnapshot() }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: CommentSubmissionNotVerifiedException) {
@@ -965,6 +968,21 @@ internal class CommentPageModel(
             } finally {
                 isSubmitting.value = false
             }
+        }
+    }
+
+    /** A successful post changes the server-side experience and can change the user's level. */
+    private suspend fun refreshProfileSnapshot() {
+        try {
+            val profile = PresentationAccess.client.getUserProfile(authorization, forceRefresh = true)
+            val domain = authorization.domain.ifBlank { PresentationAccess.settings.domain.value }
+            cacheUserProfile(authorization, domain, profile)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            // The comment was already verified. Keep that success state even if the
+            // non-critical profile refresh is temporarily unavailable.
+            AppLogger.w("CommentPageModel", "Failed to refresh profile after comment submission", error)
         }
     }
 }

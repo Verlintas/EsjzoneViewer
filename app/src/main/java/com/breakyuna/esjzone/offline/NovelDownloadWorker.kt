@@ -58,6 +58,9 @@ object NovelDownloadManager {
                 EsjzoneApplication.instance.container.settings.domain.value
             }.getOrDefault(SettingsDefaults.DOMAINS.first())
         }
+        val concurrency = runCatching {
+            EsjzoneApplication.instance.container.settings.downloadConcurrency.value
+        }.getOrDefault(NovelDownloadStore.DEFAULT_DOWNLOAD_CONCURRENCY)
         val request = OneTimeWorkRequestBuilder<NovelDownloadWorker>()
             .setConstraints(
                 Constraints.Builder()
@@ -69,7 +72,8 @@ object NovelDownloadManager {
                     NovelDownloadWorker.KEY_NAME to novel.name,
                     NovelDownloadWorker.KEY_URL to novel.url,
                     NovelDownloadWorker.KEY_FORUM_URL to novel.forumUrl,
-                    NovelDownloadWorker.KEY_DOMAIN to domain
+                    NovelDownloadWorker.KEY_DOMAIN to domain,
+                    NovelDownloadWorker.KEY_CONCURRENCY to concurrency
                 )
             )
             .addTag(TAG)
@@ -134,6 +138,10 @@ class NovelDownloadWorker(
         val rawUrl = inputData.getString(KEY_URL)?.trim().orEmpty()
         val forumUrl = inputData.getString(KEY_FORUM_URL)?.trim().orEmpty()
         val domain = inputData.getString(KEY_DOMAIN)?.trim().orEmpty()
+        val concurrency = inputData.getInt(
+            KEY_CONCURRENCY,
+            NovelDownloadStore.DEFAULT_DOWNLOAD_CONCURRENCY
+        ).coerceIn(SettingsDefaults.MIN_DOWNLOAD_CONCURRENCY, SettingsDefaults.MAX_DOWNLOAD_CONCURRENCY)
         if (name.isBlank() || rawUrl.isBlank()) return Result.failure()
 
         return try {
@@ -159,7 +167,7 @@ class NovelDownloadWorker(
                 forceRefresh = true,
                 baseUrl = actualBaseUrl
             )
-            NovelDownloadStore.download(authorization, detail, actualBaseUrl) { next ->
+            NovelDownloadStore.download(authorization, detail, actualBaseUrl, concurrency) { next ->
                 setProgressAsync(next.toWorkData())
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                     ContextCompat.checkSelfPermission(
@@ -249,6 +257,7 @@ class NovelDownloadWorker(
         internal const val KEY_URL = "novel_url"
         internal const val KEY_FORUM_URL = "forum_url"
         internal const val KEY_DOMAIN = "domain"
+        internal const val KEY_CONCURRENCY = "download_concurrency"
         internal const val KEY_COMPLETED = "completed"
         internal const val KEY_TOTAL = "total"
         internal const val KEY_CHAPTER = "chapter"

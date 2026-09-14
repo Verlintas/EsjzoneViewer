@@ -178,11 +178,15 @@
     <string name="download_settings">下载设置</string>
     <string name="download_auto_save">边看边存</string>
     <string name="download_auto_save_description">阅读时自动保存已加载的章节</string>
+    <string name="settings_download_section">下载</string>
+    <string name="settings_download_concurrency_description">同时下载的最大章节数；仅对新创建的下载任务生效。</string>
+    <string name="settings_download_concurrency_value">同时下载 %1$d 章</string>
+    <string name="settings_download_concurrency_default">默认</string>
     <string name="novel_download_deleted">已删除《%1$s》的下载内容</string>
     <string name="novel_download_delete_title">删除下载内容</string>
     <string name="novel_download_delete_message">确定删除《%1$s》的全部下载章节吗？此操作不会影响书架、阅读历史或书签。</string>
     <string name="novel_download_delete">删除下载</string>
-    <string name="history">历史记录</string>
+    <string name="history">历史</string>
     <string name="history_local">本地历史</string>
     <string name="history_cloud">云端历史</string>
     <string name="history_local_empty">暂无本地阅读记录</string>
@@ -204,6 +208,9 @@
     <string name="history_local_delete_confirm">删除后将无法恢复，但不会影响书架、云端历史、下载内容或书签。</string>
     <string name="history_local_delete_confirm_action">删除记录</string>
     <string name="history_cloud_sync">同步云端历史</string>
+    <string name="history_cloud_sync_running">云端历史同步中</string>
+    <string name="history_cloud_sync_success">云端历史已同步</string>
+    <string name="history_cloud_sync_failed">云端历史同步失败</string>
     <string name="history_local_delete">删除本地记录</string>
     <string name="history_local_position">第 %1$d/%2$d 章 · %3$d%%</string>
     <string name="history_local_percent">本章 %1$d%%</string>

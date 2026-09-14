@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MenuBook
@@ -95,6 +96,7 @@ object SettingsPage : AppDestination {
         val domain by PresentationAccess.settings.domain
         val language by PresentationAccess.settings.language
         val autoSave by PresentationAccess.settings.readerAutoSave
+        val downloadConcurrency by PresentationAccess.settings.downloadConcurrency
         val readerSettings by PresentationAccess.readerSettings.settings.collectAsState()
         val crashReport by AppLogger.crashReportFlow.collectAsState()
         val checkState by ReleaseUpdateChecker.status.collectAsState()
@@ -170,6 +172,25 @@ object SettingsPage : AppDestination {
                     ) { enabled ->
                         PresentationAccess.settings.setReaderAutoSave(enabled)
                         model.persist(PresentationAccess.settings.READER_AUTO_SAVE_KEY, enabled.toString())
+                    }
+                }
+
+                SettingsSection(Icons.Filled.Download, stringResource(R.string.settings_download_section)) {
+                    Text(
+                        stringResource(R.string.settings_download_concurrency_description),
+                        style = com.breakyuna.esjzone.ui.designsystem.AppTypography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    listOf(1, 3, 5, 8).forEach { candidate ->
+                        ChoiceRow(
+                            title = stringResource(R.string.settings_download_concurrency_value, candidate),
+                            subtitle = if (candidate == 5) stringResource(R.string.settings_download_concurrency_default) else "",
+                            selected = candidate == downloadConcurrency,
+                            onClick = {
+                                PresentationAccess.settings.setDownloadConcurrency(candidate)
+                                model.persist(PresentationAccess.settings.DOWNLOAD_CONCURRENCY_KEY, candidate.toString())
+                            }
+                        )
                     }
                 }
 

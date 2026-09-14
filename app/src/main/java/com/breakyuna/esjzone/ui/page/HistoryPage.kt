@@ -7,6 +7,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.CloudSync
@@ -29,11 +31,13 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -52,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavPadding
@@ -120,6 +125,7 @@ object HistoryPage : AppDestination {
         var localSelected by remember { mutableStateOf<Set<String>>(emptySet()) }
         var pendingLocalDelete by remember { mutableStateOf<Set<String>>(emptySet()) }
         var showLocalDeleteDialog by remember { mutableStateOf(false) }
+        var showCloudSyncStatusMenu by remember { mutableStateOf(false) }
         val suppressFloatingNav = LocalFloatingNavSuppression.current
         DisposableEffect(localEditing, showLocalDeleteDialog, suppressFloatingNav) {
             suppressFloatingNav(localEditing || showLocalDeleteDialog)
@@ -133,10 +139,14 @@ object HistoryPage : AppDestination {
             .orEmpty()
         val localRowIds = remember(localRows) { localRows.mapTo(LinkedHashSet()) { it.activityId } }
 
-        LaunchedEffect(Unit) { localModel.observe() }
+        // This destination's ViewModels outlive recompositions. Start the one
+        // cloud refresh when the screen enters, rather than from page content.
+        LaunchedEffect(Unit) {
+            localModel.observe()
+            cloudModel.getNovels(forceRefresh = true)
+        }
         LaunchedEffect(selectedPage) {
             if (pager.currentPage != selectedPage) pager.animateScrollToPage(selectedPage)
-            if (selectedPage == 1) cloudModel.getNovels()
         }
         LaunchedEffect(pager) { snapshotFlow { pager.currentPage }.collect { selectedPage = it } }
         LaunchedEffect(localRowIds) { localSelected = localSelected.intersect(localRowIds) }
@@ -156,7 +166,16 @@ object HistoryPage : AppDestination {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(stringResource(R.string.history), style = AppTypography.titleLarge) },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+                            Text(stringResource(R.string.history), style = AppTypography.titleLarge)
+                            HistoryCloudSyncStatusIndicator(
+                                state = cloudState,
+                                expanded = showCloudSyncStatusMenu,
+                                onExpandedChange = { showCloudSyncStatusMenu = it }
+                            )
+                        }
+                    },
                     navigationIcon = { if (showBack) BackIconButton { navigator?.pop() } },
                     actions = {
                         IconButton(onClick = { searchOpen = !searchOpen; if (!searchOpen) query = "" }) {
@@ -254,6 +273,46 @@ object HistoryPage : AppDestination {
 }
 
 @Composable
+private fun HistoryCloudSyncStatusIndicator(
+    state: HistoryPageModel.State,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit
+) {
+    val syncing = state is HistoryPageModel.State.Loading
+    val failed = state is HistoryPageModel.State.Error
+    val indicatorColor = if (failed) Color(0xFF9E9E9E) else Color(0xFF4CAF50)
+    val statusRes = when {
+        syncing -> R.string.history_cloud_sync_running
+        failed -> R.string.history_cloud_sync_failed
+        else -> R.string.history_cloud_sync_success
+    }
+    Box {
+        Box(
+            modifier = Modifier
+                .size(AppSpacing.xl)
+                .clickable(onClickLabel = stringResource(statusRes)) { onExpandedChange(true) },
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) }
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                    Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+                    Text(stringResource(statusRes), style = AppTypography.labelLarge)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun LocalHistoryContent(
     state: LocalHistoryPageModel.State,
     query: String,
@@ -344,11 +403,15 @@ private fun LocalHistoryCard(
             .clickable(onClick = onOpen)
             .semantics { role = Role.Button }
     ) {
-        Row(Modifier.fillMaxWidth().padding(AppSpacing.md), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+        ) {
             AppNovelCover(
                 coverUrl = coverUrl,
                 title = activity.novelName,
-                modifier = Modifier.size(width = 84.dp, height = 116.dp)
+                modifier = Modifier.size(width = 96.dp, height = 132.dp)
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                 Text(activity.novelName.ifBlank { activity.novelId }, style = AppTypography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -456,14 +519,14 @@ private fun CloudHistoryCard(
             .fillMaxWidth()
             .clickable(onClick = onOpen)
             .semantics { role = Role.Button }
-            .padding(vertical = AppSpacing.md),
+            .padding(vertical = AppSpacing.xs),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {
         AppNovelCover(
             coverUrl = coverUrl,
             title = history.name,
-            modifier = Modifier.size(width = 84.dp, height = 116.dp)
+            modifier = Modifier.size(width = 96.dp, height = 132.dp)
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
             Text(history.name, style = AppTypography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -500,12 +563,12 @@ private fun HistoryItemSkeleton(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = AppSpacing.md),
+            .padding(vertical = AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {
         AppShimmerPlaceholder(
-            modifier = Modifier.size(width = 84.dp, height = 116.dp),
+            modifier = Modifier.size(width = 96.dp, height = 132.dp),
             shape = AppShapes.compact
         )
         Column(

@@ -3,6 +3,7 @@ package com.breakyuna.esjzone.ui.tab
 import androidx.lifecycle.viewModelScope
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -271,6 +275,7 @@ private fun WeeklyUpdatesSection(
     val selectedIndex = orderedDays.indexOfFirst { it.date.toString() == selectedDate }
         .takeIf { it >= 0 } ?: 0
     val selectedDay = orderedDays.getOrNull(selectedIndex) ?: return
+    val swipeThreshold = with(LocalDensity.current) { 48.dp.toPx() }
     val novels = selectedDay.novels
         .asSequence()
         .filter { adult || !it.isAdult }
@@ -279,7 +284,36 @@ private fun WeeklyUpdatesSection(
         .toList()
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.md),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = AppSpacing.md)
+            // A horizontal gesture changes the selected day, while vertical drags
+            // remain owned by the containing LazyColumn.
+            .pointerInput(dayKeys, selectedDate, swipeThreshold) {
+                var dragDistance = 0f
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragDistance += dragAmount
+                    },
+                    onDragCancel = { dragDistance = 0f },
+                    onDragEnd = {
+                        val targetIndex = when {
+                            dragDistance <= -swipeThreshold -> {
+                                (selectedIndex + 1).coerceAtMost(orderedDays.lastIndex)
+                            }
+                            dragDistance >= swipeThreshold -> {
+                                (selectedIndex - 1).coerceAtLeast(0)
+                            }
+                            else -> selectedIndex
+                        }
+                        if (targetIndex != selectedIndex) {
+                            selectedDate = orderedDays[targetIndex].date.toString()
+                        }
+                        dragDistance = 0f
+                    }
+                )
+            },
         verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {
         Text(
@@ -386,7 +420,10 @@ private fun HomeActions(
         HomeAction(stringResource(R.string.categories), Icons.Filled.Category, onCategories)
         HomeAction(stringResource(R.string.forum), Icons.Filled.Forum, onForum)
         HomeAction(stringResource(R.string.guestbook), Icons.Filled.Forum, onGuestbook)
-        HomeAction(stringResource(R.string.home_water_cooler), Icons.Filled.Forum, onWaterCooler)
+        HomeWaterCoolerAction(
+            label = stringResource(R.string.home_water_cooler),
+            onClick = onWaterCooler
+        )
     }
 }
 
@@ -398,6 +435,19 @@ private fun HomeAction(
 ) {
     IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
         Icon(icon, contentDescription = null)
+    }
+}
+
+@Composable
+private fun HomeWaterCoolerAction(
+    label: String,
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
+        Text(
+            text = "水",
+            style = MaterialTheme.typography.titleMedium
+        )
     }
 }
 

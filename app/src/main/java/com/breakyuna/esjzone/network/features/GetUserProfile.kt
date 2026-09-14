@@ -8,11 +8,15 @@ import com.breakyuna.esjzone.network.PageKind
 import com.breakyuna.esjzone.novellibrary.user.UserProfile
 import org.jsoup.Jsoup
 
-fun EsjzoneClient.getUserProfile(authorization: Authorization): UserProfile {
+fun EsjzoneClient.getUserProfile(
+    authorization: Authorization,
+    forceRefresh: Boolean = false
+): UserProfile {
     val responseBody = getPage(
         authorization,
         EsjzoneUrls.My.Profile,
         PageCacheTtl.PROFILE,
+        forceRefresh = forceRefresh,
         pageKind = PageKind.ACCOUNT
     )
 

@@ -38,6 +38,8 @@ class SettingsPageModel : AppStateViewModel<SettingsPageModel.State>(State()) {
                     "language" -> PresentationAccess.settings.setLanguage(AppLanguage.fromCode(value))
                     PresentationAccess.settings.READER_AUTO_SAVE_KEY ->
                         PresentationAccess.settings.setReaderAutoSave(value.toBooleanStrictOrNull() ?: return@launch)
+                    PresentationAccess.settings.DOWNLOAD_CONCURRENCY_KEY ->
+                        PresentationAccess.settings.setDownloadConcurrency(value.toIntOrNull() ?: return@launch)
                     else -> PresentationAccess.database.cacheDao().put(key, value)
                 }
             } catch (e: CancellationException) {
