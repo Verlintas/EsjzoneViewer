@@ -94,7 +94,7 @@ class SettingsDataStore(
             preferences[LANGUAGE] = cache.findByKey("language")?.value ?: defaults.language.code
             preferences[READER_AUTO_SAVE] = cache.findByKey(READER_AUTO_SAVE_KEY)
                 ?.value?.toBooleanStrictOrNull() ?: defaults.readerAutoSave
-            preferences[DOWNLOAD_CONCURRENCY] = cache.findByKey(DOWNLOAD_CONCURRENCY_KEY)
+            preferences[DOWNLOAD_CONCURRENCY] = cache.findByKey(SettingsDefaults.DOWNLOAD_CONCURRENCY_KEY)
                 ?.value?.toIntOrNull()
                 ?.coerceIn(SettingsDefaults.MIN_DOWNLOAD_CONCURRENCY, SettingsDefaults.MAX_DOWNLOAD_CONCURRENCY)
                 ?: defaults.downloadConcurrency
@@ -112,7 +112,7 @@ class SettingsDataStore(
             database.cacheDao().deleteByKey("domain")
             database.cacheDao().deleteByKey("language")
             database.cacheDao().deleteByKey(READER_AUTO_SAVE_KEY)
-            database.cacheDao().deleteByKey(DOWNLOAD_CONCURRENCY_KEY)
+            database.cacheDao().deleteByKey(SettingsDefaults.DOWNLOAD_CONCURRENCY_KEY)
         }
     }
 
