@@ -313,34 +313,33 @@ private fun LazyListScope.weeklyUpdatesCollection(
     item(key = "home-weekly-header", contentType = "home-weekly-header") {
         WeeklyUpdatesHeader(days, selectedIndex, onSelect)
     }
-    if (novelsByDay.getOrNull(selectedIndex).isNullOrEmpty()) {
-        item(key = "home-weekly-empty", contentType = "empty") {
-            DiscoveryEmptyState(
-                title = stringResource(R.string.home_collection_empty_title),
-                message = stringResource(R.string.home_weekly_update_empty)
-            )
-        }
-    } else {
-        item(key = "home-weekly-content", contentType = "home-weekly-content") {
-            AnimatedContent(
-                targetState = selectedIndex,
-                transitionSpec = {
-                    if (targetState > initialState) {
-                        slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth } togetherWith
-                            slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth }
-                    } else {
-                        slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth } togetherWith
-                            slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = AppSpacing.sm)
-                    .weeklyDaySwipe(days, selectedIndex, onSelect),
-                label = "weekly-update-date-transition"
-            ) { index ->
+    item(key = "home-weekly-content", contentType = "home-weekly-content") {
+        AnimatedContent(
+            targetState = selectedIndex,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth } togetherWith
+                        slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth }
+                } else {
+                    slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth } togetherWith
+                        slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = AppSpacing.sm)
+                .weeklyDaySwipe(days, selectedIndex, onSelect),
+            label = "weekly-update-date-transition"
+        ) { index ->
+            val novels = novelsByDay.getOrNull(index).orEmpty()
+            if (novels.isEmpty()) {
+                DiscoveryEmptyState(
+                    title = stringResource(R.string.home_collection_empty_title),
+                    message = stringResource(R.string.home_weekly_update_empty)
+                )
+            } else {
                 WeeklyUpdatesGrid(
-                    novels = novelsByDay.getOrNull(index).orEmpty(),
+                    novels = novels,
                     onNovelClick = { novel -> navigator?.pushIfNotCurrent(NovelPage(novel)) }
                 )
             }
