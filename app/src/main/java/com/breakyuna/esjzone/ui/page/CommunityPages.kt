@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.page
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
 import com.breakyuna.esjzone.app.PresentationAccess
 
@@ -335,6 +338,11 @@ class ForumPostPage(private val topic: ForumTopic) : AppDestination {
                 onRefresh = ::refreshAll,
                 refreshing = syncRunning
             )
+            PullToRefreshBox(
+                isRefreshing = syncRunning,
+                onRefresh = ::refreshAll,
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) {
             when (val snapshot = state) {
                 is CommunityState.Loading -> LoadingSkeleton(modifier = Modifier.fillMaxWidth())
                 is CommunityState.Error -> if (snapshot.failure == LoadFailureKind.NETWORK) {
@@ -371,6 +379,7 @@ class ForumPostPage(private val topic: ForumTopic) : AppDestination {
                     }
                     CommentComposerHost(model = commentsModel)
                 }
+            }
             }
         }
 

@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.tab
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -131,11 +134,15 @@ object ProfileTab : AppTab {
         Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.navigation_profile), style = AppTypography.titleLarge) }) }) { padding ->
             val navPadding = LocalFloatingNavPadding.current
             val layoutDirection = LocalLayoutDirection.current
+            PullToRefreshBox(
+                isRefreshing = loading,
+                onRefresh = { if (!loading) retry++ },
+                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
+            ) {
             LazyColumn(
                 Modifier
                     .fillMaxSize()
-                    .accountContentWidth()
-                    .padding(top = padding.calculateTopPadding()),
+                    .accountContentWidth(),
                 contentPadding = PaddingValues(
                     start = AppSpacing.lg + navPadding.calculateStartPadding(layoutDirection),
                     end = AppSpacing.lg,
@@ -149,6 +156,7 @@ object ProfileTab : AppTab {
                 items(menuItems, key = { it.id }, contentType = { "profile_action" }) { item ->
                     ProfileAction(item, onClick = { navigator?.pushIfNotCurrent(item.destination) })
                 }
+            }
             }
         }
     }

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.tab
 
 import androidx.lifecycle.viewModelScope
@@ -14,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -98,6 +102,7 @@ object HomeTab : AppTab {
         )
 
     @Composable
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun Content() {
         val navigator = LocalBaseNavigator.current
         val authorization = LocalAuthorization.current
@@ -143,10 +148,13 @@ object HomeTab : AppTab {
                 )
             }
         ) { padding ->
+            PullToRefreshBox(
+                isRefreshing = state is HomeTabModel.State.Loading,
+                onRefresh = model::reload,
+                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
+            ) {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = padding.calculateTopPadding()),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = 16.dp + navPadding.calculateStartPadding(layoutDirection),
                     end = 16.dp,
@@ -256,6 +264,7 @@ object HomeTab : AppTab {
                         )
                     }
                 }
+            }
             }
         }
 

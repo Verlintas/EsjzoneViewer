@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.page
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
 
 import android.text.format.DateUtils
@@ -247,7 +250,13 @@ object HistoryPage : AppDestination {
                             }
                         )
                     } else {
-                        CloudHistoryContent(cloudState, query, cloudModel, authorization, navigator)
+                        PullToRefreshBox(
+                            isRefreshing = cloudState is HistoryPageModel.State.Loading,
+                            onRefresh = cloudModel::reload,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            CloudHistoryContent(cloudState, query, cloudModel, authorization, navigator)
+                        }
                     }
                 }
             }

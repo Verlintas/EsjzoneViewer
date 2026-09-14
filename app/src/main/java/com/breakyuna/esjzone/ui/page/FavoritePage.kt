@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.page
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -64,8 +66,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -311,6 +311,11 @@ object FavoritePage : AppDestination {
             // Use one lazy axis. Dynamic full-span headers and per-item spans in a
             // LazyGrid can place pinned items twice during navigation/lookahead.
             // Each visible row owns its covers; the 2-1-3-4 showcase stays in the header.
+            PullToRefreshBox(
+                isRefreshing = syncing,
+                onRefresh = { if (!syncing && !editing) model.sync() },
+                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
+            ) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val startPadding = AppSpacing.lg + navPadding.calculateStartPadding(layoutDirection)
                 val endPadding = AppSpacing.lg
@@ -324,10 +329,9 @@ object FavoritePage : AppDestination {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(
-                            top = padding.calculateTopPadding(),
+                            top = 0.dp,
                             bottom = if (editing) padding.calculateBottomPadding() else 0.dp
-                        )
-                        .topPullToSync(listState, !syncing && !editing) { model.sync() },
+                        ),
                     contentPadding = PaddingValues(
                         start = startPadding,
                         end = AppSpacing.lg,
@@ -482,6 +486,7 @@ object FavoritePage : AppDestination {
                         }
                     }
                 }
+            }
             }
         }
 
@@ -717,23 +722,3 @@ private fun BookshelfEntry.asCoveredNovel() = CoveredNovelImpl(
     likes = 0,
     isAdult = isAdult
 )
-
-private fun Modifier.topPullToSync(
-    listState: LazyListState,
-    enabled: Boolean,
-    onRefresh: () -> Unit
-): Modifier = pointerInput(enabled) {
-    awaitPointerEventScope {
-        var distance = 0f
-        while (true) {
-            val change = awaitPointerEvent().changes.firstOrNull() ?: continue
-            if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) distance = 0f
-            if (!change.pressed) {
-                if (enabled && listState.firstVisibleItemIndex == 0 && distance > 72f) onRefresh()
-                distance = 0f
-            } else if (enabled && listState.firstVisibleItemIndex == 0) {
-                distance += change.positionChange().y.coerceAtLeast(0f)
-            }
-        }
-    }
-}

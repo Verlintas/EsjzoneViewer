@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.page
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
 import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.app.cacheUserProfile
@@ -350,13 +353,18 @@ internal fun CommentListPage(
             onRefresh = onRefresh,
             refreshing = refreshing
         )
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = { (onRefresh ?: { model.load(forceRefresh = true) })() },
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        ) {
         CommentSectionHost(
             model = model,
             showHeader = false,
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+                .fillMaxSize()
         )
+        }
     }
 }
 
