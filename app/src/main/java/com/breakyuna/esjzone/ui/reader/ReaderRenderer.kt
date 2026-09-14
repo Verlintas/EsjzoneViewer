@@ -63,6 +63,22 @@ fun ReaderRenderer(
     contentColor: Color,
     textTransform: (String) -> String = { it }
 ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        ReaderChapterHeading(chapterName, settings, contentColor, textTransform)
+        ReaderBlocks(document.blocks, settings, textMeasurer, density, contentColor, textTransform)
+    }
+}
+
+/** Render a small slice of a chapter in one lazy-list item. */
+@Composable
+fun ReaderBlocks(
+    blocks: List<ReaderBlock>,
+    settings: ReaderSettings,
+    textMeasurer: TextMeasurer,
+    density: Density,
+    contentColor: Color,
+    textTransform: (String) -> String = { it }
+) {
     val textStyle = MaterialTheme.typography.bodyLarge.copy(
         fontFamily = settings.font.family,
         fontSize = settings.fontSizeSp.sp,
@@ -71,14 +87,7 @@ fun ReaderRenderer(
     )
     SelectionContainer {
         Column(modifier = Modifier.fillMaxWidth()) {
-            ReaderChapterHeading(
-                name = chapterName,
-                settings = settings,
-                contentColor = contentColor,
-                textTransform = textTransform
-            )
-
-            document.blocks.forEach { block ->
+            blocks.forEach { block ->
                 when (block) {
                     is ReaderBlock.Text -> {
                         val (text, inlineContent) = block.toAnnotatedReaderText(

@@ -2,13 +2,6 @@ package com.breakyuna.esjzone.ui.tab
 
 import androidx.lifecycle.viewModelScope
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Spacer
@@ -45,14 +38,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
@@ -67,7 +58,6 @@ import com.breakyuna.esjzone.novellibrary.data.WeeklyUpdateDay
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
 import com.breakyuna.esjzone.ui.component.AppHomeNovelTile
 import com.breakyuna.esjzone.ui.component.AppNovelCover
-import com.breakyuna.esjzone.ui.designsystem.AppMotion
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState
 import com.breakyuna.esjzone.ui.discovery.DiscoveryErrorState
@@ -127,6 +117,20 @@ object HomeTab : AppTab {
         val navPadding = LocalFloatingNavPadding.current
         val layoutDirection = LocalLayoutDirection.current
         val searchActionLabel = stringResource(R.string.search_action)
+        val weeklyDays = (state as? HomeTabModel.State.Result)?.homeData?.weeklyUpdates
+            .orEmpty().sortedByDescending { it.date }
+        val weeklyDayKeys = weeklyDays.map { it.date.toString() }
+        var selectedWeeklyDate by rememberSaveable(weeklyDayKeys) {
+            mutableStateOf(weeklyDayKeys.firstOrNull().orEmpty())
+        }
+        val weeklyIndex = weeklyDays.indexOfFirst { it.date.toString() == selectedWeeklyDate }
+            .takeIf { it >= 0 } ?: 0
+        val weeklyNovels = remember(weeklyDays, weeklyIndex, adult) {
+            weeklyDays.getOrNull(weeklyIndex)?.novels.orEmpty()
+                .asSequence().filter { adult || !it.isAdult }
+                .distinctBy { it.url.trim().ifBlank { it.name.trim() } }
+                .take(WEEKLY_UPDATE_MAX_ITEMS).toList()
+        }
 
         DiscoveryScaffold(
             title = stringResource(R.string.home_discover),
@@ -244,8 +248,10 @@ object HomeTab : AppTab {
                             )
                         }
                         weeklyUpdatesCollection(
-                            days = snapshot.homeData.weeklyUpdates,
-                            adult = adult,
+                            days = weeklyDays,
+                            selectedIndex = weeklyIndex,
+                            novels = weeklyNovels,
+                            onSelect = { selectedWeeklyDate = weeklyDays[it].date.toString() },
                             navigator = navigator
                         )
                     }
@@ -264,145 +270,31 @@ private const val WATER_COOLER_URL =
 
 private fun LazyListScope.weeklyUpdatesCollection(
     days: List<WeeklyUpdateDay>,
-    adult: Boolean,
+    selectedIndex: Int,
+    novels: List<CoveredNovel>,
+    onSelect: (Int) -> Unit,
     navigator: AppNavigator?
 ) {
     if (days.isEmpty()) return
-    item(key = "home-weekly-updates", contentType = "home-weekly-updates") {
-        WeeklyUpdatesSection(days = days, adult = adult, navigator = navigator)
+    item(key = "home-weekly-header", contentType = "home-weekly-header") {
+        WeeklyUpdatesHeader(days, selectedIndex, onSelect)
     }
-}
-
-/** A non-scrolling three-column preview of one of the site's Monday-to-today update tabs. */
-@Composable
-private fun WeeklyUpdatesSection(
-    days: List<WeeklyUpdateDay>,
-    adult: Boolean,
-    navigator: AppNavigator?
-) {
-    val orderedDays = days.sortedByDescending { it.date }
-    val dayKeys = orderedDays.map { it.date.toString() }
-    var selectedDate by rememberSaveable(dayKeys) { mutableStateOf(dayKeys.firstOrNull().orEmpty()) }
-    val selectedIndex = orderedDays.indexOfFirst { it.date.toString() == selectedDate }
-        .takeIf { it >= 0 } ?: 0
-    if (orderedDays.isEmpty()) return
-    val swipeThreshold = with(LocalDensity.current) { 48.dp.toPx() }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = AppSpacing.md)
-            // A horizontal gesture changes the selected day, while vertical drags
-            // remain owned by the containing LazyColumn.
-            .pointerInput(dayKeys, selectedDate, swipeThreshold) {
-                var dragDistance = 0f
-                detectHorizontalDragGestures(
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        dragDistance += dragAmount
-                    },
-                    onDragCancel = { dragDistance = 0f },
-                    onDragEnd = {
-                        val targetIndex = when {
-                            dragDistance <= -swipeThreshold -> {
-                                (selectedIndex + 1).coerceAtMost(orderedDays.lastIndex)
-                            }
-                            dragDistance >= swipeThreshold -> {
-                                (selectedIndex - 1).coerceAtLeast(0)
-                            }
-                            else -> selectedIndex
-                        }
-                        if (targetIndex != selectedIndex) {
-                            selectedDate = orderedDays[targetIndex].date.toString()
-                        }
-                        dragDistance = 0f
-                    }
-                )
-            },
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
-    ) {
-        Text(
-            text = stringResource(R.string.home_weekly_updates),
-            style = MaterialTheme.typography.titleLarge
-        )
-        TabRow(selectedTabIndex = selectedIndex) {
-            orderedDays.forEachIndexed { index, day ->
-                Tab(
-                    selected = index == selectedIndex,
-                    onClick = { selectedDate = day.date.toString() },
-                    text = {
-                        Text(
-                            text = weeklyDayLabel(day.date.dayOfWeek),
-                            maxLines = 1,
-                            overflow = TextOverflow.Clip
-                        )
-                    }
-                )
-            }
-        }
-        AnimatedContent(
-            targetState = selectedIndex,
-            transitionSpec = {
-                val direction = if (targetState > initialState) 1 else -1
-                val slideSpec = AppMotion.standardSpec<IntOffset>()
-                val fadeSpec = AppMotion.standardSpec<Float>()
-                (slideInHorizontally(
-                    animationSpec = slideSpec,
-                    initialOffsetX = { fullWidth -> direction * fullWidth }
-                ) + fadeIn(animationSpec = fadeSpec))
-                    .togetherWith(
-                        slideOutHorizontally(
-                            animationSpec = slideSpec,
-                            targetOffsetX = { fullWidth -> -direction * fullWidth }
-                        ) + fadeOut(animationSpec = fadeSpec)
-                    ).using(
-                        SizeTransform(clip = true) { _, _ -> AppMotion.standardSpec() }
-                    )
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .clipToBounds(),
-            label = "WeeklyUpdatesTransition"
-        ) { targetIndex ->
-            val day = orderedDays.getOrNull(targetIndex)
-            val novels = remember(day, adult) {
-                day?.novels
-                    ?.asSequence()
-                    ?.filter { adult || !it.isAdult }
-                    ?.distinctBy { it.url.trim().ifBlank { it.name.trim() } }
-                    ?.take(WEEKLY_UPDATE_MAX_ITEMS)
-                    ?.toList()
-                    .orEmpty()
-            }
-            WeeklyUpdatesContent(
-                novels = novels,
-                navigator = navigator,
-                modifier = Modifier.fillMaxWidth()
+    if (novels.isEmpty()) {
+        item(key = "home-weekly-empty", contentType = "empty") {
+            DiscoveryEmptyState(
+                title = stringResource(R.string.home_collection_empty_title),
+                message = stringResource(R.string.home_weekly_update_empty)
             )
         }
-    }
-}
-
-@Composable
-private fun WeeklyUpdatesContent(
-    novels: List<CoveredNovel>,
-    navigator: AppNavigator?,
-    modifier: Modifier = Modifier
-) {
-    if (novels.isEmpty()) {
-        DiscoveryEmptyState(
-            title = stringResource(R.string.home_collection_empty_title),
-            message = stringResource(R.string.home_weekly_update_empty),
-            modifier = modifier
-        )
     } else {
-        Column(
-            modifier = modifier,
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
-        ) {
-            novels.chunked(3).forEach { row ->
+        novels.chunked(3).forEachIndexed { rowIndex, row ->
+            item(
+                key = "home-weekly-${days[selectedIndex].date}-$rowIndex",
+                contentType = "home-weekly-row"
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.sm)
+                        .weeklyDaySwipe(days, selectedIndex, onSelect),
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                 ) {
                     row.forEach { novel ->
@@ -416,6 +308,58 @@ private fun WeeklyUpdatesContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WeeklyUpdatesHeader(
+    days: List<WeeklyUpdateDay>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.md)
+            .weeklyDaySwipe(days, selectedIndex, onSelect),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+    ) {
+        Text(stringResource(R.string.home_weekly_updates), style = MaterialTheme.typography.titleLarge)
+        TabRow(selectedTabIndex = selectedIndex) {
+            days.forEachIndexed { index, day ->
+                Tab(
+                    selected = index == selectedIndex,
+                    onClick = { onSelect(index) },
+                    text = { Text(weeklyDayLabel(day.date.dayOfWeek), maxLines = 1, overflow = TextOverflow.Clip) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Modifier.weeklyDaySwipe(
+    days: List<WeeklyUpdateDay>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit
+): Modifier {
+    val swipeThreshold = with(LocalDensity.current) { 48.dp.toPx() }
+    return pointerInput(days, selectedIndex, swipeThreshold) {
+                var dragDistance = 0f
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragDistance += dragAmount
+                    },
+                    onDragCancel = { dragDistance = 0f },
+                    onDragEnd = {
+                        val target = when {
+                            dragDistance <= -swipeThreshold -> (selectedIndex + 1).coerceAtMost(days.lastIndex)
+                            dragDistance >= swipeThreshold -> (selectedIndex - 1).coerceAtLeast(0)
+                            else -> selectedIndex
+                        }
+                        if (target != selectedIndex) onSelect(target)
+                        dragDistance = 0f
+                    }
+                )
     }
 }
 

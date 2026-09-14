@@ -102,6 +102,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /** Local and cloud history are deliberately separate sources and gestures. */
 object HistoryPage : AppDestination {
@@ -638,6 +640,8 @@ class LocalHistoryPageModel(private val authorization: Authorization) : AppState
     private var observeJob: Job? = null
     private val coverLock = Any()
     private val requestedCovers = mutableSetOf<String>()
+    private val coverFailureTimes = mutableMapOf<String, Long>()
+    private val coverPermits = Semaphore(2)
     private val resolvedCovers = mutableStateOf<Map<String, String>>(emptyMap())
 
     fun observe() {
@@ -677,16 +681,36 @@ class LocalHistoryPageModel(private val authorization: Authorization) : AppState
         if (EsjzoneUrls.coverOrEmpty(activity.novelCoverUrl).isNotBlank()) return
         val target = coverLookupUrl(activity)
         val key = coverKey(target)
-        if (key.isBlank() || !synchronized(coverLock) { requestedCovers.add(key) }) return
+        if (key.isBlank() || !synchronized(coverLock) {
+            val lastFailure = coverFailureTimes[key] ?: 0L
+            if (key in requestedCovers || System.currentTimeMillis() - lastFailure < 5 * 60_000L) {
+                false
+            } else requestedCovers.add(key)
+        }) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val cover = EsjzoneUrls.coverOrEmpty(PresentationAccess.client.getNovelDetail(authorization, FavoriteNovel(activity.novelName, target)).coverUrl)
+                val cover = coverPermits.withPermit {
+                    EsjzoneUrls.coverOrEmpty(PresentationAccess.client.getNovelDetail(
+                        authorization, FavoriteNovel(activity.novelName, target)
+                    ).coverUrl)
+                }
                 if (cover.isNotBlank()) {
                     resolvedCovers.value = resolvedCovers.value + (key to cover)
                     runCatching { PresentationAccess.database.localReadingActivityDao().updateCover(activity.activityId, cover) }
+                } else synchronized(coverLock) {
+                    requestedCovers.remove(key)
+                    coverFailureTimes[key] = System.currentTimeMillis()
                 }
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { AppLogger.w("LocalHistoryPageModel", "Failed to recover local history cover", e) }
+            } catch (e: CancellationException) {
+                synchronized(coverLock) { requestedCovers.remove(key) }
+                throw e
+            } catch (e: Exception) {
+                synchronized(coverLock) {
+                    requestedCovers.remove(key)
+                    coverFailureTimes[key] = System.currentTimeMillis()
+                }
+                AppLogger.w("LocalHistoryPageModel", "Failed to recover local history cover", e)
+            }
         }
     }
 

@@ -6,8 +6,10 @@ import com.breakyuna.esjzone.app.PresentationAccess
 import androidx.compose.runtime.MutableState
 import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneUrls
@@ -44,6 +46,8 @@ class ChapterPageModel(
     private companion object {
         /** Keep a small bidirectional reading window instead of the whole book in RAM. */
         const val MAX_LOADED_CHAPTERS = 9
+        /** A consumed chapter must finish saving even after the reader entry is popped. */
+        val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
     sealed class State {
@@ -374,7 +378,7 @@ class ChapterPageModel(
         val key = chapterKey(chapter)
         val prefetched = synchronized(lock) { prefetchedDetails.remove(key) }
         if (prefetched != null) {
-            persistLoadedChapter(chapter, prefetched)
+            queueChapterPersistence(chapter, prefetched)
             return prefetched
         }
 
@@ -386,7 +390,7 @@ class ChapterPageModel(
                 throw e
             }
             synchronized(lock) { prefetchedDetails.remove(key) }?.let {
-                persistLoadedChapter(chapter, it)
+                queueChapterPersistence(chapter, it)
                 return it
             }
         }
@@ -394,7 +398,7 @@ class ChapterPageModel(
         // The prefetch can finish between the first cache check and job lookup.
         // Check one more time before issuing a duplicate request.
         synchronized(lock) { prefetchedDetails.remove(key) }?.let {
-            persistLoadedChapter(chapter, it)
+            queueChapterPersistence(chapter, it)
             return it
         }
 
@@ -413,7 +417,7 @@ class ChapterPageModel(
                         "ChapterPageModel",
                         "Using downloaded chapter while offline: ${chapter.name}"
                     )
-                    persistLoadedChapter(chapter, downloaded)
+                    queueChapterPersistence(chapter, downloaded)
                     return downloaded
                 }
             }
@@ -424,13 +428,21 @@ class ChapterPageModel(
             )
             throw e
         }
-        persistLoadedChapter(chapter, detail)
+        queueChapterPersistence(chapter, detail)
         return detail
     }
 
-    /** Saves successfully loaded reader content without delaying UI publication. */
-    private fun persistLoadedChapter(chapter: Chapter, detail: DetailedChapter) {
+    /** Disk manifest work must not hold up publication of the reader window. */
+    private fun queueChapterPersistence(chapter: Chapter, detail: DetailedChapter) {
         if (!PresentationAccess.settings.readerAutoSaveFlow.value) return
+        val orderSnapshot = synchronized(lock) { orderedChapters.toList() }
+        persistenceScope.launch {
+            persistLoadedChapter(chapter, detail, orderSnapshot)
+        }
+    }
+
+    /** Saves successfully loaded reader content without delaying UI publication. */
+    private fun persistLoadedChapter(chapter: Chapter, detail: DetailedChapter, orderSnapshot: List<Chapter>) {
         val targetNovelUrl = novelUrl.trim().ifBlank {
             if (novelId.isBlank()) "" else "${EsjzoneUrls.Base}/detail/$novelId.html"
         }
@@ -440,7 +452,7 @@ class ChapterPageModel(
                 novelName = novelName,
                 novelUrl = targetNovelUrl,
                 coverUrl = novelCoverUrl,
-                chapterOrder = synchronized(lock) { orderedChapters.toList() },
+                chapterOrder = orderSnapshot,
                 chapter = chapter,
                 detail = detail
             )
@@ -486,7 +498,6 @@ class ChapterPageModel(
                     if (detail != null) prefetchedDetails[key] = detail
                     prefetchJobs.remove(key)
                 }
-                if (detail != null) persistLoadedChapter(chapter, detail)
             }
         }
     }

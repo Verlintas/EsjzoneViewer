@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.LoadFailureKind
 import com.breakyuna.esjzone.network.loadFailureKind
@@ -23,6 +25,7 @@ class NovelDetailLoader(private val authorization: Authorization) : AppStateView
     val details = mutableStateMapOf<String, DetailedNovel>()
     val failures = mutableStateMapOf<String, LoadFailureKind>()
     private val jobs = mutableMapOf<String, Job>()
+    private val detailPermits = Semaphore(3)
 
     fun key(novel: Novel): String = novel.url.trim().ifBlank { novel.name.trim() }
 
@@ -35,8 +38,10 @@ class NovelDetailLoader(private val authorization: Authorization) : AppStateView
         jobs[key] = viewModelScope.launch {
             val thisJob = coroutineContext[Job]
             try {
-                val detail = withContext(Dispatchers.IO) {
-                    PresentationAccess.client.getNovelDetail(authorization, novel)
+                val detail = detailPermits.withPermit {
+                    withContext(Dispatchers.IO) {
+                        PresentationAccess.client.getNovelDetail(authorization, novel)
+                    }
                 }
                 details[key] = detail
             } catch (e: CancellationException) {

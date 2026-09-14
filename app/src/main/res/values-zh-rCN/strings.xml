@@ -375,10 +375,16 @@
     <string name="reader_background_paper">纸张</string>
     <string name="reader_background_sepia">护眼</string>
     <string name="reader_background_dark">深色</string>
+    <string name="reader_background_mint">薄荷绿</string>
+    <string name="reader_background_lavender">淡紫</string>
+    <string name="reader_background_slate">深蓝灰</string>
+    <string name="reader_background_oled">纯黑</string>
     <string name="reader_font">字体</string>
     <string name="reader_font_system">默认</string>
     <string name="reader_font_serif">衬线</string>
     <string name="reader_font_monospace">等宽</string>
+    <string name="reader_font_sans_serif">无衬线</string>
+    <string name="reader_font_cursive">手写（拉丁）</string>
     <string name="reader_font_size">字号</string>
     <string name="reader_letter_spacing">字间距</string>
     <string name="reader_line_spacing">行间距</string>

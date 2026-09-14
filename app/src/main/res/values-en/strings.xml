@@ -375,10 +375,16 @@
     <string name="reader_background_paper">Paper</string>
     <string name="reader_background_sepia">Sepia</string>
     <string name="reader_background_dark">Dark</string>
+    <string name="reader_background_mint">Mint</string>
+    <string name="reader_background_lavender">Lavender</string>
+    <string name="reader_background_slate">Slate</string>
+    <string name="reader_background_oled">OLED black</string>
     <string name="reader_font">Font</string>
     <string name="reader_font_system">Default</string>
     <string name="reader_font_serif">Serif</string>
     <string name="reader_font_monospace">Monospace</string>
+    <string name="reader_font_sans_serif">Sans serif</string>
+    <string name="reader_font_cursive">Cursive (Latin)</string>
     <string name="reader_font_size">Font size</string>
     <string name="reader_letter_spacing">Letter spacing</string>
     <string name="reader_line_spacing">Line spacing</string>

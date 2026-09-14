@@ -118,6 +118,8 @@ object NovelDownloadStore {
     private val ioLock = Any()
     /** Rebuilt on a cache miss; invalidated whenever any manifest changes. */
     private val chapterIndex = HashMap<String, ChapterMatch>()
+    /** Rebuilt after a manifest write or deletion; bookshelf refreshes read this snapshot. */
+    private var inventorySnapshot: List<DownloadedNovelSummary>? = null
 
     @Volatile
     private var rootDirectory: File? = null
@@ -125,7 +127,7 @@ object NovelDownloadStore {
     fun initialize(context: Context) {
         val directory = File(context.applicationContext.filesDir, "downloaded_novels")
         if (directory.isDirectory || directory.mkdirs()) {
-            synchronized(ioLock) { chapterIndex.clear() }
+            synchronized(ioLock) { chapterIndex.clear(); inventorySnapshot = null }
             rootDirectory = directory
         } else {
             AppLogger.e("NovelDownloadStore", "Unable to create the novel download directory")
@@ -156,7 +158,8 @@ object NovelDownloadStore {
      * auto-saves and interrupted background downloads.
      */
     fun listDownloadedNovels(): List<DownloadedNovelSummary> = synchronized(ioLock) {
-        rootDirectory?.listFiles()
+        inventorySnapshot?.let { return@synchronized it }
+        val snapshot = rootDirectory?.listFiles()
             .orEmpty()
             .asSequence()
             .filter(File::isDirectory)
@@ -176,6 +179,8 @@ object NovelDownloadStore {
             }
             .sortedByDescending { it.manifest.downloadedAt }
             .toList()
+        inventorySnapshot = snapshot
+        snapshot
     }
 
     /** Returns the on-disk size of one downloaded novel, including its manifest. */
@@ -191,12 +196,14 @@ object NovelDownloadStore {
     fun delete(novelUrl: String): Boolean = synchronized(ioLock) {
         val directory = directoryFor(novelUrl, create = false) ?: return@synchronized false
         chapterIndex.clear()
+        inventorySnapshot = null
         directory.deleteRecursively()
     }
 
     /** Deletes several novel download directories and returns the number removed. */
     fun deleteAll(novelUrls: Iterable<String>): Int = synchronized(ioLock) {
         chapterIndex.clear()
+        inventorySnapshot = null
         novelUrls.distinct()
             .count { url ->
                 val directory = directoryFor(url, create = false) ?: return@count false
@@ -239,6 +246,25 @@ object NovelDownloadStore {
         if (normalizedNovelUrl.isBlank()) return null
         val directory = directoryFor(normalizedNovelUrl, create = true) ?: return null
         val previous = synchronized(ioLock) { readManifest(directory) }
+        // Prefetch and the subsequent reader load both save the same chapter. Avoid
+        // rescanning every chapter file and rewriting the full manifest on that path.
+        if (previous != null && chapterOrder.isNotEmpty() &&
+            previous.chapters.size == chapterOrder.size &&
+            previous.chapters.indices.all { index ->
+                val record = previous.chapters[index]
+                val current = chapterOrder[index]
+                record.index == index && record.name == current.name &&
+                    chapterKey(record.url) == chapterKey(current.url)
+            }
+        ) {
+            val existing = previous.chapters.firstOrNull {
+                chapterKey(it.url) == chapterKey(chapter.url)
+            }
+            if (existing?.downloaded == true &&
+                resolveLocalFile(directory, existing.fileName)?.isFile == true &&
+                previous.name == novelName && previous.coverUrl == coverUrl
+            ) return previous
+        }
         val previousByKey = previous?.chapters.orEmpty().associateBy { chapterKey(it.url) }
         val ordered = buildList {
             addAll(chapterOrder)
@@ -708,8 +734,24 @@ object NovelDownloadStore {
     }
 
     private fun writeManifest(directory: File, manifest: DownloadedNovelManifest) {
+        val previousInventory = inventorySnapshot
         writeJson(File(directory, MANIFEST_FILE), manifest)
         chapterIndex.clear()
+        if (previousInventory != null) {
+            val count = manifest.chapters.count { record ->
+                record.downloaded && resolveLocalFile(directory, record.fileName)?.isFile == true
+            }
+            val otherNovels = previousInventory.filterNot {
+                canonicalKey(it.novelUrl) == canonicalKey(manifest.url)
+            }
+            inventorySnapshot = if (count == 0) otherNovels else {
+                (otherNovels + DownloadedNovelSummary(
+                    manifest = manifest,
+                    downloadedChapterCount = count,
+                    storageBytes = directory.walkTopDown().filter(File::isFile).sumOf(File::length)
+                )).sortedByDescending { it.manifest.downloadedAt }
+            }
+        }
     }
 
     private fun downloadImage(

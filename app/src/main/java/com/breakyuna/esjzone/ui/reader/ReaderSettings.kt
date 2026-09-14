@@ -15,7 +15,11 @@ enum class ReaderBackground {
     SYSTEM,
     PAPER,
     SEPIA,
-    DARK;
+    DARK,
+    MINT,
+    LAVENDER,
+    SLATE,
+    OLED;
 
     @Composable
     fun containerColor(): Color = when (this) {
@@ -25,6 +29,10 @@ enum class ReaderBackground {
         PAPER -> Color(0xFFFBF7F0)
         SEPIA -> Color(0xFFF4ECD8)
         DARK -> Color(0xFF12161A)
+        MINT -> Color(0xFFEAF4EB)
+        LAVENDER -> Color(0xFFF1EFF8)
+        SLATE -> Color(0xFF232C35)
+        OLED -> Color.Black
     }
 
     @Composable
@@ -33,19 +41,27 @@ enum class ReaderBackground {
         PAPER -> Color(0xFF2C2523)
         SEPIA -> Color(0xFF433422)
         DARK -> Color(0xFFD5DBDB)
+        MINT -> Color(0xFF24382C)
+        LAVENDER -> Color(0xFF353149)
+        SLATE -> Color(0xFFE0E7EC)
+        OLED -> Color(0xFFE5E5E5)
     }
 }
 
 enum class ReaderFont {
     SYSTEM,
     SERIF,
-    MONOSPACE;
+    MONOSPACE,
+    SANS_SERIF,
+    CURSIVE;
 
     val family: FontFamily
         get() = when (this) {
             SYSTEM -> FontFamily.Default
             SERIF -> FontFamily.Serif
             MONOSPACE -> FontFamily.Monospace
+            SANS_SERIF -> FontFamily.SansSerif
+            CURSIVE -> FontFamily.Cursive
         }
 }
 
