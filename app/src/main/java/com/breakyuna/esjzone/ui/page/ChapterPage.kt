@@ -255,6 +255,17 @@ class ChapterPage(
             progressReturnLocation = null
         }
 
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress && !isProgrammaticScroll) {
+                if (showToolbar) {
+                    showToolbar = false
+                }
+                if (progressPreview != null) {
+                    dismissProgressPreview()
+                }
+            }
+        }
+
         BackHandler(enabled = navigator != null) {
             when {
                 showReaderSettings -> showReaderSettings = false
