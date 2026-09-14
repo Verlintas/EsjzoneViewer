@@ -4,10 +4,16 @@ package com.breakyuna.esjzone.ui.tab
 
 import androidx.lifecycle.viewModelScope
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
@@ -90,6 +97,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import kotlin.math.floor
 
 object HomeTab : AppTab {
 
@@ -132,11 +140,14 @@ object HomeTab : AppTab {
         }
         val weeklyIndex = weeklyDays.indexOfFirst { it.date.toString() == selectedWeeklyDate }
             .takeIf { it >= 0 } ?: 0
-        val weeklyNovels = remember(weeklyDays, weeklyIndex, adult) {
-            weeklyDays.getOrNull(weeklyIndex)?.novels.orEmpty()
-                .asSequence().filter { adult || !it.isAdult }
-                .distinctBy { it.url.trim().ifBlank { it.name.trim() } }
-                .take(WEEKLY_UPDATE_MAX_ITEMS).toList()
+        val weeklyNovelsByDay = remember(weeklyDays, adult) {
+            weeklyDays.map { day ->
+                day.novels.asSequence()
+                    .filter { adult || !it.isAdult }
+                    .distinctBy { it.url.trim().ifBlank { it.name.trim() } }
+                    .take(WEEKLY_UPDATE_MAX_ITEMS)
+                    .toList()
+            }
         }
 
         DiscoveryScaffold(
@@ -260,7 +271,7 @@ object HomeTab : AppTab {
                         weeklyUpdatesCollection(
                             days = weeklyDays,
                             selectedIndex = weeklyIndex,
-                            novels = weeklyNovels,
+                            novelsByDay = weeklyNovelsByDay,
                             onSelect = { selectedWeeklyDate = weeklyDays[it].date.toString() },
                             navigator = navigator
                         )
@@ -285,6 +296,8 @@ private fun HomeInitialLoadingState() {
 }
 
 private const val WEEKLY_UPDATE_MAX_ITEMS = 18
+private const val WEEKLY_UPDATE_TRANSITION_DURATION = 280
+private val WEEKLY_UPDATE_COVER_WIDTH = 112.dp
 
 private const val WATER_COOLER_URL =
     "https://www.esjzone.cc/forum/1585405223/103280.html"
@@ -292,7 +305,7 @@ private const val WATER_COOLER_URL =
 private fun LazyListScope.weeklyUpdatesCollection(
     days: List<WeeklyUpdateDay>,
     selectedIndex: Int,
-    novels: List<CoveredNovel>,
+    novelsByDay: List<List<CoveredNovel>>,
     onSelect: (Int) -> Unit,
     navigator: AppNavigator?
 ) {
@@ -300,7 +313,7 @@ private fun LazyListScope.weeklyUpdatesCollection(
     item(key = "home-weekly-header", contentType = "home-weekly-header") {
         WeeklyUpdatesHeader(days, selectedIndex, onSelect)
     }
-    if (novels.isEmpty()) {
+    if (novelsByDay.getOrNull(selectedIndex).isNullOrEmpty()) {
         item(key = "home-weekly-empty", contentType = "empty") {
             DiscoveryEmptyState(
                 title = stringResource(R.string.home_collection_empty_title),
@@ -308,24 +321,61 @@ private fun LazyListScope.weeklyUpdatesCollection(
             )
         }
     } else {
-        novels.chunked(3).forEachIndexed { rowIndex, row ->
-            item(
-                key = "home-weekly-${days[selectedIndex].date}-$rowIndex",
-                contentType = "home-weekly-row"
-            ) {
+        item(key = "home-weekly-content", contentType = "home-weekly-content") {
+            AnimatedContent(
+                targetState = selectedIndex,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth } togetherWith
+                            slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth }
+                    } else {
+                        slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth } togetherWith
+                            slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = AppSpacing.sm)
+                    .weeklyDaySwipe(days, selectedIndex, onSelect),
+                label = "weekly-update-date-transition"
+            ) { index ->
+                WeeklyUpdatesGrid(
+                    novels = novelsByDay.getOrNull(index).orEmpty(),
+                    onNovelClick = { novel -> navigator?.pushIfNotCurrent(NovelPage(novel)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeeklyUpdatesGrid(
+    novels: List<CoveredNovel>,
+    onNovelClick: (CoveredNovel) -> Unit
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val columns = floor(
+            ((maxWidth.value + AppSpacing.md.value) /
+                (WEEKLY_UPDATE_COVER_WIDTH.value + AppSpacing.md.value)).toDouble()
+        ).toInt().coerceAtLeast(1)
+        val rows = remember(novels, columns) { novels.chunked(columns) }
+
+        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
+            rows.forEach { row ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.sm)
-                        .weeklyDaySwipe(days, selectedIndex, onSelect),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                 ) {
                     row.forEach { novel ->
                         WeeklyUpdateNovelTile(
                             novel = novel,
-                            onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) },
-                            modifier = Modifier.weight(1f)
+                            onClick = { onNovelClick(novel) },
+                            modifier = Modifier.width(WEEKLY_UPDATE_COVER_WIDTH)
                         )
                     }
-                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    repeat(columns - row.size) {
+                        Spacer(Modifier.width(WEEKLY_UPDATE_COVER_WIDTH))
+                    }
                 }
             }
         }
@@ -398,7 +448,7 @@ private fun WeeklyUpdateNovelTile(
             coverUrl = novel.coverUrl,
             title = novel.name,
             isAdult = novel.isAdult,
-            modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f)
+            modifier = Modifier.fillMaxWidth().aspectRatio(0.7f)
         )
         Text(
             text = novel.name,
