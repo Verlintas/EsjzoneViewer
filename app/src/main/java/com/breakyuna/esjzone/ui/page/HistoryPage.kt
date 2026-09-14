@@ -56,8 +56,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.Role
 import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavPadding
 import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavSuppression
@@ -280,7 +282,8 @@ private fun HistoryCloudSyncStatusIndicator(
 ) {
     val syncing = state is HistoryPageModel.State.Loading
     val failed = state is HistoryPageModel.State.Error
-    val indicatorColor = if (failed) Color(0xFF9E9E9E) else Color(0xFF4CAF50)
+    val isSuccess = state is HistoryPageModel.State.Result
+    val indicatorColor = if (isSuccess) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
     val statusRes = when {
         syncing -> R.string.history_cloud_sync_running
         failed -> R.string.history_cloud_sync_failed
@@ -290,6 +293,7 @@ private fun HistoryCloudSyncStatusIndicator(
         Box(
             modifier = Modifier
                 .size(AppSpacing.xl)
+                .clip(CircleShape)
                 .clickable(onClickLabel = stringResource(statusRes)) { onExpandedChange(true) },
             contentAlignment = Alignment.Center
         ) {
@@ -305,8 +309,17 @@ private fun HistoryCloudSyncStatusIndicator(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                     Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
-                    Text(stringResource(statusRes), style = AppTypography.labelLarge)
+                    Text(
+                        text = stringResource(statusRes),
+                        style = AppTypography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
+                Text(
+                    text = stringResource(R.string.history_cloud_separate),
+                    style = AppTypography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

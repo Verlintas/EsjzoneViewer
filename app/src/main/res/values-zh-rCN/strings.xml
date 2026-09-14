@@ -114,6 +114,8 @@
     <string name="bookshelf_sync_running_short">同步中</string>
     <string name="bookshelf_sync_status_success">同步成功</string>
     <string name="bookshelf_sync_status_failed">同步失败</string>
+    <string name="bookshelf_sync_status_idle">未同步</string>
+    <string name="bookshelf_sync_idle">书架尚未与云端同步</string>
     <string name="description">作品简介</string>
     <string name="novel_type">类型</string>
     <string name="novel_source">Web 生肉</string>
@@ -219,7 +221,7 @@
     <string name="history_local_duration_minutes">%1$d分钟</string>
     <string name="history_local_duration_seconds">%1$d秒</string>
     <string name="profile_signed_in">已登录 ESJ Zone</string>
-    <string name="profile_experience">经验值 %1$d</string>
+    <string name="profile_experience">%1$d exp</string>
     <string name="profile_level">%1$s</string>
     <string name="profile_favorites_description">管理收藏的作品和书签</string>
     <string name="profile_history_description">从上次读到的位置继续阅读</string>
@@ -471,4 +473,17 @@
     <string name="login_account_title">账号</string>
     <string name="bookshelf_recent_rank">最近阅读：第 %1$d 本</string>
     <string name="profile_tools">常用功能</string>
+    <string name="guestbook_sync_running">留言板同步中</string>
+    <string name="guestbook_sync_success">留言板已同步</string>
+    <string name="guestbook_sync_failed">留言板同步失败</string>
+    <string name="guestbook_sync_detail">已获取最新留言内容</string>
+    <string name="water_cooler_sync_running">灌水楼同步中</string>
+    <string name="water_cooler_sync_success">灌水楼已同步</string>
+    <string name="water_cooler_sync_failed">灌水楼同步失败</string>
+    <string name="water_cooler_sync_detail">已获取最新讨论回复</string>
+    <string name="community_sync_running">帖子同步中</string>
+    <string name="community_sync_success">帖子已同步</string>
+    <string name="community_sync_failed">帖子同步失败</string>
+    <string name="community_sync_detail">已获取最新帖子与回复</string>
+    <string name="community_sync_refresh">刷新社区内容</string>
 </resources>

@@ -56,6 +56,7 @@ import com.breakyuna.esjzone.ui.navigation.LocalAppNavigator
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.database.BookshelfRepository
 import com.breakyuna.esjzone.database.dao.put
+import com.breakyuna.esjzone.network.features.CommunitySyncManager
 import com.breakyuna.esjzone.network.features.login
 import com.breakyuna.esjzone.ui.component.AppGroup
 import com.breakyuna.esjzone.ui.component.AppSectionHeader
@@ -104,6 +105,7 @@ object LoginScreen : AppDestination {
                     }
                     if (authorization != null) {
                         BookshelfRepository.scheduleSync(authorization)
+                        CommunitySyncManager.schedulePreSync(authorization)
                         navigator.replace(MainScreen(authorization))
                     } else {
                         loginFailed = true

@@ -2,6 +2,13 @@ package com.breakyuna.esjzone.ui.tab
 
 import androidx.lifecycle.viewModelScope
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Spacer
@@ -34,15 +41,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
@@ -56,6 +66,7 @@ import com.breakyuna.esjzone.novellibrary.data.WeeklyUpdateDay
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
 import com.breakyuna.esjzone.ui.component.AppHomeNovelTile
 import com.breakyuna.esjzone.ui.component.AppNovelCover
+import com.breakyuna.esjzone.ui.designsystem.AppMotion
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState
 import com.breakyuna.esjzone.ui.discovery.DiscoveryErrorState
@@ -273,14 +284,8 @@ private fun WeeklyUpdatesSection(
     var selectedDate by rememberSaveable(dayKeys) { mutableStateOf(dayKeys.firstOrNull().orEmpty()) }
     val selectedIndex = orderedDays.indexOfFirst { it.date.toString() == selectedDate }
         .takeIf { it >= 0 } ?: 0
-    val selectedDay = orderedDays.getOrNull(selectedIndex) ?: return
+    if (orderedDays.isEmpty()) return
     val swipeThreshold = with(LocalDensity.current) { 48.dp.toPx() }
-    val novels = selectedDay.novels
-        .asSequence()
-        .filter { adult || !it.isAdult }
-        .distinctBy { it.url.trim().ifBlank { it.name.trim() } }
-        .take(WEEKLY_UPDATE_MAX_ITEMS)
-        .toList()
 
     Column(
         modifier = Modifier
@@ -334,27 +339,79 @@ private fun WeeklyUpdatesSection(
                 )
             }
         }
-        if (novels.isEmpty()) {
-            DiscoveryEmptyState(
-                title = stringResource(R.string.home_collection_empty_title),
-                message = stringResource(R.string.home_weekly_update_empty)
+        AnimatedContent(
+            targetState = selectedIndex,
+            transitionSpec = {
+                val direction = if (targetState > initialState) 1 else -1
+                val slideSpec = AppMotion.standardSpec<IntOffset>()
+                val fadeSpec = AppMotion.standardSpec<Float>()
+                (slideInHorizontally(
+                    animationSpec = slideSpec,
+                    initialOffsetX = { fullWidth -> direction * fullWidth }
+                ) + fadeIn(animationSpec = fadeSpec))
+                    .togetherWith(
+                        slideOutHorizontally(
+                            animationSpec = slideSpec,
+                            targetOffsetX = { fullWidth -> -direction * fullWidth }
+                        ) + fadeOut(animationSpec = fadeSpec)
+                    ).using(
+                        SizeTransform(clip = true) { _, _ -> AppMotion.standardSpec() }
+                    )
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clipToBounds(),
+            label = "WeeklyUpdatesTransition"
+        ) { targetIndex ->
+            val day = orderedDays.getOrNull(targetIndex)
+            val novels = remember(day, adult) {
+                day?.novels
+                    ?.asSequence()
+                    ?.filter { adult || !it.isAdult }
+                    ?.distinctBy { it.url.trim().ifBlank { it.name.trim() } }
+                    ?.take(WEEKLY_UPDATE_MAX_ITEMS)
+                    ?.toList()
+                    .orEmpty()
+            }
+            WeeklyUpdatesContent(
+                novels = novels,
+                navigator = navigator,
+                modifier = Modifier.fillMaxWidth()
             )
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
-                novels.chunked(3).forEach { row ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
-                    ) {
-                        row.forEach { novel ->
-                            WeeklyUpdateNovelTile(
-                                novel = novel,
-                                onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+        }
+    }
+}
+
+@Composable
+private fun WeeklyUpdatesContent(
+    novels: List<CoveredNovel>,
+    navigator: AppNavigator?,
+    modifier: Modifier = Modifier
+) {
+    if (novels.isEmpty()) {
+        DiscoveryEmptyState(
+            title = stringResource(R.string.home_collection_empty_title),
+            message = stringResource(R.string.home_weekly_update_empty),
+            modifier = modifier
+        )
+    } else {
+        Column(
+            modifier = modifier,
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
+        ) {
+            novels.chunked(3).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                ) {
+                    row.forEach { novel ->
+                        WeeklyUpdateNovelTile(
+                            novel = novel,
+                            onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }

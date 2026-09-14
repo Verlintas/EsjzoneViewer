@@ -4,7 +4,9 @@ import androidx.lifecycle.viewModelScope
 import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.app.cacheUserProfile
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,11 +40,13 @@ import androidx.compose.material.icons.filled.FirstPage
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.LastPage
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -51,6 +56,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -105,9 +112,29 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun CommunityTopBar(title: String, onBack: () -> Unit) {
+internal fun CommunityTopBar(
+    title: String,
+    onBack: () -> Unit,
+    titleIndicator: (@Composable () -> Unit)? = null,
+    onRefresh: (() -> Unit)? = null,
+    refreshing: Boolean = false
+) {
     CenterAlignedTopAppBar(
-        title = { Text(title, style = AppTypography.titleMedium, maxLines = 1) },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
+            ) {
+                Text(
+                    title,
+                    style = AppTypography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                titleIndicator?.invoke()
+            }
+        },
         navigationIcon = {
             IconButton(onClick = onBack, modifier = Modifier.size(AppTouchTarget.minimum)) {
                 Icon(
@@ -116,9 +143,117 @@ internal fun CommunityTopBar(title: String, onBack: () -> Unit) {
                 )
             }
         },
+        actions = {
+            if (onRefresh != null) {
+                IconButton(
+                    onClick = onRefresh,
+                    enabled = !refreshing,
+                    modifier = Modifier.size(AppTouchTarget.minimum)
+                ) {
+                    if (refreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = stringResource(R.string.community_sync_refresh)
+                        )
+                    }
+                }
+            }
+        },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
+    )
+}
+
+@Composable
+internal fun CommunitySyncStatusIndicator(
+    syncing: Boolean,
+    isSyncSuccess: Boolean,
+    isSyncFailed: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    @StringRes runningRes: Int,
+    @StringRes successRes: Int,
+    @StringRes failedRes: Int,
+    @StringRes detailRes: Int
+) {
+    val indicatorColor = if (isSyncSuccess) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
+    val statusLabelRes = when {
+        syncing -> runningRes
+        isSyncFailed -> failedRes
+        isSyncSuccess -> successRes
+        else -> runningRes
+    }
+    Box {
+        Box(
+            modifier = Modifier
+                .size(AppSpacing.xl)
+                .clip(CircleShape)
+                .clickable(
+                    onClickLabel = stringResource(statusLabelRes)
+                ) { onExpandedChange(true) },
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+            modifier = Modifier.widthIn(min = 200.dp, max = 280.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+                ) {
+                    Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+                    Text(
+                        text = stringResource(statusLabelRes),
+                        style = AppTypography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    text = stringResource(if (isSyncFailed) failedRes else detailRes),
+                    style = AppTypography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun CommunitySyncStatusIndicator(
+    state: CommunityState<*>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    @StringRes runningRes: Int,
+    @StringRes successRes: Int,
+    @StringRes failedRes: Int,
+    @StringRes detailRes: Int
+) {
+    val syncing = state is CommunityState.Loading
+    val failed = state is CommunityState.Error
+    val isSuccess = state is CommunityState.Result || state is CommunityState.Empty
+    CommunitySyncStatusIndicator(
+        syncing = syncing,
+        isSyncSuccess = isSuccess,
+        isSyncFailed = failed,
+        expanded = expanded,
+        onExpandedChange = onExpandedChange,
+        runningRes = runningRes,
+        successRes = successRes,
+        failedRes = failedRes,
+        detailRes = detailRes
     )
 }
 
@@ -196,7 +331,10 @@ internal fun <T> CommunityStateContent(
 @Composable
 internal fun CommentListPage(
     title: String,
-    model: CommentPageModel
+    model: CommentPageModel,
+    titleIndicator: (@Composable () -> Unit)? = null,
+    onRefresh: (() -> Unit)? = null,
+    refreshing: Boolean = false
 ) {
     val navigator = LocalBaseNavigator.current
 
@@ -207,7 +345,10 @@ internal fun CommentListPage(
     ) {
         CommunityTopBar(
             title = title,
-            onBack = { navigator?.pop() }
+            onBack = { navigator?.pop() },
+            titleIndicator = titleIndicator,
+            onRefresh = onRefresh,
+            refreshing = refreshing
         )
         CommentSectionHost(
             model = model,

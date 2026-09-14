@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.breakyuna.esjzone.database.BookshelfRepository
 import com.breakyuna.esjzone.network.Authorization
+import com.breakyuna.esjzone.network.features.CommunitySyncManager
 import com.breakyuna.esjzone.network.hasCredentials
 import com.breakyuna.esjzone.util.AppLogger
 import com.breakyuna.esjzone.R
@@ -99,6 +100,7 @@ class LoadingScreen : AppDestination {
                 // MainScreen and the shelf itself remain local-first and do
                 // not wait for this network operation.
                 BookshelfRepository.scheduleSync(authorization)
+                CommunitySyncManager.schedulePreSync(authorization)
                 navigator.replace(MainScreen(authorization = authorization))
             } else {
                 navigator.replace(LoginScreen)

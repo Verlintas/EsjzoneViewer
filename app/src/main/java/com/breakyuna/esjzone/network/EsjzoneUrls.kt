@@ -294,6 +294,11 @@ object EsjzoneUrls {
         get() = "$Base/forum"
     val Guestbook: String
         get() = "$Base/guestbook/"
+    const val WATER_COOLER_BOARD_ID = "1585405223"
+    const val WATER_COOLER_TOPIC_ID = "103280"
+    const val WATER_COOLER_PATH = "/forum/1585405223/103280.html"
+    val WaterCooler: String
+        get() = "$Base$WATER_COOLER_PATH"
     val WeeklyUpdate: String
         get() = "$Base/update/"
     val Tags: String

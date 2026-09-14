@@ -38,6 +38,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -277,15 +280,61 @@ class ForumPostPage(private val topic: ForumTopic) : AppDestination {
             CommentPageModel(authorization, topic.url)
         }
         val state by model.state.collectAsState()
+        val commentsState by commentsModel.state.collectAsState()
         val postScrollState = rememberScrollState()
         val metrics = rememberAppAdaptiveMetrics()
+        var showSyncStatusMenu by remember { mutableStateOf(false) }
+
+        val isWaterCooler = remember(topic) {
+            (topic.boardId == EsjzoneUrls.WATER_COOLER_BOARD_ID && topic.id == EsjzoneUrls.WATER_COOLER_TOPIC_ID) ||
+                topic.url.contains(EsjzoneUrls.WATER_COOLER_PATH) ||
+                topic.id == EsjzoneUrls.WATER_COOLER_TOPIC_ID
+        }
+
+        val syncRunning = state is CommunityState.Loading || commentsState is CommunityState.Loading
+        val syncFailed = state is CommunityState.Error || commentsState is CommunityState.Error
+        val syncSuccess = !syncRunning && !syncFailed &&
+            (state is CommunityState.Result || state is CommunityState.Empty) &&
+            (commentsState is CommunityState.Result || commentsState is CommunityState.Empty)
+
+        val runningRes = if (isWaterCooler) R.string.water_cooler_sync_running else R.string.community_sync_running
+        val successRes = if (isWaterCooler) R.string.water_cooler_sync_success else R.string.community_sync_success
+        val failedRes = if (isWaterCooler) R.string.water_cooler_sync_failed else R.string.community_sync_failed
+        val detailRes = if (isWaterCooler) R.string.water_cooler_sync_detail else R.string.community_sync_detail
+
+        val displayTitle = (state as? CommunityState.Result)?.data?.title?.takeIf { it.isNotBlank() }
+            ?: topic.title.takeIf { it.isNotBlank() }
+            ?: if (isWaterCooler) "灌水楼" else ""
+
+        fun refreshAll() {
+            model.load(forceRefresh = true)
+            commentsModel.load(forceRefresh = true)
+        }
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            CommunityTopBar(title = topic.title, onBack = { navigator?.pop() })
+            CommunityTopBar(
+                title = displayTitle,
+                onBack = { navigator?.pop() },
+                titleIndicator = {
+                    CommunitySyncStatusIndicator(
+                        syncing = syncRunning,
+                        isSyncSuccess = syncSuccess,
+                        isSyncFailed = syncFailed,
+                        expanded = showSyncStatusMenu,
+                        onExpandedChange = { showSyncStatusMenu = it },
+                        runningRes = runningRes,
+                        successRes = successRes,
+                        failedRes = failedRes,
+                        detailRes = detailRes
+                    )
+                },
+                onRefresh = ::refreshAll,
+                refreshing = syncRunning
+            )
             when (val snapshot = state) {
                 is CommunityState.Loading -> LoadingSkeleton(modifier = Modifier.fillMaxWidth())
                 is CommunityState.Error -> if (snapshot.failure == LoadFailureKind.NETWORK) {
@@ -325,7 +374,7 @@ class ForumPostPage(private val topic: ForumTopic) : AppDestination {
             }
         }
 
-        LaunchedEffect(Unit) { model.load() }
+        LaunchedEffect(Unit) { model.load(forceRefresh = false) }
     }
 }
 
@@ -345,13 +394,28 @@ object GuestbookPage : AppDestination {
         val model = rememberAppViewModel {
             CommentPageModel(authorization, pageUrl)
         }
-        // Unlike chapter comments, the guestbook is a live community feed.
-        // Always bypass the page cache when this destination enters composition
-        // so new messages are visible immediately after navigation.
-        LaunchedEffect(model) { model.load(forceRefresh = true) }
+        val state by model.state.collectAsState()
+        var showSyncStatusMenu by remember { mutableStateOf(false) }
+
+        // Use pre-synced page cache for instant opening when available.
+        LaunchedEffect(model) { model.load(forceRefresh = false) }
+
         CommentListPage(
             title = stringResource(id = R.string.guestbook),
-            model = model
+            model = model,
+            titleIndicator = {
+                CommunitySyncStatusIndicator(
+                    state = state,
+                    expanded = showSyncStatusMenu,
+                    onExpandedChange = { showSyncStatusMenu = it },
+                    runningRes = R.string.guestbook_sync_running,
+                    successRes = R.string.guestbook_sync_success,
+                    failedRes = R.string.guestbook_sync_failed,
+                    detailRes = R.string.guestbook_sync_detail
+                )
+            },
+            onRefresh = { model.load(forceRefresh = true) },
+            refreshing = state is CommunityState.Loading
         )
     }
 }
@@ -825,14 +889,20 @@ private class ForumPostPageModel(
 ) : AppStateViewModel<CommunityState<ForumPost>>(CommunityState.Loading) {
     private var loadStarted = false
 
-    fun retry() = load()
+    fun retry() = load(forceRefresh = true)
 
-    fun load() {
-        if (loadStarted) return
+    fun load(forceRefresh: Boolean = false) {
+        if (!forceRefresh && loadStarted) return
         loadStarted = true
         viewModelScope.launch(Dispatchers.IO) {
             mutableState.value = try {
-                CommunityState.Result(PresentationAccess.client.getForumPost(authorization, topic))
+                CommunityState.Result(
+                    PresentationAccess.client.getForumPost(
+                        authorization,
+                        topic,
+                        forceRefresh = forceRefresh
+                    )
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {

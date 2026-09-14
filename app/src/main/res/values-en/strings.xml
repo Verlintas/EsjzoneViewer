@@ -114,6 +114,8 @@
     <string name="bookshelf_sync_running_short">Syncing</string>
     <string name="bookshelf_sync_status_success">Sync succeeded</string>
     <string name="bookshelf_sync_status_failed">Sync failed</string>
+    <string name="bookshelf_sync_status_idle">Not synced</string>
+    <string name="bookshelf_sync_idle">Bookshelf has not synced with cloud yet</string>
     <string name="description">Description</string>
     <string name="novel_type">Type</string>
     <string name="novel_source">Web source</string>
@@ -219,7 +221,7 @@
     <string name="history_local_duration_minutes">%1$d min</string>
     <string name="history_local_duration_seconds">%1$d sec</string>
     <string name="profile_signed_in">Signed in to ESJ Zone</string>
-    <string name="profile_experience">Experience %1$d</string>
+    <string name="profile_experience">%1$d exp</string>
     <string name="profile_level">%1$s</string>
     <string name="profile_favorites_description">Manage saved novels and bookmarks</string>
     <string name="profile_history_description">Pick up where you left off reading</string>
@@ -471,4 +473,17 @@
     <string name="login_account_title">Account</string>
     <string name="bookshelf_recent_rank">Recently read: number %1$d</string>
     <string name="profile_tools">Your library &amp; preferences</string>
+    <string name="guestbook_sync_running">Syncing message board</string>
+    <string name="guestbook_sync_success">Message board synced</string>
+    <string name="guestbook_sync_failed">Message board sync failed</string>
+    <string name="guestbook_sync_detail">Latest messages synchronized</string>
+    <string name="water_cooler_sync_running">Syncing water cooler</string>
+    <string name="water_cooler_sync_success">Water cooler synced</string>
+    <string name="water_cooler_sync_failed">Water cooler sync failed</string>
+    <string name="water_cooler_sync_detail">Latest replies synchronized</string>
+    <string name="community_sync_running">Syncing post</string>
+    <string name="community_sync_success">Post synced</string>
+    <string name="community_sync_failed">Post sync failed</string>
+    <string name="community_sync_detail">Latest post and replies synchronized</string>
+    <string name="community_sync_refresh">Refresh community content</string>
 </resources>

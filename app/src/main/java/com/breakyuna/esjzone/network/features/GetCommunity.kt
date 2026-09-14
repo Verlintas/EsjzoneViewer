@@ -520,7 +520,8 @@ private fun forumBoardResult(
 
 fun EsjzoneClient.getForumPost(
     authorization: Authorization,
-    topic: ForumTopic
+    topic: ForumTopic,
+    forceRefresh: Boolean = false
 ): ForumPost {
     val targetUrl = EsjzoneUrls.resolve(topic.url).substringBefore('#')
     AppLogger.i("GetCommunity", "Fetching forum topic ${topic.id} at $targetUrl")
@@ -529,6 +530,7 @@ fun EsjzoneClient.getForumPost(
             authorization,
             targetUrl,
             PageCacheTtl.COMMUNITY,
+            forceRefresh = forceRefresh,
             pageKind = PageKind.COMMUNITY
         ),
         targetUrl

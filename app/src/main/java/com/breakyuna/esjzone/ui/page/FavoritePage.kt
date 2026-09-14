@@ -138,6 +138,7 @@ object FavoritePage : AppDestination {
         var pendingDelete by remember { mutableStateOf<List<BookshelfEntry>>(emptyList()) }
         var showDeleteDialog by remember { mutableStateOf(false) }
         var lastSyncFailed by rememberSaveable { mutableStateOf(false) }
+        var lastSyncSuccess by rememberSaveable { mutableStateOf(false) }
         var showSyncStatusMenu by remember { mutableStateOf(false) }
         var showSortMenu by remember { mutableStateOf(false) }
         val suppressFloatingNav = LocalFloatingNavSuppression.current
@@ -165,6 +166,7 @@ object FavoritePage : AppDestination {
         val visibleKeys = remember(shown) { shown.mapTo(LinkedHashSet()) { it.bookKey } }
         val syncing = syncState is FavoritePageModel.State.Syncing
         val deleting = deleteState is FavoritePageModel.DeleteState.Deleting
+        val isSyncSuccess = !syncing && (syncState is FavoritePageModel.State.Completed || (lastSyncSuccess && syncState !is FavoritePageModel.State.Failed))
         val isSyncFailed = syncState is FavoritePageModel.State.Failed || (lastSyncFailed && syncState !is FavoritePageModel.State.Completed)
         val syncAddedMessage = stringResource(R.string.bookshelf_sync_added)
         val syncDoneMessage = stringResource(R.string.bookshelf_sync_done)
@@ -203,6 +205,7 @@ object FavoritePage : AppDestination {
             when (val state = syncState) {
                 is FavoritePageModel.State.Completed -> {
                     lastSyncFailed = false
+                    lastSyncSuccess = true
                     snackbar.showSnackbar(
                         if (state.result.added > 0) syncAddedMessage.format(state.result.added)
                         else syncDoneMessage
@@ -210,6 +213,7 @@ object FavoritePage : AppDestination {
                 }
                 is FavoritePageModel.State.Failed -> {
                     lastSyncFailed = true
+                    lastSyncSuccess = false
                     snackbar.showSnackbar(
                         when (state.failure) {
                             LoadFailureKind.NETWORK -> networkErrorMessage
@@ -254,13 +258,13 @@ object FavoritePage : AppDestination {
                     selectedCount = selected.size,
                     totalCount = shown.size,
                     syncing = syncing,
+                    isSyncSuccess = isSyncSuccess,
                     isSyncFailed = isSyncFailed,
                     showSyncStatusMenu = showSyncStatusMenu,
                     deleting = deleting,
                     onBack = { if (editing) exitEdit() else navigator?.pop() },
                     onRefresh = { if (!syncing) model.sync() },
                     onSyncStatusMenuChange = { showSyncStatusMenu = it },
-                    onRetrySync = { if (!syncing) model.sync() },
                     listView = listView,
                     onToggleView = { focusManager.clearFocus(force = true); listView = !listView },
                     onEdit = { editing = true; selected = emptySet() },
@@ -509,6 +513,7 @@ private fun BookshelfTopBar(
     selectedCount: Int,
     totalCount: Int,
     syncing: Boolean,
+    isSyncSuccess: Boolean,
     isSyncFailed: Boolean,
     showSyncStatusMenu: Boolean,
     listView: Boolean,
@@ -517,7 +522,6 @@ private fun BookshelfTopBar(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onSyncStatusMenuChange: (Boolean) -> Unit,
-    onRetrySync: () -> Unit,
     onEdit: () -> Unit,
     onDone: () -> Unit,
     onSelectAll: () -> Unit,
@@ -541,10 +545,10 @@ private fun BookshelfTopBar(
                     if (!editing) {
                         BookshelfSyncStatusIndicator(
                             syncing = syncing,
+                            isSyncSuccess = isSyncSuccess,
                             isSyncFailed = isSyncFailed,
                             expanded = showSyncStatusMenu,
-                            onExpandedChange = onSyncStatusMenuChange,
-                            onRetry = onRetrySync
+                            onExpandedChange = onSyncStatusMenuChange
                         )
                     }
                 }
@@ -579,22 +583,31 @@ private fun BookshelfTopBar(
 @Composable
 private fun BookshelfSyncStatusIndicator(
     syncing: Boolean,
+    isSyncSuccess: Boolean,
     isSyncFailed: Boolean,
     expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onRetry: () -> Unit
+    onExpandedChange: (Boolean) -> Unit
 ) {
-    val indicatorColor = if (isSyncFailed) Color(0xFF9E9E9E) else Color(0xFF4CAF50)
+    val indicatorColor = if (isSyncSuccess) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
+    val statusLabelRes = when {
+        syncing -> R.string.bookshelf_sync_running_short
+        isSyncFailed -> R.string.bookshelf_sync_status_failed
+        isSyncSuccess -> R.string.bookshelf_sync_status_success
+        else -> R.string.bookshelf_sync_status_idle
+    }
+    val statusDetailRes = when {
+        syncing -> R.string.bookshelf_sync_running_short
+        isSyncFailed -> R.string.bookshelf_sync_failed
+        isSyncSuccess -> R.string.bookshelf_sync_done
+        else -> R.string.bookshelf_sync_idle
+    }
     Box {
         Box(
             modifier = Modifier
                 .size(AppSpacing.xl)
                 .clip(CircleShape)
                 .clickable(
-                    onClickLabel = stringResource(
-                        if (isSyncFailed) R.string.bookshelf_sync_status_failed
-                        else R.string.bookshelf_sync_status_success
-                    )
+                    onClickLabel = stringResource(statusLabelRes)
                 ) { onExpandedChange(true) },
             contentAlignment = Alignment.Center
         ) {
@@ -612,33 +625,16 @@ private fun BookshelfSyncStatusIndicator(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                     Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
                     Text(
-                        text = stringResource(
-                            when {
-                                syncing -> R.string.bookshelf_sync_running_short
-                                isSyncFailed -> R.string.bookshelf_sync_status_failed
-                                else -> R.string.bookshelf_sync_status_success
-                            }
-                        ),
+                        text = stringResource(statusLabelRes),
                         style = AppTypography.labelLarge,
                         fontWeight = FontWeight.Bold
                     )
                 }
                 Text(
-                    text = stringResource(
-                        when {
-                            syncing -> R.string.bookshelf_sync_running_short
-                            isSyncFailed -> R.string.bookshelf_sync_failed
-                            else -> R.string.bookshelf_sync_done
-                        }
-                    ),
+                    text = stringResource(statusDetailRes),
                     style = AppTypography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (isSyncFailed && !syncing) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { onExpandedChange(false); onRetry() }) { Text(stringResource(R.string.retry)) }
-                    }
-                }
             }
         }
     }
