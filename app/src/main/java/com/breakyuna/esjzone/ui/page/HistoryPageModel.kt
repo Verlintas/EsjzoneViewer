@@ -6,6 +6,7 @@ import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.LoadFailureKind
+import com.breakyuna.esjzone.network.features.HistoryDataCache
 import com.breakyuna.esjzone.network.features.getHistories
 import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.novellibrary.novel.HistoryNovel
@@ -19,7 +20,9 @@ import kotlinx.coroutines.launch
 /** Cloud history loader isolated from the tab and its paging presentation. */
 class HistoryPageModel(
     private val authorization: Authorization
-) : AppStateViewModel<HistoryPageModel.State>(State.Loading) {
+) : AppStateViewModel<HistoryPageModel.State>(
+    HistoryDataCache.readSnapshot()?.let { State.Result(it) } ?: State.Loading
+) {
 
     private var loadJob: Job? = null
     private var loadStarted = false
@@ -27,7 +30,10 @@ class HistoryPageModel(
     sealed class State {
         data object Loading : State()
         data class Error(val failure: LoadFailureKind) : State()
-        data class Result(val historyNovels: List<HistoryNovel>) : State()
+        data class Result(
+            val historyNovels: List<HistoryNovel>,
+            val isSyncing: Boolean = false
+        ) : State()
     }
 
     fun getNovels(forceRefresh: Boolean = false) {
@@ -35,18 +41,24 @@ class HistoryPageModel(
         loadStarted = true
         loadJob?.cancel()
         loadJob = viewModelScope.launch(Dispatchers.IO) {
-            mutableState.value = State.Loading
+            val visibleData = mutableState.value as? State.Result
+            mutableState.value = visibleData?.copy(isSyncing = true) ?: State.Loading
             try {
                 val histories = PresentationAccess.client.getHistories(
                     authorization,
                     forceRefresh = forceRefresh
                 )
                 ensureActive()
+                HistoryDataCache.writeSnapshot(histories)
                 mutableState.value = State.Result(histories)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                mutableState.value = State.Error(e.loadFailureKind())
+                if (visibleData == null) {
+                    mutableState.value = State.Error(e.loadFailureKind())
+                } else {
+                    mutableState.value = visibleData.copy(isSyncing = false)
+                }
                 loadStarted = false
                 AppLogger.e("HistoryPageModel", "Failed to load cloud histories", e)
             }

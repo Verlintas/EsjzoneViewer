@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -212,7 +213,7 @@ object HistoryPage : AppDestination {
                         } else {
                             IconButton(
                                 onClick = cloudModel::reload,
-                                enabled = cloudState !is HistoryPageModel.State.Loading
+                                enabled = !cloudState.isSyncing()
                             ) {
                                 Icon(Icons.Filled.CloudSync, stringResource(R.string.history_cloud_sync))
                             }
@@ -251,7 +252,7 @@ object HistoryPage : AppDestination {
                         )
                     } else {
                         PullToRefreshBox(
-                            isRefreshing = cloudState is HistoryPageModel.State.Loading,
+                            isRefreshing = cloudState.isSyncing(),
                             onRefresh = cloudModel::reload,
                             modifier = Modifier.fillMaxSize()
                         ) {
@@ -291,7 +292,7 @@ private fun HistoryCloudSyncStatusIndicator(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit
 ) {
-    val syncing = state is HistoryPageModel.State.Loading
+    val syncing = state.isSyncing()
     val failed = state is HistoryPageModel.State.Error
     val isSuccess = state is HistoryPageModel.State.Result
     val indicatorColor = if (isSuccess) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
@@ -460,7 +461,7 @@ private fun CloudHistoryContent(
     navigator: com.breakyuna.esjzone.ui.navigation.AppNavigator?
 ) {
     when (state) {
-        HistoryPageModel.State.Loading -> HistoryListSkeleton()
+        HistoryPageModel.State.Loading -> CloudHistoryLoadingState()
         is HistoryPageModel.State.Error -> if (state.failure == LoadFailureKind.NETWORK) {
             OfflineState(
                 title = stringResource(R.string.load_network_error),
@@ -504,7 +505,7 @@ private fun CloudHistoryContent(
                                     onRetry = { detailLoader.retry(history) },
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                            } else HistoryItemSkeleton()
+                            } else CloudHistoryDetailLoading()
                         } else if (PresentationAccess.settings.adult.value || !detail.isAdult) {
                             CloudHistoryCard(
                                 history = history,
@@ -558,6 +559,27 @@ private fun CloudHistoryCard(
             androidx.compose.material3.LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
             Text(position, style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+private fun HistoryPageModel.State.isSyncing(): Boolean =
+    this is HistoryPageModel.State.Loading ||
+        (this as? HistoryPageModel.State.Result)?.isSyncing == true
+
+@Composable
+private fun CloudHistoryLoadingState(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun CloudHistoryDetailLoading() {
+    Box(
+        modifier = Modifier.fillMaxWidth().height(132.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
     }
 }
 

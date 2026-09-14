@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.lazy.LazyListScope
@@ -41,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -65,7 +68,6 @@ import com.breakyuna.esjzone.ui.component.AppNovelCover
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState
 import com.breakyuna.esjzone.ui.discovery.DiscoveryErrorState
-import com.breakyuna.esjzone.ui.discovery.DiscoveryLoadingState
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.ui.platform.LocalLayoutDirection
 import com.breakyuna.esjzone.ui.discovery.DiscoveryOfflineBanner
@@ -149,7 +151,7 @@ object HomeTab : AppTab {
             }
         ) { padding ->
             PullToRefreshBox(
-                isRefreshing = state is HomeTabModel.State.Loading,
+                isRefreshing = (state as? HomeTabModel.State.Result)?.isSyncing == true,
                 onRefresh = model::reload,
                 modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
             ) {
@@ -189,7 +191,7 @@ object HomeTab : AppTab {
                 }
                 when (val snapshot = state) {
                     HomeTabModel.State.Loading -> item(key = "home-loading", contentType = "loading") {
-                        DiscoveryLoadingState()
+                        HomeInitialLoadingState()
                     }
                     is HomeTabModel.State.Error -> item(key = "home-error", contentType = "error") {
                         Column {
@@ -269,6 +271,16 @@ object HomeTab : AppTab {
         }
 
         LaunchedEffect(Unit) { model.getHomeData() }
+    }
+}
+
+@Composable
+private fun HomeInitialLoadingState() {
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(AppSpacing.xxxl),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
     }
 }
 
@@ -540,16 +552,18 @@ class HomeTabModel(
     sealed class State {
         data object Loading : State()
         data class Error(val failure: LoadFailureKind) : State()
-        data class Result(val homeData: HomeData) : State()
+        data class Result(
+            val homeData: HomeData,
+            val isSyncing: Boolean = false
+        ) : State()
     }
 
     fun getHomeData(forceRefresh: Boolean = false) {
         if (loadStarted) return
         loadStarted = true
         viewModelScope.launch(Dispatchers.IO) {
-            if (forceRefresh || mutableState.value !is State.Result) {
-                mutableState.value = State.Loading
-            }
+            val visibleData = mutableState.value as? State.Result
+            mutableState.value = visibleData?.copy(isSyncing = true) ?: State.Loading
             try {
                 val data = PresentationAccess.client.getHomeData(authorization, forceRefresh = forceRefresh)
                 ensureActive()
@@ -559,8 +573,10 @@ class HomeTabModel(
                 loadStarted = false
                 throw e
             } catch (e: Exception) {
-                if (mutableState.value !is State.Result) {
+                if (visibleData == null) {
                     mutableState.value = State.Error(e.loadFailureKind())
+                } else {
+                    mutableState.value = visibleData.copy(isSyncing = false)
                 }
                 loadStarted = false
                 com.breakyuna.esjzone.util.AppLogger.e("HomeTabModel", "Failed to load home data", e)
