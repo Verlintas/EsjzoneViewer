@@ -11,13 +11,17 @@ import com.breakyuna.esjzone.util.AppLogger
 import java.io.IOException
 import org.jsoup.Jsoup
 
-fun EsjzoneClient.getHomeData(authorization: Authorization): HomeData {
-    AppLogger.i("GetHomeData", "Fetching home data from ${EsjzoneUrls.Home}")
+fun EsjzoneClient.getHomeData(
+    authorization: Authorization,
+    forceRefresh: Boolean = false
+): HomeData {
+    AppLogger.i("GetHomeData", "Fetching home data from ${EsjzoneUrls.Home} (forceRefresh=$forceRefresh)")
 
     val responseBody = getPage(
         authorization,
         EsjzoneUrls.Home,
         PageCacheTtl.HOME,
+        forceRefresh = forceRefresh,
         pageKind = PageKind.HOME
     )
 
@@ -28,7 +32,7 @@ fun EsjzoneClient.getHomeData(authorization: Authorization): HomeData {
     val recentlyUpdateTranslatedR18Novels = mutableListOf<CoveredNovel>()
     val recentlyUpdateOriginalR18Novels = mutableListOf<CoveredNovel>()
     val recommendationNovels = mutableListOf<CoveredNovel>()
-    val weeklyUpdates = runCatching { getWeeklyUpdates(authorization) }
+    val weeklyUpdates = runCatching { getWeeklyUpdates(authorization, forceRefresh = forceRefresh) }
         .onFailure { AppLogger.w("GetHomeData", "Error parsing weekly updates", it) }
         .getOrDefault(emptyList())
 

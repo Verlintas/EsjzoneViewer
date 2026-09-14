@@ -29,6 +29,7 @@ import com.breakyuna.esjzone.domain.repository.SearchRepository
 import com.breakyuna.esjzone.domain.repository.SessionRepository
 import com.breakyuna.esjzone.domain.repository.SettingsRepository
 import com.breakyuna.esjzone.network.EsjzoneClient
+import com.breakyuna.esjzone.network.features.HomeDataCache
 import com.breakyuna.esjzone.offline.NovelDownloadStore
 import okio.Path.Companion.toOkioPath
 
@@ -85,5 +86,6 @@ class AppContainer(context: Context) {
     init {
         EsjzoneClient.initialize(appContext)
         NovelDownloadStore.initialize(appContext)
+        HomeDataCache.initialize(appContext)
     }
 }

@@ -59,6 +59,7 @@ import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.LoadFailureKind
 import com.breakyuna.esjzone.network.LocalAuthorization
+import com.breakyuna.esjzone.network.features.HomeDataCache
 import com.breakyuna.esjzone.network.features.getHomeData
 import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.novellibrary.data.HomeData
@@ -577,7 +578,9 @@ private fun failureMessage(failure: LoadFailureKind): Int = when (failure) {
 
 class HomeTabModel(
     private val authorization: Authorization
-) : AppStateViewModel<HomeTabModel.State>(State.Loading) {
+) : AppStateViewModel<HomeTabModel.State>(
+    HomeDataCache.readSnapshot()?.let { State.Result(it) } ?: State.Loading
+) {
 
     private var loadStarted = false
 
@@ -587,19 +590,25 @@ class HomeTabModel(
         data class Result(val homeData: HomeData) : State()
     }
 
-    fun getHomeData() {
+    fun getHomeData(forceRefresh: Boolean = false) {
         if (loadStarted) return
         loadStarted = true
         viewModelScope.launch(Dispatchers.IO) {
-            mutableState.value = State.Loading
+            if (forceRefresh || mutableState.value !is State.Result) {
+                mutableState.value = State.Loading
+            }
             try {
-                val data = PresentationAccess.client.getHomeData(authorization)
+                val data = PresentationAccess.client.getHomeData(authorization, forceRefresh = forceRefresh)
                 ensureActive()
+                HomeDataCache.writeSnapshot(data)
                 mutableState.value = State.Result(data)
             } catch (e: CancellationException) {
+                loadStarted = false
                 throw e
             } catch (e: Exception) {
-                mutableState.value = State.Error(e.loadFailureKind())
+                if (mutableState.value !is State.Result) {
+                    mutableState.value = State.Error(e.loadFailureKind())
+                }
                 loadStarted = false
                 com.breakyuna.esjzone.util.AppLogger.e("HomeTabModel", "Failed to load home data", e)
             }
@@ -608,6 +617,6 @@ class HomeTabModel(
 
     fun reload() {
         loadStarted = false
-        getHomeData()
+        getHomeData(forceRefresh = true)
     }
 }

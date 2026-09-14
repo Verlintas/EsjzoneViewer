@@ -16,11 +16,15 @@ private val updateDateRegex = Regex("""\d{4}-\d{2}-\d{2}""")
  * Reads ESJ's current-week update board. The site itself publishes tabs from Monday
  * through today, so this deliberately does not manufacture future-day placeholders.
  */
-fun EsjzoneClient.getWeeklyUpdates(authorization: Authorization): List<WeeklyUpdateDay> {
+fun EsjzoneClient.getWeeklyUpdates(
+    authorization: Authorization,
+    forceRefresh: Boolean = false
+): List<WeeklyUpdateDay> {
     val body = getPage(
         authorization = authorization,
         url = EsjzoneUrls.WeeklyUpdate,
         maxAgeMillis = PageCacheTtl.WEEKLY_UPDATE,
+        forceRefresh = forceRefresh,
         pageKind = PageKind.WEEKLY_UPDATE
     )
     val document = Jsoup.parse(body, EsjzoneUrls.WeeklyUpdate)
