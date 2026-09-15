@@ -117,12 +117,15 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import java.time.DayOfWeek
 import kotlin.random.Random
@@ -641,9 +644,26 @@ private fun LazyListScope.weeklyPopularCarousel(
         )
         LaunchedEffect(pagerState, visible.size) {
             while (true) {
-                delay(HOME_WEEKLY_POPULAR_AUTO_PLAY_MS)
-                if (!pagerState.isScrollInProgress) {
-                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                val manualScrollStarted = withTimeoutOrNull(HOME_WEEKLY_POPULAR_AUTO_PLAY_MS) {
+                    snapshotFlow { pagerState.isScrollInProgress }
+                        .filter { it }
+                        .first()
+                } != null
+                if (manualScrollStarted) {
+                    if (pagerState.isScrollInProgress) {
+                        snapshotFlow { pagerState.isScrollInProgress }
+                            .filter { !it }
+                            .first()
+                    }
+                    continue
+                }
+                try {
+                    pagerState.animateScrollToPage(
+                        page = pagerState.currentPage + 1,
+                        animationSpec = tween(HOME_WEEKLY_POPULAR_ANIMATION_MS)
+                    )
+                } catch (_: CancellationException) {
+                    currentCoroutineContext().ensureActive()
                 }
             }
         }
@@ -689,7 +709,7 @@ private fun WeeklyPopularCard(
 ) {
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(224.dp),
+        modifier = Modifier.fillMaxWidth().height(HOME_WEEKLY_POPULAR_CARD_HEIGHT),
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
@@ -849,8 +869,10 @@ private fun HomeShortcut(
 
 private val HOME_WEEKLY_POPULAR_COVER_WIDTH = 106.dp
 private val HOME_WEEKLY_POPULAR_CONTENT_HEIGHT = 172.dp
+private val HOME_WEEKLY_POPULAR_CARD_HEIGHT = 196.dp
 
 private const val HOME_WEEKLY_POPULAR_AUTO_PLAY_MS = 4_000L
+private const val HOME_WEEKLY_POPULAR_ANIMATION_MS = 800
 
 private const val HOME_COLLECTION_MAX_ITEMS = 16
 
