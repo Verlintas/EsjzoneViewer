@@ -44,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -761,6 +762,17 @@ private fun WeeklyPopularCard(
 private fun formatWeeklyHeat(value: Int): String = when {
     value >= 10_000 -> "%.1f万".format(value / 10_000f)
     else -> value.toString()
+}
+
+@Composable
+private fun HomeAction(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
+        Icon(icon, contentDescription = null)
+    }
 }
 
 @Composable
