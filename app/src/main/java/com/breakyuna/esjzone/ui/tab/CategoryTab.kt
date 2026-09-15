@@ -158,6 +158,7 @@ private fun CategoryBrowserContent(model: CategoryModel, modifier: Modifier) {
                 }
             }
         }
+        }
     }
 
     LaunchedEffect(Unit) { model.getCategories() }

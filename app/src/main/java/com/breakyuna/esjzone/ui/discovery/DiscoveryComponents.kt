@@ -258,7 +258,7 @@ fun DiscoveryFilterMenu(
                 ) {
                     Text(
                         label,
-                        style = AppTypography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
                     )

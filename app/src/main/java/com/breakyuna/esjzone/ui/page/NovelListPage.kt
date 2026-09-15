@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.stickyHeader
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ViewList
@@ -238,25 +238,24 @@ private fun NovelListResult(
         ) else 1
         val rows = remember(visibleItems, columns) { visibleItems.chunked(columns) }
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(if (gridView) AppSpacing.lg else 10.dp)
-        ) {
-            stickyHeader(key = "novel-list-filters", contentType = "filters") {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    NovelListFilters(
-                        novelType = novelType,
-                        sortType = sortType,
-                        adult = adult,
-                        adultOnly = adultOnly,
-                        onAdultOnlyChange = onAdultOnlyChange,
-                        onFilterChanged = onFilterChanged,
-                        modifier = Modifier.padding(vertical = AppSpacing.sm)
-                    )
-                }
+        Column(modifier = Modifier.fillMaxSize()) {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                NovelListFilters(
+                    novelType = novelType,
+                    sortType = sortType,
+                    adult = adult,
+                    adultOnly = adultOnly,
+                    onAdultOnlyChange = onAdultOnlyChange,
+                    onFilterChanged = onFilterChanged,
+                    modifier = Modifier.padding(vertical = AppSpacing.sm)
+                )
             }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(if (gridView) AppSpacing.lg else 10.dp)
+            ) {
             if (visibleItems.isEmpty()) {
                 item(key = "novel-list-empty", contentType = "empty") {
                     com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState(
@@ -303,6 +302,7 @@ private fun NovelListResult(
                 onRetry = if (pageFailure != null) ::loadMore else null,
                 errorMessage = pageErrorMessage
             )
+            }
         }
     }
 
