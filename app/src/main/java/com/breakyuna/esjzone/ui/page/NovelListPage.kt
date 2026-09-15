@@ -110,8 +110,8 @@ class NovelListPage(
         val navigator = LocalBaseNavigator.current
         val authorization = LocalAuthorization.current
         val settings = PresentationAccess.settings
-        val rememberedGridView by settings.novelListGridView.collectAsState()
-        val rememberedAdultOnly by settings.novelListAdultOnly.collectAsState()
+        val rememberedGridView by settings.novelListGridViewFlow.collectAsState()
+        val rememberedAdultOnly by settings.novelListAdultOnlyFlow.collectAsState()
         val novelType = rememberSaveable { mutableIntStateOf(initializedNovelType) }
         val sortType = rememberSaveable { mutableIntStateOf(initializedSortType) }
         var adultOnly by rememberSaveable {

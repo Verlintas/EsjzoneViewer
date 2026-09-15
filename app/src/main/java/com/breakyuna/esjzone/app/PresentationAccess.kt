@@ -77,6 +77,8 @@ object SettingsStateBoundary {
     private val _language = mutableStateOf(AppLanguage.SYSTEM)
     private val _readerAutoSave = mutableStateOf(true)
     private val _downloadConcurrency = mutableStateOf(SettingsDefaults.DEFAULT_DOWNLOAD_CONCURRENCY)
+    private val _novelListGridView = mutableStateOf(false)
+    private val _novelListAdultOnly = mutableStateOf(false)
 
     private fun repository(): SettingsRepository {
         val repository = EsjzoneApplication.instance.container.settings
@@ -90,12 +92,16 @@ object SettingsStateBoundary {
             _language.value = repository.language.value
             _readerAutoSave.value = repository.readerAutoSave.value
             _downloadConcurrency.value = repository.downloadConcurrency.value
+            _novelListGridView.value = repository.novelListGridView.value
+            _novelListAdultOnly.value = repository.novelListAdultOnly.value
             scope.launch { repository.adult.collect { _adult.value = it } }
             scope.launch { repository.theme.collect { _theme.value = it } }
             scope.launch { repository.domain.collect { _domain.value = it } }
             scope.launch { repository.language.collect { _language.value = it } }
             scope.launch { repository.readerAutoSave.collect { _readerAutoSave.value = it } }
             scope.launch { repository.downloadConcurrency.collect { _downloadConcurrency.value = it } }
+            scope.launch { repository.novelListGridView.collect { _novelListGridView.value = it } }
+            scope.launch { repository.novelListAdultOnly.collect { _novelListAdultOnly.value = it } }
         }
         return repository
     }
@@ -112,6 +118,10 @@ object SettingsStateBoundary {
     val readerAutoSaveFlow: StateFlow<Boolean> get() = repository().readerAutoSave
     val downloadConcurrency: State<Int> get() { repository(); return _downloadConcurrency }
     val downloadConcurrencyFlow: StateFlow<Int> get() = repository().downloadConcurrency
+    val novelListGridView: State<Boolean> get() { repository(); return _novelListGridView }
+    val novelListGridViewFlow: StateFlow<Boolean> get() = repository().novelListGridView
+    val novelListAdultOnly: State<Boolean> get() { repository(); return _novelListAdultOnly }
+    val novelListAdultOnlyFlow: StateFlow<Boolean> get() = repository().novelListAdultOnly
 
     fun setAdult(value: Boolean) = repository().setAdult(value)
     fun setTheme(value: AppThemeVariant) = repository().setTheme(value)
@@ -119,4 +129,6 @@ object SettingsStateBoundary {
     fun setLanguage(value: AppLanguage) = repository().setLanguage(value)
     fun setReaderAutoSave(value: Boolean) = repository().setReaderAutoSave(value)
     fun setDownloadConcurrency(value: Int) = repository().setDownloadConcurrency(value)
+    fun setNovelListGridView(value: Boolean) = repository().setNovelListGridView(value)
+    fun setNovelListAdultOnly(value: Boolean) = repository().setNovelListAdultOnly(value)
 }
