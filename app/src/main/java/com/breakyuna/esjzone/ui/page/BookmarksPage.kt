@@ -3,6 +3,7 @@ package com.breakyuna.esjzone.ui.page
 import androidx.lifecycle.viewModelScope
 
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
@@ -17,6 +18,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +36,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -72,13 +82,54 @@ object BookmarksPage : AppDestination {
         val navigator = LocalBaseNavigator.current
         val model = rememberAppViewModel { BookmarksPageModel() }
         val state by model.state.collectAsState()
+        var editing by remember { mutableStateOf(false) }
+        var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
+        var pendingDelete by remember { mutableStateOf<List<LocalBookmark>>(emptyList()) }
+        var showDeleteDialog by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { model.load() }
+
+        val bookmarks = (state as? BookmarksPageModel.State.Result)?.bookmarks.orEmpty()
+        val bookmarkUrls = remember(bookmarks) { bookmarks.mapTo(LinkedHashSet()) { it.chapterUrl } }
+        LaunchedEffect(bookmarkUrls) { selected = selected.intersect(bookmarkUrls) }
+
+        fun requestDelete(bookmarksToDelete: List<LocalBookmark>) {
+            pendingDelete = bookmarksToDelete
+            showDeleteDialog = bookmarksToDelete.isNotEmpty()
+        }
+
+        fun exitEditing() {
+            editing = false
+            selected = emptySet()
+        }
 
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = { Text(stringResource(R.string.bookmarks), style = AppTypography.titleLarge) },
-                    navigationIcon = { BackIconButton { navigator?.pop() } }
+                    navigationIcon = { BackIconButton { if (editing) exitEditing() else navigator?.pop() } },
+                    actions = {
+                        if (editing) {
+                            IconButton(
+                                onClick = { selected = if (selected == bookmarkUrls) emptySet() else bookmarkUrls },
+                                enabled = bookmarkUrls.isNotEmpty()
+                            ) {
+                                Icon(Icons.Filled.SelectAll, contentDescription = stringResource(R.string.bookmark_select_all))
+                            }
+                            IconButton(
+                                onClick = { requestDelete(bookmarks.filter { it.chapterUrl in selected }) },
+                                enabled = selected.isNotEmpty()
+                            ) {
+                                Icon(Icons.Filled.DeleteOutline, contentDescription = stringResource(R.string.bookmark_delete_selected))
+                            }
+                            IconButton(onClick = ::exitEditing) {
+                                Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.bookmark_edit_done))
+                            }
+                        } else {
+                            IconButton(onClick = { editing = true }) {
+                                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.bookmark_edit))
+                            }
+                        }
+                    }
                 )
             }
         ) { padding ->
@@ -111,25 +162,49 @@ object BookmarksPage : AppDestination {
                                 bookmark = bookmark,
                                 coverUrl = model.coverUrlFor(bookmark),
                                 onOpen = {
-                                    val chapter = Chapter(bookmark.chapterName, bookmark.chapterUrl, false)
-                                    val cleanId = BookmarkCoverStore.cleanNovelId(bookmark.novelId, bookmark.chapterUrl)
-                                    navigator?.pushIfNotCurrent(
-                                        ChapterPage(
-                                            novelId = cleanId,
-                                            chapter = chapter,
-                                            history = ChapterStateHolder(chapter),
-                                            novelName = bookmark.novelName,
-                                            novelUrl = "/detail/$cleanId.html",
-                                            novelCoverUrl = model.coverUrlFor(bookmark)
+                                    if (editing) {
+                                        selected = if (bookmark.chapterUrl in selected) selected - bookmark.chapterUrl else selected + bookmark.chapterUrl
+                                    } else {
+                                        val chapter = Chapter(bookmark.chapterName, bookmark.chapterUrl, false)
+                                        val cleanId = BookmarkCoverStore.cleanNovelId(bookmark.novelId, bookmark.chapterUrl)
+                                        navigator?.pushIfNotCurrent(
+                                            ChapterPage(
+                                                novelId = cleanId,
+                                                chapter = chapter,
+                                                history = ChapterStateHolder(chapter),
+                                                novelName = bookmark.novelName,
+                                                novelUrl = "/detail/$cleanId.html",
+                                                novelCoverUrl = model.coverUrlFor(bookmark)
+                                            )
                                         )
-                                    )
+                                    }
                                 },
-                                onDelete = { model.delete(bookmark) }
+                                onDelete = { requestDelete(listOf(bookmark)) },
+                                editing = editing,
+                                selected = bookmark.chapterUrl in selected
                             )
                         }
                     }
                 }
             }
+        }
+
+        if (showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text(stringResource(R.string.bookmark_delete_title, pendingDelete.size)) },
+                text = { Text(stringResource(R.string.bookmark_delete_confirm)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        model.delete(pendingDelete)
+                        showDeleteDialog = false
+                        exitEditing()
+                    }) {
+                        Text(stringResource(R.string.bookmark_delete_action), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(android.R.string.cancel)) } }
+            )
         }
     }
 }
@@ -139,12 +214,15 @@ private fun BookmarkCard(
     bookmark: LocalBookmark,
     coverUrl: String,
     onOpen: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    editing: Boolean,
+    selected: Boolean
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(AppShapes.standard)
+            .then(if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, AppShapes.standard) else Modifier)
             .clickable(onClick = onOpen)
             .semantics { role = Role.Button }
             .padding(vertical = AppSpacing.sm, horizontal = AppSpacing.xs),
@@ -160,8 +238,16 @@ private fun BookmarkCard(
             Text(bookmark.novelName.ifBlank { bookmark.novelId }, style = AppTypography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(bookmark.chapterName, style = AppTypography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.DeleteOutline, contentDescription = stringResource(R.string.bookmark_remove))
+        if (editing) {
+            Icon(
+                if (selected) Icons.Filled.Check else Icons.Filled.BookmarkBorder,
+                contentDescription = null,
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Filled.DeleteOutline, contentDescription = stringResource(R.string.bookmark_remove))
+            }
         }
     }
 }
@@ -229,11 +315,14 @@ private class BookmarksPageModel : AppStateViewModel<BookmarksPageModel.State>(S
         load()
     }
 
-    fun delete(bookmark: LocalBookmark) {
+    fun delete(bookmarks: List<LocalBookmark>) {
+        if (bookmarks.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                PresentationAccess.database.bookmarkDao().delete(bookmark)
-                BookmarkCoverStore.cleanupIfUnused(bookmark.novelId, bookmark.chapterUrl)
+                PresentationAccess.database.bookmarkDao().deleteAll(bookmarks)
+                bookmarks.forEach { bookmark ->
+                    BookmarkCoverStore.cleanupIfUnused(bookmark.novelId, bookmark.chapterUrl)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

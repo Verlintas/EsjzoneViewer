@@ -496,6 +496,18 @@ class ChapterPage(
             )
         )
 
+        // A history-origin reader suppresses position writes until restoration
+        // completes. Still update its timestamp immediately so the bookshelf's
+        // recent-reading showcase and default order react on a quick exit.
+        LaunchedEffect(localHistoryActivityId, resumeChapterProgress, restoreFromLocalHistory) {
+            if (resumeChapterProgress != null || restoreFromLocalHistory) {
+                LocalReadingHistoryRecorder.touch(
+                    novelId = localHistoryPosition.value.novelId,
+                    novelUrl = localHistoryPosition.value.novelUrl
+                )
+            }
+        }
+
         fun toggleBookmark() {
             val target = bookmarkChapter
             if (bookmarkChapterUrl.isBlank()) return

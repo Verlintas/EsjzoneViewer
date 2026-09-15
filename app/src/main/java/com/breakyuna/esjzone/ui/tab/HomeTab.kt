@@ -370,7 +370,7 @@ private fun HomeNovelGrid(
         rows.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md / 2)
             ) {
                 row.forEach { novel ->
                     HomeGridNovelTile(

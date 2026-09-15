@@ -34,4 +34,22 @@ object LocalReadingHistoryRecorder {
             }
         }
     }
+
+    /**
+     * Promotes a restored local-history record immediately when its reader is
+     * opened. This keeps the bookshelf's Room-backed recent-read order current
+     * even if the reader is closed before its saved position has finished
+     * restoring.
+     */
+    fun touch(novelId: String, novelUrl: String): Job = scope.launch {
+        if (novelId.isBlank() && novelUrl.isBlank()) return@launch
+        writeMutex.withLock {
+            try {
+                EsjzoneApplication.instance.container.database.localReadingActivityDao()
+                    .touchLatestForIdentity(novelId, novelUrl, System.currentTimeMillis())
+            } catch (e: Exception) {
+                AppLogger.e("LocalReadingHistory", "Failed to update local reading timestamp", e)
+            }
+        }
+    }
 }

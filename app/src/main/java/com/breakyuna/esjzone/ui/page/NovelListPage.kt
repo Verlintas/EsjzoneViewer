@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -247,7 +248,7 @@ private fun NovelListResult(
                     adultOnly = adultOnly,
                     onAdultOnlyChange = onAdultOnlyChange,
                     onFilterChanged = onFilterChanged,
-                    modifier = Modifier.padding(vertical = AppSpacing.sm)
+                    modifier = Modifier.padding(top = AppSpacing.xs)
                 )
             }
             LazyColumn(
@@ -335,7 +336,8 @@ private fun NovelListFilters(
     }
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         DiscoveryFilterMenu(
             label = stringResource(R.string.novel_list_type),
@@ -363,6 +365,7 @@ private fun NovelListFilters(
             FilterChip(
                 selected = adultOnly,
                 onClick = { onAdultOnlyChange(!adultOnly) },
+                shape = AppShapes.compact,
                 label = {
                     Text(
                         stringResource(R.string.novel_list_adultonly),
@@ -370,7 +373,7 @@ private fun NovelListFilters(
                         maxLines = 1
                     )
                 },
-                modifier = Modifier.padding(vertical = 0.dp)
+                modifier = Modifier.height(36.dp)
             )
         }
     }

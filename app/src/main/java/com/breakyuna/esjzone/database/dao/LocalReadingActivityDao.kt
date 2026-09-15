@@ -82,6 +82,18 @@ interface LocalReadingActivityDao {
     @Query("UPDATE local_reading_history SET novel_name = :name WHERE activity_id = :activityId")
     fun updateName(activityId: String, name: String)
 
+    /**
+     * Marks an existing local reading session as the most recently opened
+     * without replacing its restored chapter or progress with an initial
+     * reader position.
+     */
+    @Query(
+        "UPDATE local_reading_history SET last_read_at = :lastReadAt WHERE " +
+            "(:novelId != '' AND novel_id = :novelId) OR " +
+            "(:novelUrl != '' AND novel_url = :novelUrl)"
+    )
+    fun touchLatestForIdentity(novelId: String, novelUrl: String, lastReadAt: Long): Int
+
     @Query("DELETE FROM local_reading_history WHERE activity_id = :activityId")
     fun deleteById(activityId: String)
 

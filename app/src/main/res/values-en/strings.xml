@@ -77,6 +77,7 @@
     <string name="bookshelf_order_automatic">Automatic order</string>
     <string name="bookshelf_sort">Sort bookshelf</string>
     <string name="bookshelf_sort_recent_read">Recently read</string>
+    <string name="bookshelf_unread">Unread</string>
     <string name="bookshelf_sort_recent_added">Recently added</string>
     <string name="bookshelf_sort_recent_updated">Recently updated</string>
     <string name="bookshelf_selected_header">%1$d selected</string>
@@ -427,6 +428,13 @@
     <string name="bookmarks_description">Save chapters locally for quick access</string>
     <string name="bookmarks_empty">No local bookmarks yet</string>
     <string name="bookmark_remove">Remove bookmark</string>
+    <string name="bookmark_edit">Edit bookmarks</string>
+    <string name="bookmark_edit_done">Done editing</string>
+    <string name="bookmark_select_all">Select all bookmarks</string>
+    <string name="bookmark_delete_selected">Delete selected bookmarks</string>
+    <string name="bookmark_delete_title">Delete %1$d bookmark(s)?</string>
+    <string name="bookmark_delete_confirm">Deleted bookmarks cannot be recovered.</string>
+    <string name="bookmark_delete_action">Delete</string>
     <string name="local_cache">Local cache</string>
     <string name="local_cache_description">Previously opened novel pages are kept on this device</string>
     <string name="local_cache_pages">Pages: %1$s · %2$d files</string>

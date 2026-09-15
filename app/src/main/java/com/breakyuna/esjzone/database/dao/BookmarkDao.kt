@@ -26,6 +26,9 @@ interface BookmarkDao {
     @Delete
     fun delete(bookmark: Bookmark)
 
+    @Delete
+    fun deleteAll(bookmarks: List<Bookmark>)
+
     @Query("DELETE FROM bookmarks WHERE chapter_url = :chapterUrl")
     fun deleteByChapterUrl(chapterUrl: String)
 }

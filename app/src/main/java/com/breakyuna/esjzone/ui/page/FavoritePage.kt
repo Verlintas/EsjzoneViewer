@@ -80,6 +80,7 @@ import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.database.BookshelfRepository
 import com.breakyuna.esjzone.database.BookshelfSort
 import com.breakyuna.esjzone.database.entity.BookshelfEntry
+import com.breakyuna.esjzone.database.entity.LocalReadingActivity
 import com.breakyuna.esjzone.network.LocalAuthorization
 import com.breakyuna.esjzone.network.LoadFailureKind
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovelImpl
@@ -94,6 +95,7 @@ import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
 import com.breakyuna.esjzone.ui.navigation.rememberAppViewModel
 import com.breakyuna.esjzone.ui.product.EmptyState
 import com.breakyuna.esjzone.ui.product.OfflineState
+import kotlin.math.roundToInt
 
 private enum class BookshelfFilter {
     ALL,
@@ -319,7 +321,7 @@ object FavoritePage : AppDestination {
                 val endPadding = AppSpacing.lg
                 val columns = if (listView && !editing) 1 else bookshelfColumnCount(
                     (maxWidth - startPadding - endPadding).value,
-                    AppSpacing.md.value
+                    AppSpacing.xl.value
                 )
                 val rows = remember(shown, columns) { shown.chunked(columns) }
                 LazyColumn(
@@ -453,7 +455,7 @@ object FavoritePage : AppDestination {
                         ) { row ->
                             Row(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.xl)
                             ) {
                                 row.forEach { entry ->
                                     key(entry.bookKey) {
@@ -463,6 +465,7 @@ object FavoritePage : AppDestination {
                                                 onClick = { openBook(entry) }
                                             ) else ShelfCard(
                                                 entry = entry,
+                                                readingActivity = readingIndex.activityFor(entry),
                                                 selected = entry.bookKey in selected,
                                                 editing = editing,
                                                 enabled = !deleting,
@@ -639,6 +642,7 @@ private fun BookshelfSyncStatusIndicator(
 @Composable
 private fun ShelfCard(
     entry: BookshelfEntry,
+    readingActivity: LocalReadingActivity?,
     selected: Boolean,
     editing: Boolean,
     enabled: Boolean,
@@ -680,10 +684,27 @@ private fun ShelfCard(
         }
         Text(
             entry.title.ifBlank { stringResource(R.string.download_unknown_novel) },
-            style = AppTypography.titleMedium,
+            style = AppTypography.bodyLarge,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.sm, start = AppSpacing.xs, end = AppSpacing.xs)
+        )
+        Text(
+            text = readingActivity?.let { activity ->
+                stringResource(
+                    R.string.reader_book_progress_percent,
+                    (fullBookProgress(
+                        chapterIndex = activity.chapterIndex,
+                        totalChapters = activity.totalChapters,
+                        chapterProgress = activity.chapterProgress
+                    ) * 100).roundToInt()
+                )
+            } ?: stringResource(R.string.bookshelf_unread),
+            style = AppTypography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.xxs, start = AppSpacing.xs, end = AppSpacing.xs)
         )
     }
 }

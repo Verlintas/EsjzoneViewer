@@ -7,6 +7,7 @@ import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
 import com.breakyuna.esjzone.database.BookshelfRepository
 import com.breakyuna.esjzone.database.BookshelfSyncResult
 import com.breakyuna.esjzone.database.entity.BookshelfEntry
+import com.breakyuna.esjzone.database.entity.LocalReadingActivity
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.LoadFailureKind
 import com.breakyuna.esjzone.network.loadFailureKind
@@ -28,25 +29,52 @@ class FavoritePageModel(private val authorization: Authorization) :
     /** Full local reading timestamps used only for the optional shelf order. */
     val readingActivities = PresentationAccess.database.localReadingActivityDao().observeAll()
 
-    /** Presence only: entries already reactively sort by lastReadAt in BookshelfRepository. */
+    /** Latest local activity for the showcase, grid progress labels, and reactive ordering. */
     data class ReadingIndex(
         val novelIds: Set<String> = emptySet(),
-        val bookKeys: Set<String> = emptySet()
+        val bookKeys: Set<String> = emptySet(),
+        private val latestByNovelId: Map<String, LocalReadingActivity> = emptyMap(),
+        private val latestByBookKey: Map<String, LocalReadingActivity> = emptyMap()
     ) {
         operator fun contains(entry: BookshelfEntry): Boolean =
             entry.novelId in novelIds || entry.bookKey in bookKeys ||
                 (entry.url.isNotBlank() && BookshelfRepository.keyFor(entry.url) in bookKeys)
+
+        fun activityFor(entry: BookshelfEntry): LocalReadingActivity? =
+            latestByNovelId[entry.novelId]
+                ?: latestByBookKey[entry.bookKey]
+                ?: entry.url.takeIf(String::isNotBlank)
+                    ?.let(BookshelfRepository::keyFor)
+                    ?.let(latestByBookKey::get)
     }
 
     // Exclude unread recent additions from the showcase; no remote history or extra requests.
     val readingIndex = PresentationAccess.database.localReadingActivityDao().observeAll()
         .map { activities ->
-            ReadingIndex(
-                novelIds = activities.mapNotNullTo(HashSet()) { it.novelId.takeIf(String::isNotBlank) },
-                bookKeys = activities.mapNotNullTo(HashSet()) { activity ->
-                    activity.novelUrl.takeIf(String::isNotBlank)
-                        ?.let(BookshelfRepository::keyFor)?.takeIf(String::isNotBlank)
+            val latestByNovelId = HashMap<String, LocalReadingActivity>()
+            val latestByBookKey = HashMap<String, LocalReadingActivity>()
+            activities.forEach { activity ->
+                activity.novelId.takeIf(String::isNotBlank)?.let { novelId ->
+                    val current = latestByNovelId[novelId]
+                    if (current == null || activity.lastReadAt > current.lastReadAt) {
+                        latestByNovelId[novelId] = activity
+                    }
                 }
+                activity.novelUrl.takeIf(String::isNotBlank)
+                    ?.let(BookshelfRepository::keyFor)
+                    ?.takeIf(String::isNotBlank)
+                    ?.let { bookKey ->
+                        val current = latestByBookKey[bookKey]
+                        if (current == null || activity.lastReadAt > current.lastReadAt) {
+                            latestByBookKey[bookKey] = activity
+                        }
+                    }
+            }
+            ReadingIndex(
+                novelIds = latestByNovelId.keys,
+                bookKeys = latestByBookKey.keys,
+                latestByNovelId = latestByNovelId,
+                latestByBookKey = latestByBookKey
             )
         }
         .distinctUntilChanged()
