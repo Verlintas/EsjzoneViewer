@@ -18,6 +18,7 @@ import com.breakyuna.esjzone.novellibrary.novel.NovelDescription
 import com.breakyuna.esjzone.util.AppLogger
 import com.google.gson.Gson
 import java.io.File
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -507,12 +508,15 @@ object NovelDownloadStore {
                         value = component.plainText()
                     )
 
-                    is ImageComponent -> DownloadedComponent(
-                        type = IMAGE_COMPONENT,
-                        value = component.url
-                    ).withDownloadedImage(
-                        downloadImage(authorization, directory, component.url, detail.sourceUrl ?: baseUrl)
-                    )
+                    is ImageComponent -> {
+                        val image = downloadImage(
+                            authorization, directory, component.url, detail.sourceUrl ?: baseUrl
+                        ) ?: throw IOException("Unable to download chapter image: ${component.url}")
+                        DownloadedComponent(
+                            type = IMAGE_COMPONENT,
+                            value = component.url
+                        ).withDownloadedImage(image)
+                    }
 
                     else -> null
                 }
@@ -532,6 +536,7 @@ object NovelDownloadStore {
                 ?: return@synchronized null,
             DownloadedChapterContent::class.java
         ) ?: return@synchronized null
+        if (!stored.hasAllImagesOnDisk(match.directory)) return@synchronized null
 
         val previous = match.manifest.chapters.getOrNull(match.record.index - 1)
             ?.toChapter()
@@ -846,13 +851,14 @@ object NovelDownloadStore {
     private fun isChapterFullyDownloaded(directory: File, chapterFile: File): Boolean {
         if (!chapterFile.isFile || chapterFile.length() == 0L) return false
         val content = readJson(chapterFile, DownloadedChapterContent::class.java) ?: return false
-        val images = content.components.filter { it.type == IMAGE_COMPONENT }
-        return images.all { img ->
-            val rel = img.localFile ?: return@all false
-            val file = resolveLocalFile(directory, rel)
-            file?.isFile == true && file.length() > 0L
-        }
+        return content.hasAllImagesOnDisk(directory)
     }
+
+    private fun DownloadedChapterContent.hasAllImagesOnDisk(directory: File): Boolean =
+        components.filter { it.type == IMAGE_COMPONENT }.all { image ->
+            val relative = image.localFile ?: return@all false
+            resolveLocalFile(directory, relative)?.let { it.isFile && it.length() > 0L } == true
+        }
 
     private fun writeJson(file: File, value: Any) {
         val temporary = File(file.parentFile, "${file.name}.tmp")
