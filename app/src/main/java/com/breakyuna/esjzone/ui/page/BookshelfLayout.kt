@@ -2,8 +2,12 @@ package com.breakyuna.esjzone.ui.page
 
 import kotlin.math.floor
 
-/** Matches the former 112dp adaptive cells, including the gap between columns. */
-internal fun bookshelfColumnCount(availableWidth: Float, gap: Float): Int {
-    if (!availableWidth.isFinite() || availableWidth <= 0f) return 1
-    return floor((availableWidth + gap) / (112f + gap)).toInt().coerceAtLeast(1)
+/** Matches adaptive cells with a minimum column count of 3 for standard phone layouts. */
+internal fun bookshelfColumnCount(
+    availableWidth: Float,
+    gap: Float,
+    minColumns: Int = 3
+): Int {
+    if (!availableWidth.isFinite() || availableWidth <= 0f) return minColumns
+    return floor((availableWidth + gap) / (96f + gap)).toInt().coerceAtLeast(minColumns)
 }

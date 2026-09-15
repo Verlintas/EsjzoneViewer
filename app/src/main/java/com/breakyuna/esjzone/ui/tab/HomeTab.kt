@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -395,11 +396,18 @@ private fun WeeklyUpdatesHeader(
     onSelect: (Int) -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.md)
+        modifier = Modifier.fillMaxWidth()
             .weeklyDaySwipe(days, selectedIndex, onSelect),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)
     ) {
-        Text(stringResource(R.string.home_weekly_updates), style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 48.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(stringResource(R.string.home_weekly_updates), style = MaterialTheme.typography.titleMedium)
+        }
         TabRow(selectedTabIndex = selectedIndex) {
             days.forEachIndexed { index, day ->
                 Tab(
@@ -557,7 +565,9 @@ private fun LazyListScope.homeCollection(
     }
     item(key = "home-section-$title", contentType = "home-section") {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 48.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
             Text(
@@ -591,7 +601,7 @@ private fun LazyListScope.homeCollection(
 private fun LazyListScope.homeSectionDivider(key: String) {
     item(key = key, contentType = "home-section-divider") {
         HorizontalDivider(
-            modifier = Modifier.padding(top = AppSpacing.md, bottom = AppSpacing.sm),
+            modifier = Modifier.padding(top = AppSpacing.md, bottom = AppSpacing.zero),
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
         )
     }

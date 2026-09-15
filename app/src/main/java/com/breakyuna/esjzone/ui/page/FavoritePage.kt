@@ -321,7 +321,7 @@ object FavoritePage : AppDestination {
                 val endPadding = AppSpacing.lg
                 val columns = if (listView && !editing) 1 else bookshelfColumnCount(
                     (maxWidth - startPadding - endPadding).value,
-                    AppSpacing.xl.value
+                    AppSpacing.md.value
                 )
                 val rows = remember(shown, columns) { shown.chunked(columns) }
                 LazyColumn(
@@ -455,7 +455,7 @@ object FavoritePage : AppDestination {
                         ) { row ->
                             Row(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.xl)
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                             ) {
                                 row.forEach { entry ->
                                     key(entry.bookKey) {
@@ -684,7 +684,7 @@ private fun ShelfCard(
         }
         Text(
             entry.title.ifBlank { stringResource(R.string.download_unknown_novel) },
-            style = AppTypography.bodyLarge,
+            style = AppTypography.bodyMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.sm, start = AppSpacing.xs, end = AppSpacing.xs)
