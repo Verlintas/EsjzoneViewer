@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -63,6 +64,8 @@ object BookshelfRepository {
 
     /** Avoid repeatedly refetching rows that are known to have no cover. */
     private const val METADATA_RETRY_INTERVAL_MILLIS = 30 * 60 * 1000L
+    private const val METADATA_BATCH_SIZE = 36
+    private const val METADATA_BATCH_COOLDOWN_MILLIS = 3_000L
 
     fun initialize(database: GeneralDatabase) {
         dao = database.bookshelfDao()
@@ -230,6 +233,7 @@ object BookshelfRepository {
             )
         } else {
             dao.supplementMetadata(scope, key, novel.name, author, coverUrl, isAdult)
+            dao.updateCoverIfChanged(scope, key, EsjzoneUrls.coverOrEmpty(coverUrl))
         }
     }
 
@@ -277,8 +281,9 @@ object BookshelfRepository {
                 }
                 .toList()
 
-            coroutineScope {
-                candidates.map { row ->
+            candidates.chunked(METADATA_BATCH_SIZE).forEachIndexed { batchIndex, batch ->
+                coroutineScope {
+                    batch.map { row ->
                     launch {
                         metadataSemaphore.withPermit {
                             try {
@@ -311,7 +316,11 @@ object BookshelfRepository {
                             }
                         }
                     }
-                }.joinAll()
+                    }.joinAll()
+                }
+                if (batchIndex < candidates.lastIndex / METADATA_BATCH_SIZE) {
+                    delay(METADATA_BATCH_COOLDOWN_MILLIS)
+                }
             }
         }
     }
