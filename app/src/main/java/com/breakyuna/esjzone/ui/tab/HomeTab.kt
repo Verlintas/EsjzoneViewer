@@ -13,7 +13,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,15 +20,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Forum
@@ -37,6 +33,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -57,6 +54,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.breakyuna.esjzone.R
@@ -70,7 +69,6 @@ import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.novellibrary.data.HomeData
 import com.breakyuna.esjzone.novellibrary.data.WeeklyUpdateDay
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
-import com.breakyuna.esjzone.ui.component.AppHomeNovelTile
 import com.breakyuna.esjzone.ui.component.AppNovelCover
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState
@@ -97,7 +95,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
-import kotlin.math.floor
 
 object HomeTab : AppTab {
 
@@ -152,7 +149,6 @@ object HomeTab : AppTab {
 
         DiscoveryScaffold(
             title = stringResource(R.string.home_discover),
-            onRefresh = model::reload,
             actions = {
                 HomeAction(
                     label = searchActionLabel,
@@ -219,6 +215,7 @@ object HomeTab : AppTab {
                         homeCollection(
                             title = editorPicksTitle,
                             novels = snapshot.homeData.recommendation,
+                            showDivider = true,
                             onMore = null,
                             adult = adult,
                             navigator = navigator,
@@ -229,6 +226,7 @@ object HomeTab : AppTab {
                         homeCollection(
                             title = translatedTitle,
                             novels = snapshot.homeData.recentlyUpdateTranslated,
+                            showDivider = true,
                             onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, false)) },
                             adult = adult,
                             navigator = navigator,
@@ -239,6 +237,7 @@ object HomeTab : AppTab {
                         homeCollection(
                             title = originalTitle,
                             novels = snapshot.homeData.recentlyUpdateOriginal,
+                            showDivider = true,
                             onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, false)) },
                             adult = adult,
                             navigator = navigator,
@@ -250,6 +249,7 @@ object HomeTab : AppTab {
                             homeCollection(
                                 title = translatedAdultTitle,
                                 novels = snapshot.homeData.recentlyUpdateTranslatedR18,
+                                showDivider = true,
                                 onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, true)) },
                                 adult = true,
                                 navigator = navigator,
@@ -260,6 +260,7 @@ object HomeTab : AppTab {
                             homeCollection(
                                 title = originalAdultTitle,
                                 novels = snapshot.homeData.recentlyUpdateOriginalR18,
+                                showDivider = true,
                                 onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, true)) },
                                 adult = true,
                                 navigator = navigator,
@@ -272,6 +273,7 @@ object HomeTab : AppTab {
                             days = weeklyDays,
                             selectedIndex = weeklyIndex,
                             novelsByDay = weeklyNovelsByDay,
+                            showDivider = true,
                             onSelect = { selectedWeeklyDate = weeklyDays[it].date.toString() },
                             navigator = navigator
                         )
@@ -295,9 +297,9 @@ private fun HomeInitialLoadingState() {
     }
 }
 
-private const val WEEKLY_UPDATE_MAX_ITEMS = 18
+private const val HOME_GRID_COLUMNS = 4
+private const val WEEKLY_UPDATE_MAX_ITEMS = 24
 private const val WEEKLY_UPDATE_TRANSITION_DURATION = 280
-private val WEEKLY_UPDATE_COVER_WIDTH = 112.dp
 
 private const val WATER_COOLER_URL =
     "https://www.esjzone.cc/forum/1585405223/103280.html"
@@ -306,10 +308,14 @@ private fun LazyListScope.weeklyUpdatesCollection(
     days: List<WeeklyUpdateDay>,
     selectedIndex: Int,
     novelsByDay: List<List<CoveredNovel>>,
+    showDivider: Boolean,
     onSelect: (Int) -> Unit,
     navigator: AppNavigator?
 ) {
     if (days.isEmpty()) return
+    if (showDivider) {
+        homeSectionDivider(key = "home-weekly-divider")
+    }
     item(key = "home-weekly-header", contentType = "home-weekly-header") {
         WeeklyUpdatesHeader(days, selectedIndex, onSelect)
     }
@@ -338,8 +344,9 @@ private fun LazyListScope.weeklyUpdatesCollection(
                     message = stringResource(R.string.home_weekly_update_empty)
                 )
             } else {
-                WeeklyUpdatesGrid(
+                HomeNovelGrid(
                     novels = novels,
+                    showLatestTitle = true,
                     onNovelClick = { novel -> navigator?.pushIfNotCurrent(NovelPage(novel)) }
                 )
             }
@@ -348,33 +355,32 @@ private fun LazyListScope.weeklyUpdatesCollection(
 }
 
 @Composable
-private fun WeeklyUpdatesGrid(
+private fun HomeNovelGrid(
     novels: List<CoveredNovel>,
-    onNovelClick: (CoveredNovel) -> Unit
+    showLatestTitle: Boolean = false,
+    onNovelClick: (CoveredNovel) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val columns = floor(
-            ((maxWidth.value + AppSpacing.md.value) /
-                (WEEKLY_UPDATE_COVER_WIDTH.value + AppSpacing.md.value)).toDouble()
-        ).toInt().coerceAtLeast(1)
-        val rows = remember(novels, columns) { novels.chunked(columns) }
-
-        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
-            rows.forEach { row ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
-                ) {
-                    row.forEach { novel ->
-                        WeeklyUpdateNovelTile(
-                            novel = novel,
-                            onClick = { onNovelClick(novel) },
-                            modifier = Modifier.width(WEEKLY_UPDATE_COVER_WIDTH)
-                        )
-                    }
-                    repeat(columns - row.size) {
-                        Spacer(Modifier.width(WEEKLY_UPDATE_COVER_WIDTH))
-                    }
+    val rows = remember(novels) { novels.chunked(HOME_GRID_COLUMNS) }
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
+    ) {
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+            ) {
+                row.forEach { novel ->
+                    HomeGridNovelTile(
+                        novel = novel,
+                        showLatestTitle = showLatestTitle,
+                        onClick = { onNovelClick(novel) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                repeat(HOME_GRID_COLUMNS - row.size) {
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -392,7 +398,7 @@ private fun WeeklyUpdatesHeader(
             .weeklyDaySwipe(days, selectedIndex, onSelect),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
     ) {
-        Text(stringResource(R.string.home_weekly_updates), style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.home_weekly_updates), style = MaterialTheme.typography.titleMedium)
         TabRow(selectedTabIndex = selectedIndex) {
             days.forEachIndexed { index, day ->
                 Tab(
@@ -434,8 +440,9 @@ private fun Modifier.weeklyDaySwipe(
 }
 
 @Composable
-private fun WeeklyUpdateNovelTile(
+private fun HomeGridNovelTile(
     novel: CoveredNovel,
+    showLatestTitle: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -456,14 +463,16 @@ private fun WeeklyUpdateNovelTile(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
-        Text(
-            text = novel.latestTitle?.trim().takeUnless { it.isNullOrBlank() }
-                ?: stringResource(R.string.home_weekly_update_no_chapter),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        if (showLatestTitle) {
+            Text(
+                text = novel.latestTitle?.trim().takeUnless { it.isNullOrBlank() }
+                    ?: stringResource(R.string.home_weekly_update_no_chapter),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -527,6 +536,7 @@ private const val HOME_COLLECTION_MAX_ITEMS = 16
 private fun LazyListScope.homeCollection(
     title: String,
     novels: List<CoveredNovel>,
+    showDivider: Boolean,
     onMore: (() -> Unit)?,
     adult: Boolean,
     navigator: AppNavigator?,
@@ -541,12 +551,19 @@ private fun LazyListScope.homeCollection(
         .take(HOME_COLLECTION_MAX_ITEMS)
         .toList()
 
+    if (showDivider) {
+        homeSectionDivider(key = "home-divider-$title")
+    }
     item(key = "home-section-$title", contentType = "home-section") {
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(
+                text = homeSectionTitleText(title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
             if (onMore != null) {
                 TextButton(onClick = onMore) { Text(browseMoreLabel) }
             }
@@ -560,30 +577,43 @@ private fun LazyListScope.homeCollection(
             )
         }
     } else {
-        item(key = "home-rail-$title", contentType = "home-rail") {
-            LazyRow(
-                contentPadding = PaddingValues(end = AppSpacing.lg),
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics {
-                        contentDescription = title
-                    }
-            ) {
-                items(
-                    items = visible,
-                    key = { novel -> "home-novel-${novel.url.trim().ifBlank { novel.name.trim() }}" },
-                    contentType = { "home-portrait-novel" }
-                ) { novel ->
-                    AppHomeNovelTile(
-                        novel = novel,
-                        onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) }
-                    )
-                }
-            }
+        item(key = "home-grid-$title", contentType = "home-grid") {
+            HomeNovelGrid(
+                novels = visible,
+                onNovelClick = { novel -> navigator?.pushIfNotCurrent(NovelPage(novel)) },
+                modifier = Modifier.semantics { contentDescription = title }
+            )
         }
     }
 }
+
+private fun LazyListScope.homeSectionDivider(key: String) {
+    item(key = key, contentType = "home-section-divider") {
+        HorizontalDivider(
+            modifier = Modifier.padding(top = AppSpacing.md, bottom = AppSpacing.sm),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
+        )
+    }
+}
+
+/** Gives optional parenthetical section descriptors a subordinate visual weight. */
+@Composable
+private fun homeSectionTitleText(title: String): androidx.compose.ui.text.AnnotatedString {
+    val descriptorFontSize = MaterialTheme.typography.labelLarge.fontSize
+    return buildAnnotatedString {
+        var cursor = 0
+        HOME_SECTION_TITLE_PARENTHESIS.findAll(title).forEach { match ->
+            append(title.substring(cursor, match.range.first))
+            withStyle(SpanStyle(fontSize = descriptorFontSize)) {
+                append(match.value)
+            }
+            cursor = match.range.last + 1
+        }
+        append(title.substring(cursor))
+    }
+}
+
+private val HOME_SECTION_TITLE_PARENTHESIS = Regex("[（(][^（）()]*[）)]")
 
 private fun failureMessage(failure: LoadFailureKind): Int = when (failure) {
     LoadFailureKind.NETWORK -> R.string.load_network_error

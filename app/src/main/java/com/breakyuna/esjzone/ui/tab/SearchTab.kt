@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.tab
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -89,44 +92,51 @@ object SearchTab : AppTab {
         }
 
         DiscoveryScaffold(
-            title = stringResource(R.string.search_result),
-            onRefresh = {
-                activeKeyword?.let { searchModel.refresh(it, category, sort) }
-            }
+            title = stringResource(R.string.search_result)
         ) { padding ->
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            PullToRefreshBox(
+                isRefreshing = activeKeyword != null && searchState is SearchPageModel.State.Loading,
+                onRefresh = {
+                    activeKeyword?.let { searchModel.refresh(it, category, sort) }
+                },
+                modifier = Modifier.fillMaxSize().padding(padding)
             ) {
-                DiscoverySearchField(
-                    value = query,
-                    onValueChange = { query = it },
-                    onSearch = { submit(query) },
-                    onClear = {
-                        query = ""
-                        activeKeyword = null
-                    },
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                activeKeyword?.let { current ->
-                    DiscoverySearchResults(
-                        model = searchModel,
-                        state = searchState,
-                        keyword = current,
-                        category = category,
-                        sort = sort,
-                        onCategoryChange = { category = it },
-                        onSortChange = { sort = it },
-                        onRetry = { searchModel.search(current, category, sort) },
-                        navigator = navigator,
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    DiscoverySearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        onSearch = { submit(query) },
+                        onClear = {
+                            query = ""
+                            activeKeyword = null
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    activeKeyword?.let { current ->
+                        DiscoverySearchResults(
+                            model = searchModel,
+                            state = searchState,
+                            keyword = current,
+                            category = category,
+                            sort = sort,
+                            onCategoryChange = { category = it },
+                            onSortChange = { sort = it },
+                            onRetry = {
+                                searchModel.search(current, category, sort, forceRefresh = true)
+                            },
+                            navigator = navigator,
+                            modifier = Modifier.fillMaxWidth().weight(1f)
+                        )
+                    } ?: SearchHistoryList(
+                        state = historyState,
+                        onClear = historyModel::clear,
+                        onSelect = ::submit,
                         modifier = Modifier.fillMaxWidth().weight(1f)
                     )
-                } ?: SearchHistoryList(
-                    state = historyState,
-                    onClear = historyModel::clear,
-                    onSelect = ::submit,
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                )
+                }
             }
         }
 

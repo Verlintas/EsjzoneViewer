@@ -43,7 +43,6 @@ import androidx.compose.material.icons.filled.FirstPage
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.LastPage
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -118,9 +117,7 @@ import kotlinx.coroutines.launch
 internal fun CommunityTopBar(
     title: String,
     onBack: () -> Unit,
-    titleIndicator: (@Composable () -> Unit)? = null,
-    onRefresh: (() -> Unit)? = null,
-    refreshing: Boolean = false
+    titleIndicator: (@Composable () -> Unit)? = null
 ) {
     CenterAlignedTopAppBar(
         title = {
@@ -144,27 +141,6 @@ internal fun CommunityTopBar(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.reader_back)
                 )
-            }
-        },
-        actions = {
-            if (onRefresh != null) {
-                IconButton(
-                    onClick = onRefresh,
-                    enabled = !refreshing,
-                    modifier = Modifier.size(AppTouchTarget.minimum)
-                ) {
-                    if (refreshing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = stringResource(R.string.community_sync_refresh)
-                        )
-                    }
-                }
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -340,6 +316,7 @@ internal fun CommentListPage(
     refreshing: Boolean = false
 ) {
     val navigator = LocalBaseNavigator.current
+    val state by model.state.collectAsState()
 
     Column(
         modifier = Modifier
@@ -349,12 +326,10 @@ internal fun CommentListPage(
         CommunityTopBar(
             title = title,
             onBack = { navigator?.pop() },
-            titleIndicator = titleIndicator,
-            onRefresh = onRefresh,
-            refreshing = refreshing
+            titleIndicator = titleIndicator
         )
         PullToRefreshBox(
-            isRefreshing = refreshing,
+            isRefreshing = refreshing || state is CommunityState.Loading,
             onRefresh = { (onRefresh ?: { model.load(forceRefresh = true) })() },
             modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
@@ -1053,6 +1028,7 @@ internal class CommentPageModel(
         if (!forceRefresh && loadStarted) return
         loadStarted = true
         loadJob?.cancel()
+        mutableState.value = CommunityState.Loading
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 val comments = PresentationAccess.client.getPageComments(

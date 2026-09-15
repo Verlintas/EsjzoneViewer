@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.page
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
 
 import androidx.compose.foundation.layout.Arrangement
@@ -95,43 +98,50 @@ class SearchPage(private val keyword: String) : AppDestination {
 
         DiscoveryScaffold(
             title = stringResource(R.string.search_result),
-            onBack = { navigator?.pop() },
-            onRefresh = {
-                activeQuery.takeIf { it.isNotBlank() }?.let { model.refresh(it, category, sort) }
-            }
+            onBack = { navigator?.pop() }
         ) { padding ->
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            PullToRefreshBox(
+                isRefreshing = activeQuery.isNotBlank() && state is SearchPageModel.State.Loading,
+                onRefresh = {
+                    activeQuery.takeIf { it.isNotBlank() }?.let { model.refresh(it, category, sort) }
+                },
+                modifier = Modifier.fillMaxSize().padding(padding)
             ) {
-                DiscoverySearchField(
-                    value = query,
-                    onValueChange = { query = it },
-                    onSearch = {
-                        val trimmed = query.trim()
-                        if (trimmed.isNotBlank()) {
-                            if (activeQuery == trimmed) {
-                                model.search(trimmed, category, sort)
-                            } else {
-                                activeQuery = trimmed
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    DiscoverySearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        onSearch = {
+                            val trimmed = query.trim()
+                            if (trimmed.isNotBlank()) {
+                                if (activeQuery == trimmed) {
+                                    model.search(trimmed, category, sort)
+                                } else {
+                                    activeQuery = trimmed
+                                }
                             }
-                        }
-                    },
-                    onClear = { query = "" },
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                DiscoverySearchResults(
-                    model = model,
-                    state = state,
-                    keyword = activeQuery,
-                    category = category,
-                    sort = sort,
-                    onCategoryChange = { category = it },
-                    onSortChange = { sort = it },
-                    onRetry = { model.search(activeQuery, category, sort) },
-                    navigator = navigator,
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                )
+                        },
+                        onClear = { query = "" },
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    DiscoverySearchResults(
+                        model = model,
+                        state = state,
+                        keyword = activeQuery,
+                        category = category,
+                        sort = sort,
+                        onCategoryChange = { category = it },
+                        onSortChange = { sort = it },
+                        onRetry = {
+                            model.search(activeQuery, category, sort, forceRefresh = true)
+                        },
+                        navigator = navigator,
+                        modifier = Modifier.fillMaxWidth().weight(1f)
+                    )
+                }
             }
         }
 
@@ -318,10 +328,15 @@ class SearchPageModel(
         data class Result(val requester: PageableRequester<CoveredNovel>) : State()
     }
 
-    fun search(keyword: String, category: Int = 0, sort: Int = 1) {
+    fun search(
+        keyword: String,
+        category: Int = 0,
+        sort: Int = 1,
+        forceRefresh: Boolean = false
+    ) {
         val normalizedKeyword = keyword.trim()
         if (normalizedKeyword.isBlank()) return
-        if (activeKeyword == normalizedKeyword && activeCategory == category && activeSort == sort &&
+        if (!forceRefresh && activeKeyword == normalizedKeyword && activeCategory == category && activeSort == sort &&
             (requestJob?.isActive == true || mutableState.value is State.Result)
         ) return
 
@@ -341,7 +356,13 @@ class SearchPageModel(
         requestJob = viewModelScope.launch {
             try {
                 val (requester, novels) = withContext(Dispatchers.IO) {
-                    PresentationAccess.client.search(authorization, normalizedKeyword, category, sort)
+                    PresentationAccess.client.search(
+                        authorization,
+                        normalizedKeyword,
+                        category,
+                        sort,
+                        forceRefresh = forceRefresh
+                    )
                 }
                 ensureActive()
                 if (token != generation) return@launch
@@ -360,7 +381,7 @@ class SearchPageModel(
         activeKeyword = null
         activeCategory = null
         activeSort = null
-        search(keyword, category, sort)
+        search(keyword, category, sort, forceRefresh = true)
     }
 
     fun loadMore(requester: PageableRequester<CoveredNovel>) {

@@ -122,7 +122,12 @@ object ProfileTab : AppTab {
                 }
             } catch (e: CancellationException) { throw e } catch (e: Exception) { AppLogger.w("ProfileTab", "Failed to read cached profile", e) }
             try {
-                val fresh = withContext(Dispatchers.IO) { PresentationAccess.client.getUserProfile(authorization) }
+                val fresh = withContext(Dispatchers.IO) {
+                    PresentationAccess.client.getUserProfile(
+                        authorization,
+                        forceRefresh = retry > 0
+                    )
+                }
                 profileName = fresh.name
                 profileAvatar = fresh.avatarUrl
                 profileExp = fresh.exp

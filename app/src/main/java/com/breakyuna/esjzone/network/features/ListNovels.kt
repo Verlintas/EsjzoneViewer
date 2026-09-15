@@ -15,13 +15,15 @@ private val novelForumBoardUrl = Regex("(?:https?://[^/]+)?/forum/[0-9]+/[0-9]+/
 
 fun EsjzoneClient.listNovels(
     authorization: Authorization,
-    category: Category
+    category: Category,
+    forceRefresh: Boolean = false
 ): List<CategoryNovel> {
     val targetUrl = EsjzoneUrls.resolve(category.url)
     val responseBody = getPage(
         authorization,
         targetUrl,
         PageCacheTtl.LIST,
+        forceRefresh = forceRefresh,
         pageKind = PageKind.LIST
     )
 

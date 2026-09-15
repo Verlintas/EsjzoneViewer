@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.page
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
 
 import androidx.compose.foundation.layout.Arrangement
@@ -51,10 +54,14 @@ class CategoryPage(private val category: Category) : AppDestination {
         val model = rememberAppViewModel { CategoryPageModel(authorization, category) }
         DiscoveryScaffold(
             title = category.name,
-            onBack = { navigator?.pop() },
-            onRefresh = model::retry
+            onBack = { navigator?.pop() }
         ) { padding ->
             val state by model.state.collectAsState()
+            PullToRefreshBox(
+                isRefreshing = state is CategoryPageModel.State.Loading,
+                onRefresh = model::retry,
+                modifier = Modifier.fillMaxSize()
+            ) {
             when (val snapshot = state) {
                 CategoryPageModel.State.Loading -> DiscoveryLoadingState(
                     modifier = Modifier.fillMaxSize().padding(padding)
@@ -101,6 +108,7 @@ class CategoryPage(private val category: Category) : AppDestination {
                     }
                 }
             }
+            }
         }
         LaunchedEffect(Unit) { model.getNovels() }
     }
@@ -126,13 +134,17 @@ class CategoryPageModel(
         data class Result(val categoryNovels: List<CategoryNovel>) : State()
     }
 
-    fun getNovels() {
-        if (loadStarted) return
+    fun getNovels(forceRefresh: Boolean = false) {
+        if (!forceRefresh && loadStarted) return
         loadStarted = true
         viewModelScope.launch(Dispatchers.IO) {
             mutableState.value = State.Loading
             try {
-                val novels = PresentationAccess.client.listNovels(authorization, category)
+                val novels = PresentationAccess.client.listNovels(
+                    authorization,
+                    category,
+                    forceRefresh = forceRefresh
+                )
                 ensureActive()
                 mutableState.value = State.Result(novels)
             } catch (e: CancellationException) {
@@ -151,6 +163,6 @@ class CategoryPageModel(
 
     fun retry() {
         loadStarted = false
-        getNovels()
+        getNovels(forceRefresh = true)
     }
 }

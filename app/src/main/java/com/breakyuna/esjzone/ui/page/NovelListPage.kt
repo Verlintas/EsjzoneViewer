@@ -1,17 +1,33 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.page
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.stickyHeader
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,7 +43,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
@@ -46,6 +65,10 @@ import com.breakyuna.esjzone.ui.discovery.DiscoveryOfflineBanner
 import com.breakyuna.esjzone.ui.discovery.DiscoveryScaffold
 import com.breakyuna.esjzone.ui.discovery.DiscoveryLoadingState
 import com.breakyuna.esjzone.ui.discovery.discoveryLoadingFooter
+import com.breakyuna.esjzone.ui.component.AppNovelCover
+import com.breakyuna.esjzone.ui.designsystem.AppShapes
+import com.breakyuna.esjzone.ui.designsystem.AppSpacing
+import com.breakyuna.esjzone.ui.designsystem.AppTypography
 import com.breakyuna.esjzone.ui.navigation.AppDestination
 import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
 import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
@@ -88,6 +111,7 @@ class NovelListPage(
         val novelType = rememberSaveable { mutableIntStateOf(initializedNovelType) }
         val sortType = rememberSaveable { mutableIntStateOf(initializedSortType) }
         var adultOnly by rememberSaveable { mutableStateOf(initializedAdultOnly) }
+        var gridView by rememberSaveable { mutableStateOf(false) }
         val model = rememberAppViewModel { NovelListPageModel(authorization, novelType, sortType) }
         val state by model.state.collectAsState()
         val adult by PresentationAccess.settings.adult
@@ -95,8 +119,20 @@ class NovelListPage(
         DiscoveryScaffold(
             title = stringResource(R.string.novel_list),
             onBack = { navigator?.pop() },
-            onRefresh = model::retry
+            actions = {
+                IconButton(onClick = { gridView = !gridView }) {
+                    Icon(
+                        imageVector = if (gridView) Icons.Filled.ViewList else Icons.Filled.GridView,
+                        contentDescription = "切换小说列表展示方式"
+                    )
+                }
+            }
         ) { padding ->
+            PullToRefreshBox(
+                isRefreshing = state is NovelListPageModel.State.Loading,
+                onRefresh = model::retry,
+                modifier = Modifier.fillMaxSize()
+            ) {
             when (val snapshot = state) {
                 NovelListPageModel.State.Loading -> DiscoveryLoadingState(
                     modifier = Modifier.fillMaxSize().padding(padding)
@@ -123,10 +159,12 @@ class NovelListPage(
                         adultOnly = adultOnly,
                         onAdultOnlyChange = { adultOnly = it },
                         onFilterChanged = { model.getRequester(forceRefresh = true) },
+                        gridView = gridView,
                         navigator = navigator,
                         modifier = Modifier.fillMaxSize().padding(padding)
                     )
                 }
+            }
             }
         }
 
@@ -144,6 +182,7 @@ private fun NovelListResult(
     adultOnly: Boolean,
     onAdultOnlyChange: (Boolean) -> Unit,
     onFilterChanged: () -> Unit,
+    gridView: Boolean,
     navigator: com.breakyuna.esjzone.ui.navigation.AppNavigator?,
     modifier: Modifier
 ) {
@@ -192,46 +231,79 @@ private fun NovelListResult(
         }
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item(key = "novel-list-filters", contentType = "filters") {
-            NovelListFilters(
-                novelType = novelType,
-                sortType = sortType,
-                adult = adult,
-                adultOnly = adultOnly,
-                onAdultOnlyChange = onAdultOnlyChange,
-                onFilterChanged = onFilterChanged
-            )
-        }
-        if (visibleItems.isEmpty()) {
-            item(key = "novel-list-empty", contentType = "empty") {
-                com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState(
-                    title = stringResource(R.string.search_no_results),
-                    message = stringResource(R.string.search_no_results_message)
-                )
+    BoxWithConstraints(modifier = modifier) {
+        val columns = if (gridView) bookshelfColumnCount(
+            availableWidth = maxWidth.value - 32.dp.value,
+            gap = AppSpacing.md.value
+        ) else 1
+        val rows = remember(visibleItems, columns) { visibleItems.chunked(columns) }
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(if (gridView) AppSpacing.lg else 10.dp)
+        ) {
+            stickyHeader(key = "novel-list-filters", contentType = "filters") {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    NovelListFilters(
+                        novelType = novelType,
+                        sortType = sortType,
+                        adult = adult,
+                        adultOnly = adultOnly,
+                        onAdultOnlyChange = onAdultOnlyChange,
+                        onFilterChanged = onFilterChanged,
+                        modifier = Modifier.padding(vertical = AppSpacing.sm)
+                    )
+                }
             }
-        }
-        items(
-            items = visibleItems,
-            key = { novel -> "novel-list:${novelKey(novel)}" },
-            contentType = { "novel" }
-        ) { novel ->
-            DiscoveryNovelCard(
-                novel = novel,
-                onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) }
+            if (visibleItems.isEmpty()) {
+                item(key = "novel-list-empty", contentType = "empty") {
+                    com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState(
+                        title = stringResource(R.string.search_no_results),
+                        message = stringResource(R.string.search_no_results_message)
+                    )
+                }
+            } else if (gridView) {
+                items(
+                    items = rows,
+                    key = { row -> "novel-list-grid:${novelKey(row.first())}" },
+                    contentType = { "novel-grid-row:$columns" }
+                ) { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                    ) {
+                        row.forEach { novel ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                NovelListGridCard(
+                                    novel = novel,
+                                    onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) }
+                                )
+                            }
+                        }
+                        repeat(columns - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                    }
+                }
+            } else {
+                items(
+                    items = visibleItems,
+                    key = { novel -> "novel-list:${novelKey(novel)}" },
+                    contentType = { "novel" }
+                ) { novel ->
+                    DiscoveryNovelCard(
+                        novel = novel,
+                        onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) }
+                    )
+                }
+            }
+            discoveryLoadingFooter(
+                loading = loading,
+                hasMore = page <= maxPage,
+                onRetry = if (pageFailure != null) ::loadMore else null,
+                errorMessage = pageErrorMessage
             )
         }
-        discoveryLoadingFooter(
-            loading = loading,
-            hasMore = page <= maxPage,
-            onRetry = if (pageFailure != null) ::loadMore else null,
-            errorMessage = pageErrorMessage
-        )
     }
 
     LaunchedEffect(listState, visibleItems.size, page, pageFailure) {
@@ -252,7 +324,8 @@ private fun NovelListFilters(
     adult: Boolean,
     adultOnly: Boolean,
     onAdultOnlyChange: (Boolean) -> Unit,
-    onFilterChanged: () -> Unit
+    onFilterChanged: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val typeOptions = listOf(0, 2, 1, 3).map {
         DiscoveryFilterOption(it, stringResource(typeResource(it)))
@@ -261,7 +334,7 @@ private fun NovelListFilters(
         DiscoveryFilterOption(it, stringResource(sortResource(it)))
     }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         DiscoveryFilterMenu(
@@ -272,6 +345,7 @@ private fun NovelListFilters(
                 novelType.intValue = it
                 onFilterChanged()
             },
+            compact = true,
             modifier = Modifier.weight(1f)
         )
         DiscoveryFilterMenu(
@@ -282,15 +356,56 @@ private fun NovelListFilters(
                 sortType.intValue = it
                 onFilterChanged()
             },
-            modifier = Modifier.weight(1f)
+            compact = true,
+            modifier = Modifier.weight(1.15f)
         )
         if (adult) {
             FilterChip(
                 selected = adultOnly,
                 onClick = { onAdultOnlyChange(!adultOnly) },
-                label = { Text(stringResource(R.string.novel_list_adultonly)) }
+                label = {
+                    Text(
+                        stringResource(R.string.novel_list_adultonly),
+                        style = AppTypography.labelMedium,
+                        maxLines = 1
+                    )
+                },
+                modifier = Modifier.padding(vertical = 0.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun NovelListGridCard(
+    novel: CoveredNovel,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppShapes.standard)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        AppNovelCover(
+            coverUrl = novel.coverUrl,
+            title = novel.name,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.7f)
+                .clip(AppShapes.standard),
+            isAdult = novel.isAdult
+        )
+        Text(
+            text = novel.name,
+            style = AppTypography.labelLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = AppSpacing.sm, start = AppSpacing.xs, end = AppSpacing.xs)
+        )
     }
 }
 

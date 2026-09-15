@@ -9,11 +9,15 @@ import com.breakyuna.esjzone.novellibrary.novel.Category
 import java.io.IOException
 import org.jsoup.Jsoup
 
-fun EsjzoneClient.getCategories(authorization: Authorization): List<Category> {
+fun EsjzoneClient.getCategories(
+    authorization: Authorization,
+    forceRefresh: Boolean = false
+): List<Category> {
     val responseBody = getPage(
         authorization,
         EsjzoneUrls.Forum,
         PageCacheTtl.CATEGORIES,
+        forceRefresh = forceRefresh,
         pageKind = PageKind.FORUM
     )
 

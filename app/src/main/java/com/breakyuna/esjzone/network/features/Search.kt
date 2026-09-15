@@ -13,7 +13,8 @@ fun EsjzoneClient.search(
     authorization: Authorization,
     keyword: String,
     category: Int = 0,
-    sort: Int = 1
+    sort: Int = 1,
+    forceRefresh: Boolean = false
 ): Pair<PageableRequester<CoveredNovel>, List<CoveredNovel>> {
     val searchUrl = EsjzoneUrls.tagsUrl(
         keyword = keyword,
@@ -24,6 +25,7 @@ fun EsjzoneClient.search(
         authorization,
         searchUrl,
         PageCacheTtl.SEARCH,
+        forceRefresh = forceRefresh,
         pageKind = PageKind.SEARCH
     )
 

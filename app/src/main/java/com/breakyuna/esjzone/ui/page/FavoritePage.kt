@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
@@ -263,7 +262,6 @@ object FavoritePage : AppDestination {
                     showSyncStatusMenu = showSyncStatusMenu,
                     deleting = deleting,
                     onBack = { if (editing) exitEdit() else navigator?.pop() },
-                    onRefresh = { if (!syncing) model.sync() },
                     onSyncStatusMenuChange = { showSyncStatusMenu = it },
                     listView = listView,
                     onToggleView = { focusManager.clearFocus(force = true); listView = !listView },
@@ -444,8 +442,6 @@ object FavoritePage : AppDestination {
                                         else -> R.string.bookshelf_empty_hint
                                     }
                                 ),
-                                actionLabel = stringResource(R.string.sync_bookshelf),
-                                onAction = { if (!syncing) model.sync() },
                                 modifier = Modifier.fillMaxWidth().padding(vertical = AppSpacing.xxxl)
                             )
                         }
@@ -525,7 +521,6 @@ private fun BookshelfTopBar(
     onToggleView: () -> Unit,
     deleting: Boolean,
     onBack: () -> Unit,
-    onRefresh: () -> Unit,
     onSyncStatusMenuChange: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onDone: () -> Unit,
@@ -572,10 +567,6 @@ private fun BookshelfTopBar(
                 }
                 IconButton(onClick = onDone, enabled = !deleting) { Icon(Icons.Filled.Done, stringResource(R.string.bookshelf_edit_done)) }
             } else {
-                IconButton(onClick = onRefresh, enabled = !syncing) {
-                    if (syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else Icon(Icons.Filled.Refresh, stringResource(R.string.sync_bookshelf))
-                }
                 IconButton(onClick = onToggleView) {
                     Icon(if (listView) Icons.Filled.GridView else Icons.Filled.ViewList, "切换书架展示方式")
                 }
@@ -653,7 +644,9 @@ private fun ShelfCard(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    val shape = AppShapes.standard
+    // Keep bookshelf covers aligned with the compact 8dp corners used by
+    // the home discovery tiles.
+    val shape = AppShapes.compact
     Column(
         Modifier.fillMaxWidth().clip(shape).then(
             if (selected && editing) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape) else Modifier
@@ -687,7 +680,7 @@ private fun ShelfCard(
         }
         Text(
             entry.title.ifBlank { stringResource(R.string.download_unknown_novel) },
-            style = AppTypography.labelLarge,
+            style = AppTypography.titleMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = AppSpacing.sm, start = AppSpacing.xs, end = AppSpacing.xs)
@@ -702,7 +695,7 @@ private fun ShelfListItem(entry: BookshelfEntry, enabled: Boolean, onClick: () -
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), verticalAlignment = Alignment.Top
     ) {
         Box(Modifier.size(width = 100.dp, height = 140.dp)) {
-            AppNovelCover(entry.coverUrl, entry.title, Modifier.fillMaxSize().clip(AppShapes.standard))
+            AppNovelCover(entry.coverUrl, entry.title, Modifier.fillMaxSize().clip(AppShapes.compact))
             if (entry.hasUpdate) Surface(Modifier.align(Alignment.TopEnd).padding(AppSpacing.xs), CircleShape, color = androidx.compose.ui.graphics.Color(0xFF4CAF50)) { Box(Modifier.size(10.dp)) }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {

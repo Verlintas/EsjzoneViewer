@@ -317,13 +317,17 @@ private fun requestForumReplyAuthToken(client: okhttp3.OkHttpClient, pageUrl: St
 fun EsjzoneClient.getGuestbookComments(authorization: Authorization): List<Comment> =
     getPageComments(authorization, EsjzoneUrls.Guestbook)
 
-fun EsjzoneClient.getForumCategories(authorization: Authorization): List<ForumCategory> {
+fun EsjzoneClient.getForumCategories(
+    authorization: Authorization,
+    forceRefresh: Boolean = false
+): List<ForumCategory> {
     AppLogger.i("GetCommunity", "Fetching forum categories")
     val document = Jsoup.parse(
         getPage(
             authorization,
             "${EsjzoneUrls.Forum}/",
             PageCacheTtl.COMMUNITY,
+            forceRefresh = forceRefresh,
             pageKind = PageKind.FORUM
         ),
         "${EsjzoneUrls.Forum}/"
@@ -355,7 +359,8 @@ fun EsjzoneClient.getForumCategories(authorization: Authorization): List<ForumCa
 
 fun EsjzoneClient.getForumThreads(
     authorization: Authorization,
-    category: ForumCategory
+    category: ForumCategory,
+    forceRefresh: Boolean = false
 ): List<ForumThread> {
     val targetUrl = EsjzoneUrls.resolve(category.url)
     AppLogger.i("GetCommunity", "Fetching forum category ${category.id} at $targetUrl")
@@ -364,6 +369,7 @@ fun EsjzoneClient.getForumThreads(
             authorization,
             targetUrl,
             PageCacheTtl.COMMUNITY,
+            forceRefresh = forceRefresh,
             pageKind = PageKind.COMMUNITY
         ),
         targetUrl

@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
@@ -23,7 +24,6 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -78,7 +78,6 @@ import com.breakyuna.esjzone.ui.designsystem.AppShimmerPlaceholder
 fun DiscoveryTopBar(
     title: String,
     onBack: (() -> Unit)? = null,
-    onRefresh: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -93,11 +92,6 @@ fun DiscoveryTopBar(
         },
         actions = {
             actions()
-            if (onRefresh != null) {
-                IconButton(onClick = onRefresh) {
-                    Icon(Icons.Filled.Refresh, contentDescription = androidx.compose.ui.res.stringResource(R.string.comment_refresh))
-                }
-            }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background
@@ -110,13 +104,12 @@ fun DiscoveryTopBar(
 fun DiscoveryScaffold(
     title: String,
     onBack: (() -> Unit)? = null,
-    onRefresh: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
         topBar = {
-            DiscoveryTopBar(title = title, onBack = onBack, onRefresh = onRefresh, actions = actions)
+            DiscoveryTopBar(title = title, onBack = onBack, actions = actions)
         },
         containerColor = MaterialTheme.colorScheme.background,
         content = content
@@ -240,6 +233,7 @@ fun DiscoveryFilterMenu(
     selected: DiscoveryFilterOption,
     options: List<DiscoveryFilterOption>,
     onSelected: (Int) -> Unit,
+    compact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -247,6 +241,7 @@ fun DiscoveryFilterMenu(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .then(if (compact) Modifier.heightIn(min = 36.dp) else Modifier)
                 .clickable { expanded = true }
                 .semantics {
                     contentDescription = "$label：${selected.label}"
@@ -255,9 +250,31 @@ fun DiscoveryFilterMenu(
             shape = AppShapes.compact,
             color = MaterialTheme.colorScheme.surfaceContainerHighest
         ) {
-            Column(modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm)) {
-                Text(label, style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(selected.label, style = AppTypography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (compact) {
+                Row(
+                    modifier = Modifier.padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        label,
+                        style = AppTypography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                    Text(
+                        selected.label,
+                        style = AppTypography.labelMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
+                Column(modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm)) {
+                    Text(label, style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(selected.label, style = AppTypography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

@@ -613,7 +613,7 @@ class ChapterPage(
 
         fun finishBookProgressPreview() {
             isBookProgressDragging = false
-            progressPreview?.let(::seekTo)
+            progressPreview?.copy(chapterProgress = 0f)?.let(::seekTo)
         }
 
         var previousRequestedChapterUrl by remember { mutableStateOf<String?>(null) }
@@ -1417,15 +1417,13 @@ private fun readerBookLocationFor(
     } else {
         scaledProgress.toInt().coerceIn(0, chapterOrder.lastIndex)
     }
-    val chapterProgress = if (clampedProgress >= 1f) {
-        1f
-    } else {
-        scaledProgress - index
-    }
     return ReaderBookLocation(
         chapter = chapterOrder[index],
         chapterIndex = index,
-        chapterProgress = chapterProgress,
+        // The slider selects a chapter, rather than a position inside its
+        // body.  Keeping a fractional offset here previously caused a release
+        // in the middle of a chapter to scroll to that same middle fraction.
+        chapterProgress = 0f,
         totalChapters = chapterOrder.size
     )
 }
@@ -1482,18 +1480,16 @@ private fun ReaderProgressLens(
     canReturn: Boolean,
     onReturn: () -> Unit
 ) {
-    AppGlassSurface(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = AppSpacing.xxxl),
-        spec = com.breakyuna.esjzone.ui.designsystem.glass.AppGlassSpec(
-            tint = MaterialTheme.colorScheme.inverseSurface,
-            alpha = 0.96f,
-            shape = AppShapes.prominent
-        )
+        shape = AppShapes.prominent,
+        color = Color.Black,
+        contentColor = Color.White
     ) {
         CompositionLocalProvider(
-            LocalContentColor provides MaterialTheme.colorScheme.inverseOnSurface
+            LocalContentColor provides Color.White
         ) {
             Column {
             Row(
@@ -1538,7 +1534,7 @@ private fun ReaderProgressLens(
                                 )
                             ),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.72f),
+                            color = Color.White.copy(alpha = 0.72f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1562,7 +1558,7 @@ private fun ReaderProgressLens(
             Text(
                 text = stringResource(R.string.reader_preview_dismiss_hint),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.68f),
+                color = Color.White.copy(alpha = 0.68f),
                 modifier = Modifier.padding(start = AppSpacing.lg, bottom = AppSpacing.md)
             )
             }

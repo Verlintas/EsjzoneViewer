@@ -105,44 +105,50 @@ object ForumPage : AppDestination {
                 onBack = { navigator?.pop() }
             )
 
-            CommunityStateContent(
-                state = state,
-                emptyText = stringResource(id = R.string.forum_empty),
-                onRetry = model::retry,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            ) { categories ->
-                val grouped = categories.groupBy { it.groupName.orEmpty() }
-                LazyColumn(
-                    modifier = Modifier
-                        .widthIn(max = metrics.contentMaxWidth)
-                        .fillMaxWidth()
-                        .fillMaxHeight(),
-                    contentPadding = PaddingValues(
-                        start = metrics.horizontalPadding,
-                        end = metrics.horizontalPadding,
-                        top = AppSpacing.lg,
-                        bottom = AppSpacing.xxl
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-                ) {
-                    grouped.forEach { (groupName, groupCategories) ->
-                        item(key = "group-$groupName", contentType = "forum-group") {
-                            ForumGroupHeader(
-                                name = groupName.ifBlank { stringResource(R.string.forum) },
-                                boardCount = groupCategories.size
-                            )
-                        }
-                        itemsIndexed(
-                            groupCategories,
-                            key = { _, category -> "forum-category-${category.id}" },
-                            contentType = { _, _ -> "forum-category" }
-                        ) { index, category ->
-                            ForumCategoryCard(category = category, accentIndex = index) {
-                                navigator?.pushIfNotCurrent(ForumCategoryPage(category))
+            PullToRefreshBox(
+                isRefreshing = state is CommunityState.Loading,
+                onRefresh = model::retry,
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) {
+                CommunityStateContent(
+                    state = state,
+                    emptyText = stringResource(id = R.string.forum_empty),
+                    onRetry = model::retry,
+                    modifier = Modifier.fillMaxSize(),
+                ) { categories ->
+                    val grouped = categories.groupBy { it.groupName.orEmpty() }
+                    LazyColumn(
+                        modifier = Modifier
+                            .widthIn(max = metrics.contentMaxWidth)
+                            .fillMaxWidth()
+                            .fillMaxHeight(),
+                        contentPadding = PaddingValues(
+                            start = metrics.horizontalPadding,
+                            end = metrics.horizontalPadding,
+                            top = AppSpacing.lg,
+                            bottom = AppSpacing.xxl
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+                    ) {
+                        grouped.forEach { (groupName, groupCategories) ->
+                            item(key = "group-$groupName", contentType = "forum-group") {
+                                ForumGroupHeader(
+                                    name = groupName.ifBlank { stringResource(R.string.forum) },
+                                    boardCount = groupCategories.size
+                                )
                             }
-                        }
-                        item(key = "group-spacer-$groupName", contentType = "spacer") {
-                            Spacer(modifier = Modifier.height(AppSpacing.lg))
+                            itemsIndexed(
+                                groupCategories,
+                                key = { _, category -> "forum-category-${category.id}" },
+                                contentType = { _, _ -> "forum-category" }
+                            ) { index, category ->
+                                ForumCategoryCard(category = category, accentIndex = index) {
+                                    navigator?.pushIfNotCurrent(ForumCategoryPage(category))
+                                }
+                            }
+                            item(key = "group-spacer-$groupName", contentType = "spacer") {
+                                Spacer(modifier = Modifier.height(AppSpacing.lg))
+                            }
                         }
                     }
                 }
@@ -173,34 +179,40 @@ class ForumCategoryPage(private val category: ForumCategory) : AppDestination {
                 .background(MaterialTheme.colorScheme.background)
         ) {
             CommunityTopBar(title = category.name, onBack = { navigator?.pop() })
-            CommunityStateContent(
-                state = state,
-                emptyText = stringResource(id = R.string.forum_threads_empty),
-                onRetry = model::retry,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            ) { threads ->
-                LazyColumn(
-                    modifier = Modifier
-                        .widthIn(max = metrics.contentMaxWidth)
-                        .fillMaxWidth()
-                        .fillMaxHeight(),
-                    contentPadding = PaddingValues(bottom = AppSpacing.xxl)
-                ) {
-                    items(
-                        threads,
-                        key = { "forum-thread-${it.categoryId}-${it.id}" },
-                        contentType = { "forum-thread" }
-                    ) { thread ->
-                        ForumThreadCard(thread) {
-                            // A board can be either a novel forum or a nested
-                            // topic board; ForumBoardPage detects the template.
-                            navigator?.pushIfNotCurrent(
-                                ForumBoardPage(thread)
-                            )
+            PullToRefreshBox(
+                isRefreshing = state is CommunityState.Loading,
+                onRefresh = model::retry,
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) {
+                CommunityStateContent(
+                    state = state,
+                    emptyText = stringResource(id = R.string.forum_threads_empty),
+                    onRetry = model::retry,
+                    modifier = Modifier.fillMaxSize(),
+                ) { threads ->
+                    LazyColumn(
+                        modifier = Modifier
+                            .widthIn(max = metrics.contentMaxWidth)
+                            .fillMaxWidth()
+                            .fillMaxHeight(),
+                        contentPadding = PaddingValues(bottom = AppSpacing.xxl)
+                    ) {
+                        items(
+                            threads,
+                            key = { "forum-thread-${it.categoryId}-${it.id}" },
+                            contentType = { "forum-thread" }
+                        ) { thread ->
+                            ForumThreadCard(thread) {
+                                // A board can be either a novel forum or a nested
+                                // topic board; ForumBoardPage detects the template.
+                                navigator?.pushIfNotCurrent(
+                                    ForumBoardPage(thread)
+                                )
+                            }
                         }
-                    }
-                    item(key = "forum-threads-footer", contentType = "spacer") {
-                        Spacer(modifier = Modifier.height(AppSpacing.xxl))
+                        item(key = "forum-threads-footer", contentType = "spacer") {
+                            Spacer(modifier = Modifier.height(AppSpacing.xxl))
+                        }
                     }
                 }
             }
@@ -228,37 +240,43 @@ class ForumBoardPage(private val thread: ForumThread) : AppDestination {
                 .background(MaterialTheme.colorScheme.background)
         ) {
             CommunityTopBar(title = thread.title, onBack = { navigator?.pop() })
-            CommunityStateContent(
-                state = state,
-                emptyText = stringResource(id = R.string.forum_board_empty),
-                onRetry = model::retry,
+            PullToRefreshBox(
+                isRefreshing = state is CommunityState.Loading,
+                onRefresh = model::retry,
                 modifier = Modifier.weight(1f).fillMaxWidth()
-            ) { board ->
-                when (board) {
-                    is ForumBoardResult.Novel -> {
-                        ForumNovelBoardContent(
-                            board = board,
-                            thread = thread,
-                            onOpenNovel = {
-                                navigator?.pushIfNotCurrent(
-                                    NovelPage(
-                                        CategoryNovel(
-                                            name = thread.title,
-                                            url = board.detailUrl,
-                                            forumUrl = thread.url
+            ) {
+                CommunityStateContent(
+                    state = state,
+                    emptyText = stringResource(id = R.string.forum_board_empty),
+                    onRetry = model::retry,
+                    modifier = Modifier.fillMaxSize()
+                ) { board ->
+                    when (board) {
+                        is ForumBoardResult.Novel -> {
+                            ForumNovelBoardContent(
+                                board = board,
+                                thread = thread,
+                                onOpenNovel = {
+                                    navigator?.pushIfNotCurrent(
+                                        NovelPage(
+                                            CategoryNovel(
+                                                name = thread.title,
+                                                url = board.detailUrl,
+                                                forumUrl = thread.url
+                                            )
                                         )
                                     )
-                                )
-                            },
-                            onTopicClick = { topic ->
+                                },
+                                onTopicClick = { topic ->
+                                    navigator?.pushIfNotCurrent(ForumPostPage(topic))
+                                }
+                            )
+                        }
+
+                        is ForumBoardResult.Topics -> {
+                            ForumTopicsContent(board.items) { topic ->
                                 navigator?.pushIfNotCurrent(ForumPostPage(topic))
                             }
-                        )
-                    }
-
-                    is ForumBoardResult.Topics -> {
-                        ForumTopicsContent(board.items) { topic ->
-                            navigator?.pushIfNotCurrent(ForumPostPage(topic))
                         }
                     }
                 }
@@ -334,9 +352,7 @@ class ForumPostPage(private val topic: ForumTopic) : AppDestination {
                         failedRes = failedRes,
                         detailRes = detailRes
                     )
-                },
-                onRefresh = ::refreshAll,
-                refreshing = syncRunning
+                }
             )
             PullToRefreshBox(
                 isRefreshing = syncRunning,
@@ -813,14 +829,18 @@ private class ForumPageModel(
 ) : AppStateViewModel<CommunityState<List<ForumCategory>>>(CommunityState.Loading) {
     private var loadStarted = false
 
-    fun retry() = load()
+    fun retry() = load(forceRefresh = true)
 
-    fun load() {
-        if (loadStarted) return
+    fun load(forceRefresh: Boolean = false) {
+        if (!forceRefresh && loadStarted) return
         loadStarted = true
+        mutableState.value = CommunityState.Loading
         viewModelScope.launch(Dispatchers.IO) {
             mutableState.value = try {
-                PresentationAccess.client.getForumCategories(authorization).toCommunityState()
+                PresentationAccess.client.getForumCategories(
+                    authorization,
+                    forceRefresh = forceRefresh
+                ).toCommunityState()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -838,14 +858,19 @@ private class ForumCategoryPageModel(
 ) : AppStateViewModel<CommunityState<List<ForumThread>>>(CommunityState.Loading) {
     private var loadStarted = false
 
-    fun retry() = load()
+    fun retry() = load(forceRefresh = true)
 
-    fun load() {
-        if (loadStarted) return
+    fun load(forceRefresh: Boolean = false) {
+        if (!forceRefresh && loadStarted) return
         loadStarted = true
+        mutableState.value = CommunityState.Loading
         viewModelScope.launch(Dispatchers.IO) {
             mutableState.value = try {
-                PresentationAccess.client.getForumThreads(authorization, category).toCommunityState()
+                PresentationAccess.client.getForumThreads(
+                    authorization,
+                    category,
+                    forceRefresh = forceRefresh
+                ).toCommunityState()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -869,11 +894,15 @@ private class ForumBoardPageModel(
 ) {
     private var loadStarted = false
 
-    fun retry() = load()
+    fun retry() {
+        loadStarted = false
+        load()
+    }
 
     fun load() {
         if (loadStarted) return
         loadStarted = true
+        mutableState.value = CommunityState.Loading
         viewModelScope.launch(Dispatchers.IO) {
             mutableState.value = try {
                 CommunityState.Result(PresentationAccess.client.getForumBoard(authorization, thread))
@@ -903,6 +932,7 @@ private class ForumPostPageModel(
     fun load(forceRefresh: Boolean = false) {
         if (!forceRefresh && loadStarted) return
         loadStarted = true
+        mutableState.value = CommunityState.Loading
         viewModelScope.launch(Dispatchers.IO) {
             mutableState.value = try {
                 CommunityState.Result(

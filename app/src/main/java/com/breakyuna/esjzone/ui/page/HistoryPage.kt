@@ -210,13 +210,6 @@ object HistoryPage : AppDestination {
                                     Icon(Icons.Filled.Edit, stringResource(R.string.history_local_edit))
                                 }
                             }
-                        } else {
-                            IconButton(
-                                onClick = cloudModel::reload,
-                                enabled = !cloudState.isSyncing()
-                            ) {
-                                Icon(Icons.Filled.CloudSync, stringResource(R.string.history_cloud_sync))
-                            }
                         }
                     }
                 )
@@ -439,7 +432,7 @@ private fun LocalHistoryCard(
                 modifier = Modifier.size(width = 96.dp, height = 132.dp)
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-                Text(activity.novelName.ifBlank { activity.novelId }, style = AppTypography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(activity.novelName.ifBlank { activity.novelId }, style = AppTypography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(activity.chapterName, style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 androidx.compose.material3.LinearProgressIndicator(progress = fullBookProgress(activity.chapterIndex, activity.totalChapters, activity.chapterProgress), modifier = Modifier.fillMaxWidth())
                 Text(position, style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -554,7 +547,7 @@ private fun CloudHistoryCard(
             modifier = Modifier.size(width = 96.dp, height = 132.dp)
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-            Text(history.name, style = AppTypography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(history.name, style = AppTypography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(history.chapter.name, style = AppTypography.bodyMedium, color = MaterialTheme.colorScheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             androidx.compose.material3.LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
             Text(position, style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

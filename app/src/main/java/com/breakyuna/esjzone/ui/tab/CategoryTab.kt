@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.breakyuna.esjzone.ui.tab
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
 
 import androidx.compose.foundation.layout.Arrangement
@@ -59,8 +62,7 @@ class CategoryBrowserPage : AppDestination {
         val model = rememberAppViewModel { CategoryModel(authorization) }
         DiscoveryScaffold(
             title = stringResource(R.string.categories),
-            onBack = { navigator?.pop() },
-            onRefresh = model::reload
+            onBack = { navigator?.pop() }
         ) { padding ->
             CategoryBrowserContent(
                 model = model,
@@ -86,8 +88,7 @@ object CategoryTab : AppTab {
         val authorization = LocalAuthorization.current
         val model = rememberAppViewModel { CategoryModel(authorization) }
         DiscoveryScaffold(
-            title = stringResource(R.string.categories),
-            onRefresh = model::reload
+            title = stringResource(R.string.categories)
         ) { padding ->
             CategoryBrowserContent(model, Modifier.fillMaxSize().padding(padding))
         }
@@ -100,10 +101,15 @@ private fun CategoryBrowserContent(model: CategoryModel, modifier: Modifier) {
     val state by model.state.collectAsState()
     val adult by PresentationAccess.settings.adult
 
-    when (val snapshot = state) {
-        CategoryModel.State.Loading -> DiscoveryLoadingState(modifier)
+    PullToRefreshBox(
+        isRefreshing = state is CategoryModel.State.Loading,
+        onRefresh = model::reload,
+        modifier = modifier
+    ) {
+        when (val snapshot = state) {
+        CategoryModel.State.Loading -> DiscoveryLoadingState(Modifier.fillMaxSize())
         is CategoryModel.State.Error -> {
-            Column(modifier = modifier) {
+            Column(modifier = Modifier.fillMaxSize()) {
                 if (snapshot.failure == LoadFailureKind.NETWORK) {
                     DiscoveryOfflineBanner(modifier = Modifier.padding(16.dp))
                 }
@@ -120,11 +126,11 @@ private fun CategoryBrowserContent(model: CategoryModel, modifier: Modifier) {
                 DiscoveryEmptyState(
                     title = stringResource(R.string.categories_empty),
                     message = stringResource(R.string.home_adult_hidden),
-                    modifier = modifier
+                    modifier = Modifier.fillMaxSize()
                 )
             } else {
                 LazyVerticalGrid(
-                    modifier = modifier,
+                    modifier = Modifier.fillMaxSize(),
                     columns = GridCells.Adaptive(minSize = 156.dp),
                     contentPadding = PaddingValues(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -176,13 +182,16 @@ class CategoryModel(
         data class Result(val categories: List<Category>) : State()
     }
 
-    fun getCategories() {
-        if (loadStarted) return
+    fun getCategories(forceRefresh: Boolean = false) {
+        if (!forceRefresh && loadStarted) return
         loadStarted = true
         viewModelScope.launch(Dispatchers.IO) {
             mutableState.value = State.Loading
             try {
-                val categories = PresentationAccess.client.getCategories(authorization)
+                val categories = PresentationAccess.client.getCategories(
+                    authorization,
+                    forceRefresh = forceRefresh
+                )
                 ensureActive()
                 mutableState.value = State.Result(categories)
             } catch (e: CancellationException) {
@@ -197,7 +206,7 @@ class CategoryModel(
 
     fun retry() {
         loadStarted = false
-        getCategories()
+        getCategories(forceRefresh = true)
     }
 
     fun reload() = retry()
