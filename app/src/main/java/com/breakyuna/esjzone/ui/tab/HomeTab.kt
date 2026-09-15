@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -46,6 +48,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -67,7 +70,9 @@ import com.breakyuna.esjzone.network.LoadFailureKind
 import com.breakyuna.esjzone.network.LocalAuthorization
 import com.breakyuna.esjzone.network.features.HomeDataCache
 import com.breakyuna.esjzone.network.features.getHomeData
+import com.breakyuna.esjzone.network.features.novels
 import com.breakyuna.esjzone.network.loadFailureKind
+import com.breakyuna.esjzone.network.PageableRequester
 import com.breakyuna.esjzone.novellibrary.data.HomeData
 import com.breakyuna.esjzone.novellibrary.data.WeeklyUpdateDay
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
@@ -94,9 +99,16 @@ import com.breakyuna.esjzone.ui.page.NovelPage
 import com.breakyuna.esjzone.novellibrary.community.ForumTopic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import kotlin.random.Random
 
 object HomeTab : AppTab {
 
@@ -117,6 +129,7 @@ object HomeTab : AppTab {
         val authorization = LocalAuthorization.current
         val model = rememberAppViewModel { HomeTabModel(authorization) }
         val state by model.state.collectAsState()
+        val randomState by model.randomRecommendations.collectAsState()
         val adult by PresentationAccess.settings.adult
         val editorPicksTitle = stringResource(R.string.home_editor_picks)
         val translatedTitle = stringResource(R.string.tab_home_recentlyupdate_tranlated)
@@ -127,10 +140,13 @@ object HomeTab : AppTab {
         val emptyCollectionTitle = stringResource(R.string.home_collection_empty_title)
         val emptyCollectionMessage = stringResource(R.string.home_collection_empty_message)
         val waterCoolerTitle = stringResource(R.string.home_water_cooler)
+        val randomRecommendationsTitle = stringResource(R.string.home_random_recommendations)
+        val changeBatchLabel = stringResource(R.string.home_random_change_batch)
 
         val navPadding = LocalFloatingNavPadding.current
         val layoutDirection = LocalLayoutDirection.current
         val searchActionLabel = stringResource(R.string.search_action)
+        val listState = rememberLazyListState()
         val weeklyDays = (state as? HomeTabModel.State.Result)?.homeData?.weeklyUpdates
             .orEmpty().sortedByDescending { it.date }
         val weeklyDayKeys = weeklyDays.map { it.date.toString() }
@@ -165,6 +181,7 @@ object HomeTab : AppTab {
                 modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
             ) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = 16.dp + navPadding.calculateStartPadding(layoutDirection),
@@ -279,6 +296,14 @@ object HomeTab : AppTab {
                             onSelect = { selectedWeeklyDate = weeklyDays[it].date.toString() },
                             navigator = navigator
                         )
+                        randomRecommendationsCollection(
+                            state = randomState,
+                            title = randomRecommendationsTitle,
+                            changeBatchLabel = changeBatchLabel,
+                            onChangeBatch = { model.replaceRandomRecommendations(adult) },
+                            onRetry = { model.loadMoreRandomRecommendations(adult) },
+                            navigator = navigator
+                        )
                     }
                 }
             }
@@ -286,6 +311,17 @@ object HomeTab : AppTab {
         }
 
         LaunchedEffect(Unit) { model.getHomeData() }
+        LaunchedEffect(adult) { model.onRandomAdultModeChanged(adult) }
+        LaunchedEffect(listState, randomState.hasMore) {
+            snapshotFlow {
+                val layout = listState.layoutInfo
+                val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: -1
+                layout.totalItemsCount > 0 && lastVisible >= layout.totalItemsCount - 3
+            }
+                .distinctUntilChanged()
+                .filter { it }
+                .collect { model.loadMoreRandomRecommendations(adult) }
+        }
     }
 }
 
@@ -302,6 +338,8 @@ private fun HomeInitialLoadingState() {
 private const val HOME_GRID_COLUMNS = 4
 private const val WEEKLY_UPDATE_MAX_ITEMS = 24
 private const val WEEKLY_UPDATE_TRANSITION_DURATION = 280
+private const val RANDOM_RECOMMENDATION_BATCH_SIZE = 32
+private const val RANDOM_RECOMMENDATION_MAX_PAGES_PER_BATCH = 3
 
 private const val WATER_COOLER_URL =
     "https://www.esjzone.cc/forum/1585405223/103280.html"
@@ -352,6 +390,75 @@ private fun LazyListScope.weeklyUpdatesCollection(
                     onNovelClick = { novel -> navigator?.pushIfNotCurrent(NovelPage(novel)) }
                 )
             }
+        }
+    }
+}
+
+private fun LazyListScope.randomRecommendationsCollection(
+    state: HomeTabModel.RandomRecommendationsState,
+    title: String,
+    changeBatchLabel: String,
+    onChangeBatch: () -> Unit,
+    onRetry: () -> Unit,
+    navigator: AppNavigator?
+) {
+    homeSectionDivider(key = "home-random-divider")
+    item(key = "home-random-header", contentType = "home-random-header") {
+        Row(
+            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                enabled = !state.isLoading,
+                onClick = onChangeBatch
+            ) {
+                Text(changeBatchLabel)
+            }
+        }
+    }
+
+    val rows = state.items.chunked(HOME_GRID_COLUMNS)
+    items(
+        items = rows,
+        key = { row -> "home-random-row:${novelKey(row.first())}" },
+        contentType = { "home-random-row" }
+    ) { row ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = AppSpacing.md),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md / 2)
+        ) {
+            row.forEach { novel ->
+                HomeGridNovelTile(
+                    novel = novel,
+                    showLatestTitle = false,
+                    onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            repeat(HOME_GRID_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
+        }
+    }
+
+    if (state.isLoading) {
+        item(key = "home-random-loading", contentType = "loading") {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(AppSpacing.lg),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        }
+    } else if (state.failure != null) {
+        item(key = "home-random-error", contentType = "error") {
+            DiscoveryErrorState(
+                message = stringResource(failureMessage(state.failure)),
+                onRetry = onRetry
+            )
         }
     }
 }
@@ -626,6 +733,9 @@ private fun homeSectionTitleText(title: String): androidx.compose.ui.text.Annota
 
 private val HOME_SECTION_TITLE_PARENTHESIS = Regex("[（(][^（）()]*[）)]")
 
+private fun novelKey(novel: CoveredNovel): String =
+    novel.url.trim().ifBlank { novel.name.trim() }
+
 private fun failureMessage(failure: LoadFailureKind): Int = when (failure) {
     LoadFailureKind.NETWORK -> R.string.load_network_error
     LoadFailureKind.CLIENT -> R.string.load_client_error
@@ -638,6 +748,13 @@ class HomeTabModel(
 ) {
 
     private var loadStarted = false
+    private var randomLoadJob: Job? = null
+    private var randomRequester: PageableRequester<CoveredNovel>? = null
+    private var randomAdultMode: Boolean? = null
+    private val randomVisitedPages = mutableSetOf<Int>()
+    private val randomSeenNovelKeys = mutableSetOf<String>()
+    private val _randomRecommendations = MutableStateFlow(RandomRecommendationsState())
+    val randomRecommendations = _randomRecommendations.asStateFlow()
 
     sealed class State {
         data object Loading : State()
@@ -646,6 +763,104 @@ class HomeTabModel(
             val homeData: HomeData,
             val isSyncing: Boolean = false
         ) : State()
+    }
+
+    data class RandomRecommendationsState(
+        val items: List<CoveredNovel> = emptyList(),
+        val isLoading: Boolean = false,
+        val failure: LoadFailureKind? = null,
+        val hasMore: Boolean = true
+    )
+
+    fun onRandomAdultModeChanged(adult: Boolean) {
+        val previousMode = randomAdultMode
+        randomAdultMode = adult
+        if (previousMode != null && previousMode != adult) {
+            replaceRandomRecommendations(adult)
+        }
+    }
+
+    fun replaceRandomRecommendations(adult: Boolean) {
+        randomAdultMode = adult
+        loadRandomRecommendations(adult = adult, replace = true)
+    }
+
+    fun loadMoreRandomRecommendations(adult: Boolean) {
+        loadRandomRecommendations(adult = adult, replace = false)
+    }
+
+    private fun loadRandomRecommendations(adult: Boolean, replace: Boolean) {
+        val activeJob = randomLoadJob
+        if (!replace && activeJob?.isActive == true) return
+        if (!replace && !_randomRecommendations.value.hasMore) return
+
+        randomLoadJob = viewModelScope.launch(Dispatchers.IO) {
+            if (replace) activeJob?.cancelAndJoin()
+            val previous = _randomRecommendations.value
+            _randomRecommendations.value = previous.copy(isLoading = true, failure = null)
+            try {
+                val requester = randomRequester ?: PresentationAccess.client
+                    .novels(authorization, novelType = 0, sortType = 1)
+                    .first
+                    .also { randomRequester = it }
+                if (replace && randomVisitedPages.size >= requester.pages()) {
+                    randomVisitedPages.clear()
+                    randomSeenNovelKeys.clear()
+                }
+                val collected = ArrayList<CoveredNovel>(RANDOM_RECOMMENDATION_BATCH_SIZE)
+                var requestedPages = 0
+
+                while (
+                    collected.size < RANDOM_RECOMMENDATION_BATCH_SIZE &&
+                    requestedPages < RANDOM_RECOMMENDATION_MAX_PAGES_PER_BATCH &&
+                    randomVisitedPages.size < requester.pages()
+                ) {
+                    ensureActive()
+                    val page = chooseUnvisitedRandomPage(requester.pages()) ?: break
+                    randomVisitedPages += page
+                    requestedPages += 1
+                    requester.more(page)
+                        .filter { adult || !it.isAdult }
+                        .shuffled()
+                        .forEach { novel ->
+                            if (
+                                collected.size < RANDOM_RECOMMENDATION_BATCH_SIZE &&
+                                randomSeenNovelKeys.add(novelKey(novel))
+                            ) {
+                                collected += novel
+                            }
+                        }
+                }
+
+                ensureActive()
+                val items = if (replace) collected else previous.items + collected
+                _randomRecommendations.value = RandomRecommendationsState(
+                    items = items,
+                    hasMore = randomVisitedPages.size < requester.pages()
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _randomRecommendations.value = previous.copy(
+                    isLoading = false,
+                    failure = error.loadFailureKind()
+                )
+                com.breakyuna.esjzone.util.AppLogger.e(
+                    "HomeTabModel",
+                    "Failed to load random recommendations",
+                    error
+                )
+            }
+        }
+    }
+
+    private fun chooseUnvisitedRandomPage(pageCount: Int): Int? {
+        if (pageCount <= 0 || randomVisitedPages.size >= pageCount) return null
+        repeat(12) {
+            val candidate = Random.nextInt(1, pageCount + 1)
+            if (candidate !in randomVisitedPages) return candidate
+        }
+        return (1..pageCount).firstOrNull { it !in randomVisitedPages }
     }
 
     fun getHomeData(forceRefresh: Boolean = false) {

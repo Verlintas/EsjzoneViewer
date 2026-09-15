@@ -268,6 +268,8 @@
     <string name="home_recommendation_label">Recommended reading</string>
     <string name="home_browse_more">Browse more</string>
     <string name="home_weekly_updates">Weekly updates</string>
+    <string name="home_random_recommendations">Random recommendations</string>
+    <string name="home_random_change_batch">Shuffle</string>
     <string name="home_weekly_update_empty">There are no visible updates for this day.</string>
     <string name="home_weekly_update_no_chapter">No update today</string>
     <string name="home_weekday_monday">Mon</string>

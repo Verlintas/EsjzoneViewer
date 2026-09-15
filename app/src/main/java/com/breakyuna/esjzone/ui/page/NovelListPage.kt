@@ -109,10 +109,17 @@ class NovelListPage(
     override fun Content() {
         val navigator = LocalBaseNavigator.current
         val authorization = LocalAuthorization.current
+        val settings = PresentationAccess.settings
+        val rememberedGridView by settings.novelListGridView.collectAsState()
+        val rememberedAdultOnly by settings.novelListAdultOnly.collectAsState()
         val novelType = rememberSaveable { mutableIntStateOf(initializedNovelType) }
         val sortType = rememberSaveable { mutableIntStateOf(initializedSortType) }
-        var adultOnly by rememberSaveable { mutableStateOf(initializedAdultOnly) }
-        var gridView by rememberSaveable { mutableStateOf(false) }
+        var adultOnly by rememberSaveable {
+            mutableStateOf(initializedAdultOnly || rememberedAdultOnly)
+        }
+        var gridView by rememberSaveable { mutableStateOf(rememberedGridView) }
+        var gridViewChangedHere by rememberSaveable { mutableStateOf(false) }
+        var adultOnlyChangedHere by rememberSaveable { mutableStateOf(initializedAdultOnly) }
         val model = rememberAppViewModel { NovelListPageModel(authorization, novelType, sortType) }
         val state by model.state.collectAsState()
         val adult by PresentationAccess.settings.adult
@@ -121,7 +128,11 @@ class NovelListPage(
             title = stringResource(R.string.novel_list),
             onBack = { navigator?.pop() },
             actions = {
-                IconButton(onClick = { gridView = !gridView }) {
+                IconButton(onClick = {
+                    gridView = !gridView
+                    gridViewChangedHere = true
+                    settings.setNovelListGridView(gridView)
+                }) {
                     Icon(
                         imageVector = if (gridView) Icons.Filled.ViewList else Icons.Filled.GridView,
                         contentDescription = "切换小说列表展示方式"
@@ -158,7 +169,11 @@ class NovelListPage(
                         sortType = sortType,
                         adult = adult,
                         adultOnly = adultOnly,
-                        onAdultOnlyChange = { adultOnly = it },
+                        onAdultOnlyChange = {
+                            adultOnly = it
+                            adultOnlyChangedHere = true
+                            settings.setNovelListAdultOnly(it)
+                        },
                         onFilterChanged = { model.getRequester(forceRefresh = true) },
                         gridView = gridView,
                         navigator = navigator,
@@ -169,7 +184,16 @@ class NovelListPage(
             }
         }
 
-        LaunchedEffect(Unit) { model.getRequester() }
+        LaunchedEffect(Unit) {
+            if (initializedAdultOnly) settings.setNovelListAdultOnly(true)
+            model.getRequester()
+        }
+        LaunchedEffect(rememberedGridView) {
+            if (!gridViewChangedHere) gridView = rememberedGridView
+        }
+        LaunchedEffect(rememberedAdultOnly) {
+            if (!adultOnlyChangedHere) adultOnly = rememberedAdultOnly
+        }
     }
 }
 

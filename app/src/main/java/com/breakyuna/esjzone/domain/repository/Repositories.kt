@@ -38,12 +38,16 @@ interface SettingsRepository {
     val language: StateFlow<AppLanguage>
     val readerAutoSave: StateFlow<Boolean>
     val downloadConcurrency: StateFlow<Int>
+    val novelListGridView: StateFlow<Boolean>
+    val novelListAdultOnly: StateFlow<Boolean>
     fun setAdult(value: Boolean)
     fun setTheme(value: AppThemeVariant)
     fun setDomain(value: String)
     fun setLanguage(value: AppLanguage)
     fun setReaderAutoSave(value: Boolean)
     fun setDownloadConcurrency(value: Int)
+    fun setNovelListGridView(value: Boolean)
+    fun setNovelListAdultOnly(value: Boolean)
 }
 
 interface NovelRepository {
