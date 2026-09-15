@@ -151,7 +151,10 @@ fun EsjzoneClient.submitForumComment(
         "GetCommunity",
         if (replyToken == null) "Submitting forum comment" else "Submitting forum reply"
     )
-    val forumReply = data == "forum"
+    // Both forum threads and novel-detail discussions are submitted to the
+    // same ESJ reply endpoint.  A detail form uses `data=books` and
+    // `forum_id=0`, but it still requires the page-scoped dynamic token.
+    val forumReply = data == "forum" || data == "books"
     val responseBody: String = try {
         if (forumReply) {
             // ESJ issues a single-use dynamic token from the page being commented on.
@@ -161,7 +164,9 @@ fun EsjzoneClient.submitForumComment(
             val token = requestForumReplyAuthToken(client, targetUrl)
             val bodyBuilder = FormBody.Builder()
                 .add("content", submittedContent)
-                .add("data", "forum")
+                .add("data", data ?: throw ForumReplyProtocolException(
+                    "Forum comment form did not provide data"
+                ))
                 .add("forum_id", forumId ?: throw ForumReplyProtocolException(
                     "Forum comment form did not provide forum_id"
                 ))
