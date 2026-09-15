@@ -80,6 +80,13 @@ interface BookshelfDao {
     )
 
     @Query(
+        "UPDATE bookshelf SET cover_url = :coverUrl " +
+            "WHERE scope = :scope AND book_key = :bookKey AND sync_state != 'PENDING_REMOVE' " +
+            "AND :coverUrl != '' AND cover_url != :coverUrl"
+    )
+    suspend fun updateCoverIfChanged(scope: String, bookKey: String, coverUrl: String): Int
+
+    @Query(
         "UPDATE bookshelf SET latest_chapter_title = :latestTitle, latest_chapter_url = :latestUrl, " +
             "remote_last_viewed_title = :lastViewed, remote_updated_at = :updatedAt, " +
             "latest_fingerprint = :fingerprint, has_update = :hasUpdate " +
