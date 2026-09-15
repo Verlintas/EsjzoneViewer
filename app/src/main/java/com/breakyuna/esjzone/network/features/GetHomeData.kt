@@ -42,7 +42,7 @@ fun EsjzoneClient.getHomeData(
     val weeklyPopular = selectWeeklyPopularSeeds(document).mapNotNull { seed ->
             runCatching {
                 // Detail HTML is already covered by the six-hour page cache. Keep this
-                // cache-first even for pull-to-refresh so the carousel never creates five forced
+                // cache-first even for pull-to-refresh so the carousel never creates ten forced
                 // refreshes in addition to the single home request.
                 enrichWeeklyPopular(authorization, seed)
             }.onFailure {
@@ -135,7 +135,7 @@ internal data class WeeklyPopularSeed(
 
 internal fun selectWeeklyPopularSeeds(document: org.jsoup.nodes.Document): List<WeeklyPopularSeed> =
     document.select(".widget-categories-hot li")
-        .take(5)
+        .take(10)
         .mapIndexedNotNull { index, item ->
             val link = item.selectFirst("a[href*='/detail/']") ?: return@mapIndexedNotNull null
             val name = link.text().trim()

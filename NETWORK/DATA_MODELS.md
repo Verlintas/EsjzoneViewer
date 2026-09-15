@@ -55,7 +55,7 @@
 
 ### WeeklyPopularNovel
 
-用于首页上周热门前五名轮播。`rank` 和 `weekly_views` 来自首页侧栏；封面、简介、作者、类型及成人标记由缓存优先的详情页解析补全。`weekly_views` 与详情页累计 `view_count` 是不同指标。
+用于首页上周热门前十名轮播。`rank` 和 `weekly_views` 来自首页侧栏；封面、简介、作者、类型及成人标记由缓存优先的详情页解析补全。`weekly_views` 与详情页累计 `view_count` 是不同指标。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|

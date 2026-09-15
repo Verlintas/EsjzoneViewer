@@ -40,6 +40,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -121,6 +123,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.time.DayOfWeek
 import kotlin.random.Random
 
@@ -626,20 +629,34 @@ private fun LazyListScope.weeklyPopularCarousel(
     novels: List<WeeklyPopularNovel>,
     navigator: AppNavigator?
 ) {
-    val visible = novels.take(5)
+    val visible = novels.take(10)
     if (visible.isEmpty()) return
 
     item(key = "home-weekly-popular", contentType = "home-weekly-popular") {
-        val pagerState = rememberPagerState(pageCount = { visible.size })
+        val pageCount = Int.MAX_VALUE
+        val initialPage = Int.MAX_VALUE / 2 - (Int.MAX_VALUE / 2 % visible.size)
+        val pagerState = rememberPagerState(
+            initialPage = initialPage,
+            pageCount = { pageCount }
+        )
+        LaunchedEffect(pagerState, visible.size) {
+            while (true) {
+                delay(HOME_WEEKLY_POPULAR_AUTO_PLAY_MS)
+                if (!pagerState.isScrollInProgress) {
+                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                }
+            }
+        }
         Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
             HorizontalPager(
                 state = pagerState,
                 pageSpacing = AppSpacing.sm,
                 modifier = Modifier.fillMaxWidth()
             ) { page ->
+                val novel = visible[page % visible.size]
                 WeeklyPopularCard(
-                    novel = visible[page],
-                    onClick = { navigator?.pushIfNotCurrent(NovelPage(visible[page])) }
+                    novel = novel,
+                    onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) }
                 )
             }
             Row(
@@ -651,11 +668,11 @@ private fun LazyListScope.weeklyPopularCarousel(
                     Box(
                         Modifier
                             .padding(horizontal = 3.dp)
-                            .width(if (index == pagerState.currentPage) 28.dp else 7.dp)
+                            .width(if (index == pagerState.currentPage % visible.size) 28.dp else 7.dp)
                             .height(7.dp)
                             .clip(CircleShape)
                             .background(
-                                if (index == pagerState.currentPage) MaterialTheme.colorScheme.primary
+                                if (index == pagerState.currentPage % visible.size) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.outlineVariant
                             )
                     )
@@ -689,10 +706,15 @@ private fun WeeklyPopularCard(
                         )
                     )
                 )
-                .padding(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(18.dp)
+                .padding(start = 12.dp, end = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(modifier = Modifier.width(116.dp).fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .width(HOME_WEEKLY_POPULAR_COVER_WIDTH)
+                    .height(HOME_WEEKLY_POPULAR_CONTENT_HEIGHT)
+            ) {
                 AppNovelCover(
                     coverUrl = novel.coverUrl,
                     title = novel.name,
@@ -701,19 +723,21 @@ private fun WeeklyPopularCard(
                 )
                 Text(
                     text = stringResource(R.string.home_weekly_popular_badge, novel.rank),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onError,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier
-                        .padding(10.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.94f))
-                        .padding(horizontal = 10.dp, vertical = 7.dp)
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f))
+                        .padding(horizontal = 7.dp, vertical = 4.dp)
                 )
             }
             Column(
-                modifier = Modifier.weight(1f).fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(7.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .height(HOME_WEEKLY_POPULAR_CONTENT_HEIGHT)
             ) {
                 Text(
                     text = novel.name,
@@ -726,26 +750,32 @@ private fun WeeklyPopularCard(
                     text = novel.descriptionPreview.ifBlank { stringResource(R.string.home_weekly_popular_no_description) },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    text = novel.author
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { stringResource(R.string.home_weekly_popular_author, it) }
+                        ?: " ",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(Modifier.weight(1f))
-                novel.author?.takeIf(String::isNotBlank)?.let {
-                    Text(
-                        text = stringResource(R.string.home_weekly_popular_author, it),
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                novel.type.takeIf(String::isNotBlank)?.let {
-                    Text(
-                        text = stringResource(R.string.home_weekly_popular_type, it),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
+                Text(
+                    text = novel.type
+                        .takeIf(String::isNotBlank)
+                        ?.let { stringResource(R.string.home_weekly_popular_type, it) }
+                        ?: " ",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Text(
                     text = stringResource(
                         R.string.home_weekly_popular_heat,
@@ -786,8 +816,8 @@ private fun HomeActions(
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
     ) {
         HomeShortcut(stringResource(R.string.forum), Icons.Filled.Forum, Modifier.weight(1f), onForum)
-        HomeShortcut(stringResource(R.string.guestbook), Icons.Filled.Forum, Modifier.weight(1f), onGuestbook)
-        HomeShortcut(stringResource(R.string.home_water_cooler), null, Modifier.weight(1f), onWaterCooler)
+        HomeShortcut(stringResource(R.string.guestbook), Icons.Filled.RateReview, Modifier.weight(1f), onGuestbook)
+        HomeShortcut(stringResource(R.string.home_water_cooler), Icons.Filled.WaterDrop, Modifier.weight(1f), onWaterCooler)
     }
 }
 
@@ -811,12 +841,16 @@ private fun HomeShortcut(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
-            else Text("水", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(AppSpacing.sm))
             Text(label, style = MaterialTheme.typography.titleSmall)
         }
     }
 }
+
+private val HOME_WEEKLY_POPULAR_COVER_WIDTH = 106.dp
+private val HOME_WEEKLY_POPULAR_CONTENT_HEIGHT = 172.dp
+
+private const val HOME_WEEKLY_POPULAR_AUTO_PLAY_MS = 4_000L
 
 private const val HOME_COLLECTION_MAX_ITEMS = 16
 

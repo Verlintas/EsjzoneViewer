@@ -11,7 +11,7 @@ class HomeData(
     val recommendation: List<CoveredNovel>,
     /** The site-provided days for the current Monday-to-today update window. */
     val weeklyUpdates: List<WeeklyUpdateDay> = emptyList(),
-    /** The first five entries from the site's server-rendered previous-week ranking. */
+    /** The first ten entries from the site's server-rendered previous-week ranking. */
     val weeklyPopular: List<WeeklyPopularNovel> = emptyList()
 )
 
