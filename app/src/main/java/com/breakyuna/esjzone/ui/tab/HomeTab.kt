@@ -10,6 +10,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Box
@@ -21,21 +23,26 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
@@ -53,16 +60,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.network.Authorization
@@ -75,6 +87,7 @@ import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.network.PageableRequester
 import com.breakyuna.esjzone.novellibrary.data.HomeData
 import com.breakyuna.esjzone.novellibrary.data.WeeklyUpdateDay
+import com.breakyuna.esjzone.novellibrary.data.WeeklyPopularNovel
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
 import com.breakyuna.esjzone.ui.component.AppNovelCover
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
@@ -191,30 +204,6 @@ object HomeTab : AppTab {
                 ),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
-                item(key = "home-actions", contentType = "home-actions") {
-                    HomeActions(
-                        onCategories = { navigator?.pushIfNotCurrent(CategoryBrowserPage()) },
-                        onForum = { navigator?.pushIfNotCurrent(ForumPage) },
-                        onGuestbook = { navigator?.pushIfNotCurrent(GuestbookPage) },
-                        onWaterCooler = {
-                            navigator?.pushIfNotCurrent(
-                                ForumPostPage(
-                                    ForumTopic(
-                                        boardId = "1585405223",
-                                        id = "103280",
-                                        title = waterCoolerTitle,
-                                        author = null,
-                                        createdAt = null,
-                                        replyCount = null,
-                                        viewCount = null,
-                                        lastReplyAt = null,
-                                        url = WATER_COOLER_URL
-                                    )
-                                )
-                            )
-                        }
-                    )
-                }
                 when (val snapshot = state) {
                     HomeTabModel.State.Loading -> item(key = "home-loading", contentType = "loading") {
                         HomeInitialLoadingState()
@@ -231,6 +220,33 @@ object HomeTab : AppTab {
                         }
                     }
                     is HomeTabModel.State.Result -> {
+                        weeklyPopularCarousel(
+                            novels = snapshot.homeData.weeklyPopular.filter { adult || !it.isAdult },
+                            navigator = navigator
+                        )
+                        item(key = "home-actions", contentType = "home-actions") {
+                            HomeActions(
+                                onForum = { navigator?.pushIfNotCurrent(ForumPage) },
+                                onGuestbook = { navigator?.pushIfNotCurrent(GuestbookPage) },
+                                onWaterCooler = {
+                                    navigator?.pushIfNotCurrent(
+                                        ForumPostPage(
+                                            ForumTopic(
+                                                boardId = "1585405223",
+                                                id = "103280",
+                                                title = waterCoolerTitle,
+                                                author = null,
+                                                createdAt = null,
+                                                replyCount = null,
+                                                viewCount = null,
+                                                lastReplyAt = null,
+                                                url = WATER_COOLER_URL
+                                            )
+                                        )
+                                    )
+                                }
+                            )
+                        }
                         homeCollection(
                             title = editorPicksTitle,
                             novels = snapshot.homeData.recommendation,
@@ -605,45 +621,188 @@ private fun weeklyDayLabel(day: DayOfWeek): String = stringResource(
     }
 )
 
+private fun LazyListScope.weeklyPopularCarousel(
+    novels: List<WeeklyPopularNovel>,
+    navigator: AppNavigator?
+) {
+    val visible = novels.take(5)
+    if (visible.isEmpty()) return
+
+    item(key = "home-weekly-popular", contentType = "home-weekly-popular") {
+        val pagerState = rememberPagerState(pageCount = { visible.size })
+        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+            HorizontalPager(
+                state = pagerState,
+                pageSpacing = AppSpacing.sm,
+                modifier = Modifier.fillMaxWidth()
+            ) { page ->
+                WeeklyPopularCard(
+                    novel = visible[page],
+                    onClick = { navigator?.pushIfNotCurrent(NovelPage(visible[page])) }
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                visible.indices.forEach { index ->
+                    Box(
+                        Modifier
+                            .padding(horizontal = 3.dp)
+                            .width(if (index == pagerState.currentPage) 28.dp else 7.dp)
+                            .height(7.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (index == pagerState.currentPage) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outlineVariant
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeeklyPopularCard(
+    novel: WeeklyPopularNovel,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(224.dp),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+                            MaterialTheme.colorScheme.surfaceContainer,
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    )
+                )
+                .padding(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Box(modifier = Modifier.width(116.dp).fillMaxSize()) {
+                AppNovelCover(
+                    coverUrl = novel.coverUrl,
+                    title = novel.name,
+                    modifier = Modifier.fillMaxSize(),
+                    isAdult = novel.isAdult
+                )
+                Text(
+                    text = stringResource(R.string.home_weekly_popular_badge, novel.rank),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onError,
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.94f))
+                        .padding(horizontal = 10.dp, vertical = 7.dp)
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f).fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                Text(
+                    text = novel.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = novel.descriptionPreview.ifBlank { stringResource(R.string.home_weekly_popular_no_description) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.weight(1f))
+                novel.author?.takeIf(String::isNotBlank)?.let {
+                    Text(
+                        text = stringResource(R.string.home_weekly_popular_author, it),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                novel.type.takeIf(String::isNotBlank)?.let {
+                    Text(
+                        text = stringResource(R.string.home_weekly_popular_type, it),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+                Text(
+                    text = stringResource(
+                        R.string.home_weekly_popular_heat,
+                        formatWeeklyHeat(novel.weeklyViews)
+                    ),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+private fun formatWeeklyHeat(value: Int): String = when {
+    value >= 10_000 -> "%.1f万".format(value / 10_000f)
+    else -> value.toString()
+}
+
 @Composable
 private fun HomeActions(
-    onCategories: () -> Unit,
     onForum: () -> Unit,
     onGuestbook: () -> Unit,
     onWaterCooler: () -> Unit
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        HomeAction(stringResource(R.string.categories), Icons.Filled.Category, onCategories)
-        HomeAction(stringResource(R.string.forum), Icons.Filled.Forum, onForum)
-        HomeAction(stringResource(R.string.guestbook), Icons.Filled.Forum, onGuestbook)
-        HomeWaterCoolerAction(
-            label = stringResource(R.string.home_water_cooler),
-            onClick = onWaterCooler
-        )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+    ) {
+        HomeShortcut(stringResource(R.string.forum), Icons.Filled.Forum, Modifier.weight(1f), onForum)
+        HomeShortcut(stringResource(R.string.guestbook), Icons.Filled.Forum, Modifier.weight(1f), onGuestbook)
+        HomeShortcut(stringResource(R.string.home_water_cooler), null, Modifier.weight(1f), onWaterCooler)
     }
 }
 
 @Composable
-private fun HomeAction(
+private fun HomeShortcut(
     label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector?,
+    modifier: Modifier,
     onClick: () -> Unit
 ) {
-    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
-        Icon(icon, contentDescription = null)
-    }
-}
-
-@Composable
-private fun HomeWaterCoolerAction(
-    label: String,
-    onClick: () -> Unit
-) {
-    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
-        Text(
-            text = "水",
-            style = MaterialTheme.typography.titleMedium
-        )
+    Card(
+        onClick = onClick,
+        modifier = modifier.height(64.dp).semantics { contentDescription = label },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+            else Text("水", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(AppSpacing.sm))
+            Text(label, style = MaterialTheme.typography.titleSmall)
+        }
     }
 }
 

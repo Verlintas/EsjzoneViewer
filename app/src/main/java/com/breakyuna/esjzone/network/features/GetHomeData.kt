@@ -6,7 +6,11 @@ import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.PageCacheTtl
 import com.breakyuna.esjzone.network.PageKind
 import com.breakyuna.esjzone.novellibrary.data.HomeData
+import com.breakyuna.esjzone.novellibrary.data.WeeklyPopularNovel
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
+import com.breakyuna.esjzone.novellibrary.novel.NovelDescription
+import com.breakyuna.esjzone.novellibrary.novel.analyseDescription
+import com.breakyuna.esjzone.novellibrary.novel.preview
 import com.breakyuna.esjzone.util.AppLogger
 import java.io.IOException
 import org.jsoup.Jsoup
@@ -35,6 +39,16 @@ fun EsjzoneClient.getHomeData(
     val weeklyUpdates = runCatching { getWeeklyUpdates(authorization, forceRefresh = forceRefresh) }
         .onFailure { AppLogger.w("GetHomeData", "Error parsing weekly updates", it) }
         .getOrDefault(emptyList())
+    val weeklyPopular = selectWeeklyPopularSeeds(document).mapNotNull { seed ->
+            runCatching {
+                // Detail HTML is already covered by the six-hour page cache. Keep this
+                // cache-first even for pull-to-refresh so the carousel never creates five forced
+                // refreshes in addition to the single home request.
+                enrichWeeklyPopular(authorization, seed)
+            }.onFailure {
+                AppLogger.w("GetHomeData", "Failed to enrich weekly popular item: ${seed.name}", it)
+            }.getOrNull()
+        }
 
     try {
         for (recentlyUpdateTranslatedData in selectHomeSectionCards(document, HomeSection.TRANSLATED)) {
@@ -107,6 +121,78 @@ fun EsjzoneClient.getHomeData(
         recentlyUpdateTranslatedR18Novels,
         recentlyUpdateOriginalR18Novels,
         recommendationNovels,
-        weeklyUpdates
+        weeklyUpdates,
+        weeklyPopular
+    )
+}
+
+internal data class WeeklyPopularSeed(
+    val rank: Int,
+    val weeklyViews: Int,
+    val name: String,
+    val url: String
+)
+
+internal fun selectWeeklyPopularSeeds(document: org.jsoup.nodes.Document): List<WeeklyPopularSeed> =
+    document.select(".widget-categories-hot li")
+        .take(5)
+        .mapIndexedNotNull { index, item ->
+            val link = item.selectFirst("a[href*='/detail/']") ?: return@mapIndexedNotNull null
+            val name = link.text().trim()
+            val url = link.attr("href").trim()
+            if (name.isBlank() || url.isBlank()) return@mapIndexedNotNull null
+            WeeklyPopularSeed(
+                rank = index + 1,
+                weeklyViews = parseOptionalCardCount(item.selectFirst("span")?.text()) ?: 0,
+                name = name,
+                url = url
+            )
+        }
+
+/**
+ * Reads only carousel metadata from a detail page. Deliberately avoids parsing the chapter tree
+ * and comments, which can be very large for popular long-running novels.
+ */
+private fun EsjzoneClient.enrichWeeklyPopular(
+    authorization: Authorization,
+    seed: WeeklyPopularSeed
+): WeeklyPopularNovel {
+    val targetUrl = EsjzoneUrls.resolve(seed.url)
+    val responseBody = getPage(
+        authorization = authorization,
+        url = targetUrl,
+        maxAgeMillis = PageCacheTtl.DETAIL,
+        forceRefresh = false,
+        pageKind = PageKind.DETAIL
+    )
+    val document = Jsoup.parse(responseBody, targetUrl)
+    val detail = document.selectFirst(".book-detail") ?: document
+    val description = document.selectFirst(
+        ".book-description, #description, .description, [data-description]"
+    )?.let(::analyseDescription) ?: NovelDescription(emptyList())
+    val tags = document.select(
+        ".widget-tags a, .widget-tags a.tag, a.tag[href*='/tags/'], .book-detail .tags a, .book-tags a"
+    ).map { it.text().trim() }
+    val parseCount: (String) -> Int = { raw -> raw.filter(Char::isDigit).toIntOrNull() ?: 0 }
+    val type = detail.selectFirst("ul li[data-field='type'], ul li")?.text().orEmpty()
+        .trim()
+        .replaceFirst(Regex("^[^：:]+[：:]\\s*"), "")
+        .trim()
+
+    return WeeklyPopularNovel(
+        rank = seed.rank,
+        weeklyViews = seed.weeklyViews,
+        descriptionPreview = description.preview(100),
+        type = type,
+        coverUrl = EsjzoneUrls.coverUrlFromImage(
+            document.selectFirst(".product-gallery img, .book-detail img")
+        ),
+        name = detail.selectFirst("h2")?.text()?.trim().orEmpty().ifBlank { seed.name },
+        url = seed.url,
+        views = parseCount(document.selectFirst("#vtimes")?.text().orEmpty()),
+        likes = parseCount(document.selectFirst("#favorite")?.text().orEmpty()),
+        isAdult = tags.any { it.equals("R18", ignoreCase = true) },
+        author = detail.selectFirst("ul li a[href^='/tags/'], a[href^='/tags/']")
+            ?.text()?.trim()?.takeIf(String::isNotBlank)
     )
 }

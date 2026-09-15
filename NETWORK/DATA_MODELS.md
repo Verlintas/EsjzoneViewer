@@ -53,6 +53,20 @@
 
 ## 4. NovelSection 与 ChapterRef
 
+### WeeklyPopularNovel
+
+用于首页上周热门前五名轮播。`rank` 和 `weekly_views` 来自首页侧栏；封面、简介、作者、类型及成人标记由缓存优先的详情页解析补全。`weekly_views` 与详情页累计 `view_count` 是不同指标。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| rank | integer | 首页榜单 DOM 顺序，从 1 开始 |
+| weekly_views | integer | 上周热度数值 |
+| description_preview | string | 详情简介的短文本预览 |
+| type | string | 详情页作品类型 |
+| cover_url/title/detail_url | string | 详情展示和导航字段 |
+| author | string/null | 详情作者 |
+| is_r18 | boolean | 详情标签判定 |
+
 ### NovelSection
 
 | 字段 | 类型 | 说明 |

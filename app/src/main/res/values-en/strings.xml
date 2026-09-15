@@ -369,6 +369,11 @@
     <string name="forum_view_count">Views %1$d</string>
     <string name="guestbook">Message Board</string>
     <string name="home_water_cooler">Watering hole</string>
+    <string name="home_weekly_popular_badge">TOP %1$d</string>
+    <string name="home_weekly_popular_author">Author: %1$s</string>
+    <string name="home_weekly_popular_type">Type: %1$s</string>
+    <string name="home_weekly_popular_heat">● Last week  %1$s</string>
+    <string name="home_weekly_popular_no_description">No description available</string>
     <string name="comments">Comments</string>
     <string name="comments_empty">No comments yet</string>
     <string name="reader_settings">Reader settings</string>

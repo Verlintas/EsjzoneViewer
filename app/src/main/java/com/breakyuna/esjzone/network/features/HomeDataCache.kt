@@ -4,6 +4,7 @@ import android.content.Context
 import com.breakyuna.esjzone.EsjzoneApplication
 import com.breakyuna.esjzone.novellibrary.data.HomeData
 import com.breakyuna.esjzone.novellibrary.data.WeeklyUpdateDay
+import com.breakyuna.esjzone.novellibrary.data.WeeklyPopularNovel
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovelImpl
 import com.breakyuna.esjzone.util.AppLogger
@@ -106,7 +107,9 @@ object HomeDataCache {
         val recentlyUpdateTranslatedR18: List<CoveredNovelImpl>,
         val recentlyUpdateOriginalR18: List<CoveredNovelImpl>,
         val recommendation: List<CoveredNovelImpl>,
-        val weeklyUpdates: List<WeeklyUpdateDaySnapshot>
+        val weeklyUpdates: List<WeeklyUpdateDaySnapshot>,
+        // Nullable keeps Gson snapshots written before this field was introduced readable.
+        val weeklyPopular: List<WeeklyPopularNovel>? = null
     )
 
     private data class WeeklyUpdateDaySnapshot(
@@ -120,6 +123,7 @@ object HomeDataCache {
         recentlyUpdateTranslatedR18 = recentlyUpdateTranslatedR18.map(::toImpl),
         recentlyUpdateOriginalR18 = recentlyUpdateOriginalR18.map(::toImpl),
         recommendation = recommendation.map(::toImpl),
+        weeklyPopular = weeklyPopular,
         weeklyUpdates = weeklyUpdates.map { day ->
             WeeklyUpdateDaySnapshot(
                 dateString = day.date.toString(),
@@ -139,7 +143,8 @@ object HomeDataCache {
             recentlyUpdateTranslatedR18 = recentlyUpdateTranslatedR18,
             recentlyUpdateOriginalR18 = recentlyUpdateOriginalR18,
             recommendation = recommendation,
-            weeklyUpdates = parsedWeekly
+            weeklyUpdates = parsedWeekly,
+            weeklyPopular = weeklyPopular.orEmpty()
         )
     }
 
