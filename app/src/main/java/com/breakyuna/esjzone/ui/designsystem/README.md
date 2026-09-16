@@ -90,7 +90,7 @@ and [fixed optics contract](https://github.com/chrisbanes/haze/blob/2.0.0-beta02
 
 Static checks: `python3 tools/qa/verify_navigation_glass.py` and
 `python3 tools/qa/verify_static_contracts.py`. These do **not** compile Kotlin or render Haze.
-The palette model checks **halo centers only** across four themes in both modes against
+The palette model checks **halo centers only** across the monochrome light and dark schemes against
 uniform black/white inputs, both with and without the moving lens under each glyph group.
 It does not prove whole-label contrast: feathered edges deliberately
 stay transparent, and high-detail photography still requires visual acceptance on-device.

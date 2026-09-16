@@ -7,7 +7,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.breakyuna.esjzone.data.settings.SettingsDataStore
 import com.breakyuna.esjzone.database.GeneralDatabase
 import com.breakyuna.esjzone.database.entity.Cache
-import com.breakyuna.esjzone.ui.designsystem.AppThemeVariant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,7 +14,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -35,7 +33,7 @@ class SettingsDataStoreMigrationInstrumentedTest {
         try {
             database.cacheDao().insertAll(
                 Cache(key = "show_adult", value = "false"),
-                Cache(key = "theme", value = AppThemeVariant.LAVENDER.name),
+                Cache(key = "theme", value = "LAVENDER"),
                 Cache(key = "domain", value = "www.esjzone.one"),
                 Cache(key = "language", value = "en"),
                 Cache(key = "reader_auto_save", value = "true"),
@@ -49,7 +47,6 @@ class SettingsDataStoreMigrationInstrumentedTest {
 
             settings.migrateFromLegacy(database)
             assertEquals(false, settings.adult.first { !it })
-            assertEquals(AppThemeVariant.LAVENDER, settings.theme.first { it == AppThemeVariant.LAVENDER })
             assertEquals("www.esjzone.one", settings.domain.first { it == "www.esjzone.one" })
             assertTrue(settings.readerAutoSave.first { it })
             assertNull(database.cacheDao().findByKey("show_adult"))
@@ -57,10 +54,9 @@ class SettingsDataStoreMigrationInstrumentedTest {
             assertEquals("fixture-session", database.cacheDao().findByKey("session_cookie")?.value)
 
             // The durable marker makes retries idempotent even if legacy rows are reintroduced.
-            database.cacheDao().insertAll(Cache(key = "theme", value = AppThemeVariant.MINT.name))
+            database.cacheDao().insertAll(Cache(key = "theme", value = "MINT"))
             settings.migrateFromLegacy(database)
-            assertEquals(AppThemeVariant.LAVENDER, settings.theme.first())
-            assertEquals(AppThemeVariant.MINT.name, database.cacheDao().findByKey("theme")?.value)
+            assertEquals("MINT", database.cacheDao().findByKey("theme")?.value)
         } finally {
             scope.cancel()
             database.close()
@@ -90,7 +86,6 @@ class SettingsDataStoreMigrationInstrumentedTest {
             )
             settings.migrateFromLegacy(database)
             assertTrue(settings.adult.first())
-            assertEquals(AppThemeVariant.DEFAULT, settings.theme.first())
             assertEquals("www.esjzone.cc", settings.domain.first())
             assertEquals(AppLanguage.SYSTEM, settings.language.first())
             assertTrue(settings.readerAutoSave.first())

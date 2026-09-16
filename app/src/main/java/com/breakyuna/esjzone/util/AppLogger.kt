@@ -6,7 +6,6 @@ import android.util.Log
 import com.breakyuna.esjzone.BuildConfig
 import com.breakyuna.esjzone.EsjzoneApplication
 import com.breakyuna.esjzone.data.settings.SettingsDefaults
-import com.breakyuna.esjzone.ui.designsystem.AppThemeVariant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
@@ -178,7 +177,7 @@ object AppLogger {
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})")
             appendLine("Android OS: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
             appendLine("Current Domain: ${currentDomain()}")
-            appendLine("Current Theme: ${currentThemeName()}")
+            appendLine("Current Theme: Monochrome/System")
             appendLine("Adult Content Enabled: ${currentAdultContentEnabled()}")
             val runtime = Runtime.getRuntime()
             appendLine("Memory Usage: ${(runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024}MB / ${runtime.maxMemory() / 1024 / 1024}MB")
@@ -203,10 +202,6 @@ object AppLogger {
     private fun currentAdultContentEnabled(): Boolean = runCatching {
         EsjzoneApplication.instance.container.settings.adult.value
     }.getOrDefault(true)
-
-    private fun currentThemeName(): String = runCatching {
-        EsjzoneApplication.instance.container.settings.theme.value.name
-    }.getOrDefault(AppThemeVariant.DEFAULT.name)
 
     private fun stackTrace(throwable: Throwable): String {
         val writer = StringWriter(); throwable.printStackTrace(PrintWriter(writer)); return sanitize(writer.toString())

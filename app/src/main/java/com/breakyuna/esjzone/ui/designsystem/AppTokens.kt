@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -99,8 +100,8 @@ object AppTypography {
 
 object AppElevation {
     val flat = 0.dp
-    val raised = 2.dp
-    val floating = 6.dp
+    val raised = 1.dp
+    val floating = 4.dp
 }
 
 object AppTouchTarget {
@@ -109,8 +110,8 @@ object AppTouchTarget {
 
 /**
  * Semantic colors for states that are not represented by a single Material role.
- * They intentionally derive from the active Material color scheme so dynamic color
- * and dark mode remain coherent.
+ * They intentionally derive from the active monochrome Material color scheme so
+ * light and dark mode remain coherent.
  */
 
 @Immutable
@@ -129,8 +130,8 @@ fun appStateColors(): AppStateColors = AppStateColors(
     content = MaterialTheme.colorScheme.onBackground,
     contentMuted = MaterialTheme.colorScheme.onSurfaceVariant,
     contentDisabled = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-    container = MaterialTheme.colorScheme.surface,
-    containerRaised = MaterialTheme.colorScheme.surfaceContainer,
+    container = MaterialTheme.colorScheme.surfaceContainerLow,
+    containerRaised = MaterialTheme.colorScheme.surface,
     containerAccent = MaterialTheme.colorScheme.primaryContainer,
     danger = MaterialTheme.colorScheme.error
 )
@@ -147,12 +148,38 @@ data class AppSurfaceColors(
 
 @Composable
 fun appSurfaceColors(): AppSurfaceColors = AppSurfaceColors(
-    card = MaterialTheme.colorScheme.surfaceContainer,
-    cardRaised = MaterialTheme.colorScheme.surfaceContainerHigh,
+    card = MaterialTheme.colorScheme.surface,
+    cardRaised = MaterialTheme.colorScheme.surfaceContainerLow,
     subtle = MaterialTheme.colorScheme.surfaceContainerLow,
     divider = MaterialTheme.colorScheme.outlineVariant,
     scrim = MaterialTheme.colorScheme.scrim
 )
+
+/** R18 is the only content marker which intentionally keeps a red semantic accent. */
+@Immutable
+data class AppAdultColors(
+    val content: Color,
+    val container: Color,
+    val outline: Color
+)
+
+@Composable
+fun appAdultColors(): AppAdultColors {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    return if (dark) {
+        AppAdultColors(
+            content = Color(0xFFFF8A80),
+            container = Color(0xFF5B1A1A),
+            outline = Color(0xFFFF8A80)
+        )
+    } else {
+        AppAdultColors(
+            content = Color(0xFFC62828),
+            container = Color(0xFFFFEBEE),
+            outline = Color(0xFFE53935)
+        )
+    }
+}
 
 /** Stable identifiers for lazy content. Use with `key` and `contentType`. */
 object AppContentType {

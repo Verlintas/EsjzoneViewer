@@ -17,7 +17,6 @@ import com.breakyuna.esjzone.novellibrary.novel.HistoryNovel
 import com.breakyuna.esjzone.novellibrary.novel.Novel
 import com.breakyuna.esjzone.network.PageableRequester
 import com.breakyuna.esjzone.offline.DownloadedNovelSummary
-import com.breakyuna.esjzone.ui.designsystem.AppThemeVariant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -33,7 +32,6 @@ interface SessionRepository {
 /** Settings are exposed as flows; callers do not need to know the legacy cache key format. */
 interface SettingsRepository {
     val adult: StateFlow<Boolean>
-    val theme: StateFlow<AppThemeVariant>
     val domain: StateFlow<String>
     val language: StateFlow<AppLanguage>
     val readerAutoSave: StateFlow<Boolean>
@@ -41,7 +39,6 @@ interface SettingsRepository {
     val novelListGridView: StateFlow<Boolean>
     val novelListAdultOnly: StateFlow<Boolean>
     fun setAdult(value: Boolean)
-    fun setTheme(value: AppThemeVariant)
     fun setDomain(value: String)
     fun setLanguage(value: AppLanguage)
     fun setReaderAutoSave(value: Boolean)

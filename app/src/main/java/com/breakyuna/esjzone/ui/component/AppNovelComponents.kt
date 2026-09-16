@@ -2,6 +2,7 @@ package com.breakyuna.esjzone.ui.component
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,6 +52,7 @@ import com.breakyuna.esjzone.ui.designsystem.AppLayout
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
+import com.breakyuna.esjzone.ui.designsystem.appAdultColors
 
 /** A compact semantic tag used for genres, content warnings, and filters. */
 @Composable
@@ -114,10 +116,11 @@ fun AppNovelCover(
             }
         )
         if (isAdult) {
+            val adultColors = appAdultColors()
             AppTag(
                 text = stringResource(R.string.adult_badge),
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.94f),
+                color = adultColors.content,
+                containerColor = adultColors.container.copy(alpha = 0.94f),
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(AppSpacing.sm)
@@ -256,12 +259,14 @@ fun AppNovelListItem(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface, AppShapes.standard)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, AppShapes.standard)
             .then(novelClickModifier(onClick))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = if (compact) AppSpacing.sm else AppSpacing.md),
+                .padding(if (compact) AppSpacing.sm else AppSpacing.md),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
             verticalAlignment = Alignment.Top
         ) {
@@ -321,12 +326,14 @@ fun AppNovelPreviewCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface, AppShapes.standard)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, AppShapes.standard)
             .then(novelClickModifier(onClick))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = if (compact) AppSpacing.sm else AppSpacing.md),
+                .padding(if (compact) AppSpacing.sm else AppSpacing.md),
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
             verticalAlignment = Alignment.Top
         ) {

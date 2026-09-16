@@ -711,7 +711,8 @@ private fun WeeklyPopularCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().height(HOME_WEEKLY_POPULAR_CARD_HEIGHT),
         shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
     ) {
         Row(

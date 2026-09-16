@@ -71,6 +71,7 @@ import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
 import com.breakyuna.esjzone.ui.component.AppNovelPreviewCard
 import com.breakyuna.esjzone.ui.designsystem.AppShimmerPlaceholder
+import com.breakyuna.esjzone.ui.designsystem.appAdultColors
 
 /** Shared top-level chrome for Discovery destinations. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -181,12 +182,14 @@ fun DiscoveryCategoryCard(
     onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
+    val adultColors = appAdultColors()
     val accessibilityLabel = stringResource(R.string.categories)
-    val accent = if (isAdult) colors.error else when (index % 3) {
+    val accent = if (isAdult) adultColors.content else when (index % 3) {
         0 -> colors.primary
         1 -> colors.tertiary
         else -> colors.secondary
     }
+    val accentContainer = if (isAdult) adultColors.container else accent.copy(alpha = 0.14f)
     Card(
         onClick = onClick,
         modifier = modifier
@@ -198,7 +201,7 @@ fun DiscoveryCategoryCard(
             },
         shape = AppShapes.prominent,
         colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.26f))
+        border = BorderStroke(1.dp, if (isAdult) adultColors.outline else accent.copy(alpha = 0.26f))
     ) {
         Column(
             modifier = Modifier
@@ -209,7 +212,7 @@ fun DiscoveryCategoryCard(
             Surface(
                 modifier = Modifier.size(44.dp),
                 shape = CircleShape,
-                color = accent.copy(alpha = 0.14f)
+                color = accentContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(Icons.Filled.Category, contentDescription = null, tint = accent)

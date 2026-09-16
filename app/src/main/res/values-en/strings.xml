@@ -183,8 +183,7 @@
     <string name="download_auto_save_description">Automatically save chapters as they load</string>
     <string name="settings_download_section">Downloads</string>
     <string name="settings_download_concurrency_description">Maximum chapters downloaded at the same time. Takes effect for new download tasks.</string>
-    <string name="settings_download_concurrency_value">%1$d simultaneous downloads</string>
-    <string name="settings_download_concurrency_default">Default</string>
+    <string name="settings_download_concurrency_label">Concurrent downloads</string>
     <string name="novel_download_deleted">Deleted downloads for %1$s</string>
     <string name="novel_download_delete_title">Delete downloaded content</string>
     <string name="novel_download_delete_message">Delete all downloaded chapters for %1$s? This will not affect the bookshelf, reading history, or bookmarks.</string>
@@ -242,11 +241,6 @@
     <string name="settings_category_preference">Preference</string>
     <string name="settings_category_content">Content</string>
     <string name="settings_category_app">App</string>
-    <string name="settings_theme">Theme</string>
-    <string name="settings_theme_ocean">Ocean</string>
-    <string name="settings_theme_mint">Mint</string>
-    <string name="settings_theme_sunset">Sunset</string>
-    <string name="settings_theme_lavender">Lavender</string>
     <string name="novel_list">Novel List</string>
     <string name="novel_list_type">Type</string>
     <string name="novel_list_sort">Sort</string>
@@ -310,8 +304,6 @@
     <string name="settings_backup_mirror">Domestic site</string>
     <string name="settings_backup_description">Domestic site · switch when parsing is limited</string>
     <string name="settings_mirror_note">Changing the active site clears page cache. Downloads, bookmarks, history and bookshelf data stay on this device.</string>
-    <string name="settings_appearance_section">Appearance</string>
-    <string name="settings_theme_description">Theme family and accent variant. Light or dark colors follow the Android system.</string>
     <string name="settings_language_section">Language</string>
     <string name="settings_language_description">Choose the app display language or follow the system default.</string>
     <string name="settings_language_system">System Default</string>
@@ -331,8 +323,6 @@
     <string name="settings_cache_note">Clearing cache does not affect downloaded books, bookmarks, reading history or bookshelf data.</string>
     <string name="settings_diagnostics_section">Diagnostics &amp; maintenance</string>
     <string name="settings_logs_description">Live logs, severity filters, crash capture and export</string>
-    <string name="settings_crash_none">No unresolved crash report detected</string>
-    <string name="settings_crash_available">Crash report available · Tap to open diagnostics</string>
     <string name="settings_about_section">About &amp; open source</string>
     <string name="settings_logout_title">Log out of this session</string>
     <string name="settings_domain">Target Domain</string>

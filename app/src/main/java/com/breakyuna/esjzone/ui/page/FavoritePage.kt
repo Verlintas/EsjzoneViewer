@@ -68,7 +68,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -587,7 +586,8 @@ private fun BookshelfSyncStatusIndicator(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit
 ) {
-    val indicatorColor = if (isSyncSuccess) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
+    val indicatorColor = if (isSyncSuccess) MaterialTheme.colorScheme.onSurface
+        else MaterialTheme.colorScheme.onSurfaceVariant
     val statusLabelRes = when {
         syncing -> R.string.bookshelf_sync_running_short
         isSyncFailed -> R.string.bookshelf_sync_status_failed
@@ -665,7 +665,7 @@ private fun ShelfCard(
             )
             if (entry.hasUpdate) Surface(
                 modifier = Modifier.align(Alignment.TopEnd).padding(AppSpacing.xs),
-                shape = CircleShape, color = androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                shape = CircleShape, color = MaterialTheme.colorScheme.onSurface
             ) { Box(Modifier.size(10.dp)) }
             if (editing) {
                 Surface(
@@ -717,7 +717,7 @@ private fun ShelfListItem(entry: BookshelfEntry, enabled: Boolean, onClick: () -
     ) {
         Box(Modifier.size(width = 100.dp, height = 140.dp)) {
             AppNovelCover(entry.coverUrl, entry.title, Modifier.fillMaxSize().clip(AppShapes.compact))
-            if (entry.hasUpdate) Surface(Modifier.align(Alignment.TopEnd).padding(AppSpacing.xs), CircleShape, color = androidx.compose.ui.graphics.Color(0xFF4CAF50)) { Box(Modifier.size(10.dp)) }
+            if (entry.hasUpdate) Surface(Modifier.align(Alignment.TopEnd).padding(AppSpacing.xs), CircleShape, color = MaterialTheme.colorScheme.onSurface) { Box(Modifier.size(10.dp)) }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
             Text(entry.title, style = AppTypography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)

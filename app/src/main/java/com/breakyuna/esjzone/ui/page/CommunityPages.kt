@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.breakyuna.esjzone.app.PresentationAccess
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,9 +27,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.NoAdultContent
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Card
@@ -72,9 +78,11 @@ import com.breakyuna.esjzone.novellibrary.community.ForumThread
 import com.breakyuna.esjzone.novellibrary.community.groupForumCategories
 import com.breakyuna.esjzone.novellibrary.novel.CategoryNovel
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
+import com.breakyuna.esjzone.ui.designsystem.AppElevation
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTouchTarget
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
+import com.breakyuna.esjzone.ui.designsystem.appAdultColors
 import com.breakyuna.esjzone.ui.designsystem.appStateColors
 import com.breakyuna.esjzone.ui.designsystem.rememberAppAdaptiveMetrics
 import com.breakyuna.esjzone.ui.product.EmptyState
@@ -148,8 +156,8 @@ object ForumPage : AppDestination {
                                 groupCategories,
                                 key = { _, category -> "forum-category-${category.id}" },
                                 contentType = { _, _ -> "forum-category" }
-                            ) { index, category ->
-                                ForumCategoryCard(category = category, accentIndex = index) {
+                            ) { _, category ->
+                                ForumCategoryCard(category = category) {
                                     navigator?.pushIfNotCurrent(ForumCategoryPage(category))
                                 }
                             }
@@ -479,16 +487,9 @@ private fun ForumGroupHeader(name: String, boardCount: Int) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
     ) {
-        Surface(
-            modifier = Modifier
-                .width(4.dp)
-                .height(24.dp),
-            shape = RoundedCornerShape(99.dp),
-            color = MaterialTheme.colorScheme.tertiary
-        ) {}
         Text(
             text = name,
-            style = AppTypography.titleMedium,
+            style = AppTypography.titleLarge,
             modifier = Modifier.weight(1f)
         )
         Surface(
@@ -508,20 +509,34 @@ private fun ForumGroupHeader(name: String, boardCount: Int) {
 @Composable
 private fun ForumCategoryCard(
     category: ForumCategory,
-    accentIndex: Int,
     onClick: () -> Unit
 ) {
-    val iconTint = when (accentIndex % 3) {
-        0 -> MaterialTheme.colorScheme.primary
-        1 -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.secondary
+    val isAdult = category.name.contains("R18", ignoreCase = true) ||
+        category.name.contains("成人") || category.name.contains("限制")
+    val adultColors = appAdultColors()
+    val categoryIcon = when {
+        isAdult -> Icons.Filled.NoAdultContent
+        category.name.contains("戀") || category.name.contains("恋") -> Icons.Filled.FavoriteBorder
+        category.name.contains("原創") || category.name.contains("原创") -> Icons.Filled.AutoStories
+        category.name.contains("冒險") || category.name.contains("战斗") ||
+            category.name.contains("戰鬥") -> Icons.Filled.Build
+        category.name.contains("異世界") || category.name.contains("异世界") -> Icons.Filled.Bolt
+        else -> Icons.Filled.Forum
     }
+    val cardShape = AppShapes.standard
     Card(
         onClick = onClick,
         modifier = Modifier
-            .fillMaxWidth(),
-        shape = AppShapes.prominent,
-        colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised)
+            .fillMaxWidth()
+            .border(
+                width = if (isAdult) 2.dp else 1.dp,
+                color = if (isAdult) adultColors.outline
+                    else MaterialTheme.colorScheme.outlineVariant,
+                shape = cardShape
+            ),
+        shape = cardShape,
+        colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised),
+        elevation = CardDefaults.cardElevation(defaultElevation = AppElevation.raised)
     ) {
         Row(
             modifier = Modifier.padding(AppSpacing.lg),
@@ -531,13 +546,15 @@ private fun ForumCategoryCard(
             Surface(
                 modifier = Modifier.size(AppTouchTarget.minimum),
                 shape = AppShapes.standard,
-                color = iconTint.copy(alpha = 0.13f)
+                color = if (isAdult) adultColors.outline
+                    else MaterialTheme.colorScheme.surfaceContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = Icons.Filled.Forum,
+                        imageVector = categoryIcon,
                         contentDescription = null,
-                        tint = iconTint,
+                        tint = if (isAdult) adultColors.content
+                            else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -568,6 +585,12 @@ private fun ForumCategoryCard(
                     )
                 }
             }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = appStateColors().contentMuted,
+                modifier = Modifier.align(Alignment.CenterVertically)
+            )
         }
     }
 }
@@ -580,7 +603,9 @@ private fun ForumThreadCard(thread: ForumThread, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
         shape = AppShapes.standard,
-        colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised)
+        colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = AppElevation.raised)
     ) {
         Column(modifier = Modifier.padding(AppSpacing.lg)) {
             Text(
@@ -681,8 +706,13 @@ private fun ForumNovelBoardContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
-                shape = AppShapes.prominent,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                shape = AppShapes.standard,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = AppElevation.raised)
             ) {
                 Column(modifier = Modifier.padding(AppSpacing.lg)) {
                     Text(
@@ -738,7 +768,9 @@ private fun ForumTopicCard(topic: ForumTopic, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
         shape = AppShapes.standard,
-        colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised)
+        colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = AppElevation.raised)
     ) {
         Column(modifier = Modifier.padding(AppSpacing.lg)) {
             Text(
@@ -800,13 +832,15 @@ private fun ForumPostCard(post: ForumPost) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
-        shape = AppShapes.prominent,
-        colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised)
+        shape = AppShapes.standard,
+        colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = AppElevation.raised)
     ) {
         Column(modifier = Modifier.padding(AppSpacing.lg)) {
             Text(
                 text = post.title,
-                style = AppTypography.displayMedium,
+                style = AppTypography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
             val authorAndDate = listOfNotNull(post.author, post.createdAt)
@@ -820,12 +854,24 @@ private fun ForumPostCard(post: ForumPost) {
                 )
             }
             if (post.contentText.isNotBlank()) {
-                Text(
-                    text = post.contentText,
-                    style = AppTypography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 18.dp)
-                )
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = AppSpacing.lg),
+                    shape = AppShapes.standard,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant
+                    )
+                ) {
+                    Text(
+                        text = post.contentText,
+                        style = AppTypography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(AppSpacing.md)
+                    )
+                }
             }
         }
     }

@@ -140,9 +140,15 @@ class NavigationGlassContract(unittest.TestCase):
     def test_selection_and_shape_are_shared_and_accessible(self):
         self.assertEqual(self.shell.count("val colors = navigationItemColors(selected)"), 2)
         self.assertEqual(self.shell.count(".selectableGroup()"), 2)
-        self.assertEqual(self.shell.count(".selectable(selected = selected"), 2)
+        self.assertEqual(
+            len(re.findall(r"\.selectable\(\s*selected = selected", self.shell)),
+            2,
+        )
         self.assertIn("colors.onPrimaryContainer else colors.onSurface", self.shell)
-        self.assertNotIn(".clickable(", self.shell)
+        # The two outer panes consume taps in the gaps between tab hit targets;
+        # actual tab actions remain selectable for accessibility semantics.
+        self.assertEqual(self.shell.count(".clickable("), 2)
+        self.assertEqual(self.shell.count("onClick = {}"), 2)
         self.assertIn(".height(NavigationGlassMetrics.bottomHeight)", self.shell)
         self.assertIn(".width(NavigationGlassMetrics.railWidth)", self.shell)
         self.assertIn(".size(NavigationGlassMetrics.railItemSize)", self.shell)
@@ -166,8 +172,15 @@ class NavigationGlassContract(unittest.TestCase):
         # This is not whole-label WCAG validation. Photos, glyph edges, dynamic palette
         # transitions and GPU lighting must be checked on-device, including fallback.
         source = (UI / "designsystem/AppTheme.kt").read_text()
-        schemes = re.findall(r"AppThemeVariant\.(\w+) -> build(Light|Dark)Scheme\((.*?)\n    \)", source, re.S)
-        self.assertEqual(len(schemes), 8)
+        schemes = [
+            ("Monochrome", mode, body)
+            for mode, body in re.findall(
+                r"private val Monochrome(Light|Dark)Colors = (?:light|dark)ColorScheme\((.*?)\n\)",
+                source,
+                re.S,
+            )
+        ]
+        self.assertEqual(len(schemes), 2)
         tint_dark, tint_light = theme_pair(self.policy, "tintAlpha")
         ambient_dark, ambient_light = theme_pair(self.policy, "ambientResponse")
         lens_ambient_dark, lens_ambient_light = theme_pair(self.lens, "ambientResponse")

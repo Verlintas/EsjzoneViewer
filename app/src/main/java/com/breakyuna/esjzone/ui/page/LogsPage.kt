@@ -53,7 +53,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -186,7 +185,7 @@ private fun LogItem(entry: LogEntry, context: Context) {
     }
     val accent = when (entry.level) {
         LogLevel.CRASH, LogLevel.ERROR -> MaterialTheme.colorScheme.error
-        LogLevel.WARN -> Color(0xFFC17A00)
+        LogLevel.WARN -> MaterialTheme.colorScheme.onSurface
         else -> MaterialTheme.colorScheme.primary
     }
     Surface(shape = AppShapes.standard, color = if (entry.level == LogLevel.CRASH) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f) else MaterialTheme.colorScheme.surfaceContainer) {

@@ -9,6 +9,7 @@ import com.breakyuna.esjzone.app.cacheUserProfile
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -42,7 +43,6 @@ import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.FirstPage
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.LastPage
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -58,7 +58,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -95,6 +95,7 @@ import com.breakyuna.esjzone.novellibrary.novel.Comment
 import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
 import com.breakyuna.esjzone.ui.designsystem.AppAvatarImage
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
+import com.breakyuna.esjzone.ui.designsystem.AppElevation
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTouchTarget
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
@@ -119,34 +120,37 @@ internal fun CommunityTopBar(
     onBack: () -> Unit,
     titleIndicator: (@Composable () -> Unit)? = null
 ) {
-    CenterAlignedTopAppBar(
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
-            ) {
-                Text(
-                    title,
-                    style = AppTypography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                titleIndicator?.invoke()
-            }
-        },
-        navigationIcon = {
-            IconButton(onClick = onBack, modifier = Modifier.size(AppTouchTarget.minimum)) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.reader_back)
-                )
-            }
-        },
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface
+    Column {
+        CenterAlignedTopAppBar(
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
+                ) {
+                    Text(
+                        title,
+                        style = AppTypography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    titleIndicator?.invoke()
+                }
+            },
+            navigationIcon = {
+                IconButton(onClick = onBack, modifier = Modifier.size(AppTouchTarget.minimum)) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.reader_back)
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         )
-    )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
 }
 
 @Composable
@@ -161,7 +165,11 @@ internal fun CommunitySyncStatusIndicator(
     @StringRes failedRes: Int,
     @StringRes detailRes: Int
 ) {
-    val indicatorColor = if (isSyncSuccess) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
+    val indicatorColor = when {
+        isSyncFailed -> MaterialTheme.colorScheme.onSurface
+        isSyncSuccess -> MaterialTheme.colorScheme.onSurface
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
     val statusLabelRes = when {
         syncing -> runningRes
         isSyncFailed -> failedRes
@@ -350,7 +358,11 @@ internal fun CommentSectionHost(
     showHeader: Boolean = true
 ) {
     val scrollState = rememberScrollState()
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier
+            .widthIn(max = 960.dp)
+            .padding(horizontal = AppSpacing.lg)
+    ) {
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -630,8 +642,9 @@ private fun CommentComposer(
             .wrapContentHeight(),
         color = appStateColors().containerRaised,
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        shadowElevation = AppElevation.raised,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
             modifier = Modifier
@@ -801,37 +814,54 @@ private fun CommentPager(
     onNext: () -> Unit,
     onLast: () -> Unit
 ) {
-    Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = AppSpacing.sm),
+        shape = AppShapes.standard,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = AppElevation.raised
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            FilledTonalIconButton(onClick = onFirst, enabled = page > 1) {
-                Icon(Icons.Filled.FirstPage, contentDescription = stringResource(R.string.comment_first_page))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                FilledTonalIconButton(onClick = onFirst, enabled = page > 1) {
+                    Icon(Icons.Filled.FirstPage, contentDescription = stringResource(R.string.comment_first_page))
+                }
+                FilledTonalIconButton(onClick = onPrevious, enabled = page > 1) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.comment_previous_page)
+                    )
+                }
             }
-            FilledTonalIconButton(onClick = onPrevious, enabled = page > 1) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.comment_previous_page)
+            Surface(
+                shape = AppShapes.pill,
+                color = MaterialTheme.colorScheme.onSurface,
+                contentColor = MaterialTheme.colorScheme.surface
+            ) {
+                Text(
+                    text = stringResource(id = R.string.page_indicator, page, totalPages),
+                    style = AppTypography.labelLarge,
+                    modifier = Modifier.padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
                 )
             }
-        }
-        Text(
-            text = stringResource(id = R.string.page_indicator, page, totalPages),
-            style = AppTypography.labelLarge
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            FilledTonalIconButton(onClick = onNext, enabled = page < totalPages) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = stringResource(R.string.comment_next_page)
-                )
-            }
-            FilledTonalIconButton(onClick = onLast, enabled = page < totalPages) {
-                Icon(Icons.Filled.LastPage, contentDescription = stringResource(R.string.comment_last_page))
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                FilledTonalIconButton(onClick = onNext, enabled = page < totalPages) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = stringResource(R.string.comment_next_page)
+                    )
+                }
+                FilledTonalIconButton(onClick = onLast, enabled = page < totalPages) {
+                    Icon(Icons.Filled.LastPage, contentDescription = stringResource(R.string.comment_last_page))
+                }
             }
         }
     }
@@ -844,7 +874,9 @@ private fun CommentCard(comment: Comment, onReply: (() -> Unit)?) {
             .fillMaxWidth()
             .padding(vertical = AppSpacing.xs),
         shape = AppShapes.standard,
-        color = appStateColors().containerRaised
+        color = appStateColors().containerRaised,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = AppElevation.raised
     ) {
         Column(
             modifier = Modifier.padding(AppSpacing.lg)
@@ -884,8 +916,9 @@ private fun CommentCard(comment: Comment, onReply: (() -> Unit)?) {
                     ?.let { floor ->
                         Surface(
                             shape = AppShapes.compact,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                         ) {
                             Text(
                                 text = floor,
@@ -955,10 +988,14 @@ private fun CommentCard(comment: Comment, onReply: (() -> Unit)?) {
             )
 
             if (onReply != null) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(top = AppSpacing.md),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
                 TextButton(
                     modifier = Modifier
                         .align(Alignment.End)
-                        .padding(top = AppSpacing.md)
+                        .padding(top = AppSpacing.xs)
                         .heightIn(min = AppTouchTarget.minimum),
                     onClick = onReply
                 ) {
@@ -984,7 +1021,7 @@ private fun CommentAvatar(comment: Comment) {
         modifier = Modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.secondaryContainer),
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
         contentAlignment = Alignment.Center
     ) {
         val avatarUrl = comment.authorAvatarUrl
@@ -993,10 +1030,16 @@ private fun CommentAvatar(comment: Comment) {
             ?.let(EsjzoneUrls::resolve)
             ?.takeUnless { it.startsWith("data:", ignoreCase = true) }
         if (avatarUrl.isNullOrBlank()) {
-            Icon(
-                imageVector = Icons.Filled.Person,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            Text(
+                text = comment.authorName
+                    ?.trim()
+                    ?.firstOrNull()
+                    ?.uppercaseChar()
+                    ?.toString()
+                    ?: "?",
+                style = AppTypography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
         } else {
             AppAvatarImage(

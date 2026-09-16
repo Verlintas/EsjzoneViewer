@@ -183,8 +183,7 @@
     <string name="download_auto_save_description">阅读时自动保存已加载的章节</string>
     <string name="settings_download_section">下载</string>
     <string name="settings_download_concurrency_description">同时下载的最大章节数；仅对新创建的下载任务生效。</string>
-    <string name="settings_download_concurrency_value">同时下载 %1$d 章</string>
-    <string name="settings_download_concurrency_default">默认</string>
+    <string name="settings_download_concurrency_label">并发下载数</string>
     <string name="novel_download_deleted">已删除《%1$s》的下载内容</string>
     <string name="novel_download_delete_title">删除下载内容</string>
     <string name="novel_download_delete_message">确定删除《%1$s》的全部下载章节吗？此操作不会影响书架、阅读历史或书签。</string>
@@ -242,11 +241,6 @@
     <string name="settings_category_preference">外观</string>
     <string name="settings_category_content">内容</string>
     <string name="settings_category_app">软件</string>
-    <string name="settings_theme">主题</string>
-    <string name="settings_theme_ocean">海洋</string>
-    <string name="settings_theme_mint">薄荷</string>
-    <string name="settings_theme_sunset">日落</string>
-    <string name="settings_theme_lavender">薰衣草</string>
     <string name="novel_list">小说列表</string>
     <string name="novel_list_sort">排序</string>
     <string name="novel_list_type">类型</string>
@@ -310,8 +304,6 @@
     <string name="settings_backup_mirror">国内站点</string>
     <string name="settings_backup_description">国内站点 · 遇到解析受阻时切换</string>
     <string name="settings_mirror_note">切换活动站点将自动清理页面缓存，但不会删除已下载的小说、阅读记录、书签或书架数据。</string>
-    <string name="settings_appearance_section">外观</string>
-    <string name="settings_theme_description">主题家族与强调色，明暗配色跟随 Android 系统。</string>
     <string name="settings_language_section">界面语言</string>
     <string name="settings_language_description">选择应用显示语言，可跟随系统或手动指定。</string>
     <string name="settings_language_system">跟随系统</string>
@@ -331,8 +323,6 @@
     <string name="settings_cache_note">清理缓存不会影响已下载的离线书籍、书签、本地阅读历史或书架数据。</string>
     <string name="settings_diagnostics_section">诊断与系统维护</string>
     <string name="settings_logs_description">实时日志、严重级别过滤、崩溃捕获与日志导出</string>
-    <string name="settings_crash_none">未检测到未处理的崩溃记录</string>
-    <string name="settings_crash_available">有可查看的闪退报告 · 点击打开诊断</string>
     <string name="settings_about_section">关于与开源协议</string>
     <string name="settings_logout_title">退出当前登录</string>
     <string name="settings_domain">定向网址</string>

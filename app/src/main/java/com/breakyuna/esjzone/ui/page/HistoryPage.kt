@@ -61,7 +61,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.Role
@@ -288,7 +287,8 @@ private fun HistoryCloudSyncStatusIndicator(
     val syncing = state.isSyncing()
     val failed = state is HistoryPageModel.State.Error
     val isSuccess = state is HistoryPageModel.State.Result
-    val indicatorColor = if (isSuccess) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
+    val indicatorColor = if (isSuccess) MaterialTheme.colorScheme.onSurface
+        else MaterialTheme.colorScheme.onSurfaceVariant
     val statusRes = when {
         syncing -> R.string.history_cloud_sync_running
         failed -> R.string.history_cloud_sync_failed

@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.breakyuna.esjzone.data.settings.ReaderSettingsDataStore
 import com.breakyuna.esjzone.data.settings.SettingsDataStore
-import com.breakyuna.esjzone.ui.designsystem.AppThemeVariant
 import com.breakyuna.esjzone.ui.reader.ReaderBackground
 import com.breakyuna.esjzone.ui.reader.ReaderFont
 import com.breakyuna.esjzone.ui.reader.ReaderScript
@@ -32,7 +31,6 @@ class DataStoreAcceptanceInstrumentedTest {
         try {
             val settings = SettingsDataStore(context, scope, fileName("settings-defaults"))
             assertTrue(settings.adult.first())
-            assertEquals(AppThemeVariant.DEFAULT, settings.theme.first())
             assertEquals("www.esjzone.cc", settings.domain.first())
             assertEquals(AppLanguage.SYSTEM, settings.language.first())
             assertTrue(settings.readerAutoSave.first())
@@ -50,13 +48,11 @@ class DataStoreAcceptanceInstrumentedTest {
         try {
             val first = SettingsDataStore(context, firstScope, fileName)
             first.setAdult(false)
-            first.setTheme(AppThemeVariant.SUNSET)
             first.setDomain("www.esjzone.one")
             first.setLanguage(AppLanguage.SIMPLIFIED_CHINESE)
             first.setReaderAutoSave(false)
             first.setNovelListGridView(true)
             first.setNovelListAdultOnly(true)
-            assertEquals(AppThemeVariant.SUNSET, first.theme.first { it == AppThemeVariant.SUNSET })
             assertFalse(first.adult.first { !it })
             assertTrue(first.novelListGridView.first { it })
             assertTrue(first.novelListAdultOnly.first { it })
@@ -68,7 +64,6 @@ class DataStoreAcceptanceInstrumentedTest {
         try {
             val second = SettingsDataStore(context, secondScope, fileName)
             assertFalse(second.adult.first { !it })
-            assertEquals(AppThemeVariant.SUNSET, second.theme.first())
             assertEquals("www.esjzone.one", second.domain.first())
             assertEquals(AppLanguage.SIMPLIFIED_CHINESE, second.language.first())
             assertFalse(second.readerAutoSave.first())

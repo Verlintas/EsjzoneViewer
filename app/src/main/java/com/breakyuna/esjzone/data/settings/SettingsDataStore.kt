@@ -12,7 +12,6 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.breakyuna.esjzone.AppLanguage
 import com.breakyuna.esjzone.domain.repository.SettingsRepository
 import com.breakyuna.esjzone.database.GeneralDatabase
-import com.breakyuna.esjzone.ui.designsystem.AppThemeVariant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -55,8 +54,6 @@ class SettingsDataStore(
 
     override val adult: StateFlow<Boolean> = values.map { it.adult }
         .stateIn(scope, SharingStarted.Eagerly, defaults.adult)
-    override val theme: StateFlow<AppThemeVariant> = values.map { it.theme }
-        .stateIn(scope, SharingStarted.Eagerly, defaults.theme)
     override val domain: StateFlow<String> = values.map { it.domain }
         .stateIn(scope, SharingStarted.Eagerly, defaults.domain)
     override val language: StateFlow<AppLanguage> = values.map { it.language }
@@ -71,7 +68,6 @@ class SettingsDataStore(
         .stateIn(scope, SharingStarted.Eagerly, defaults.novelListAdultOnly)
 
     override fun setAdult(value: Boolean) = write { it[ADULT] = value }
-    override fun setTheme(value: AppThemeVariant) = write { it[THEME] = value.name }
     override fun setDomain(value: String) {
         write { it[DOMAIN] = value.takeIf { candidate -> candidate in SettingsDefaults.DOMAINS } ?: defaults.domain }
     }
@@ -94,7 +90,6 @@ class SettingsDataStore(
             preferences[ADULT] = cache.findByKey("show_adult")?.value?.toBooleanStrictOrNull()
                 ?: cache.findByKey("adult")?.value?.toBooleanStrictOrNull()
                 ?: defaults.adult
-            preferences[THEME] = cache.findByKey("theme")?.value ?: defaults.theme.name
             preferences[DOMAIN] = cache.findByKey("domain")?.value
                 ?.takeIf { it in SettingsDefaults.DOMAINS } ?: defaults.domain
             preferences[LANGUAGE] = cache.findByKey("language")?.value ?: defaults.language.code
@@ -128,7 +123,6 @@ class SettingsDataStore(
 
     private data class SettingsValues(
         val adult: Boolean = true,
-        val theme: AppThemeVariant = AppThemeVariant.DEFAULT,
         val domain: String = SettingsDefaults.DOMAINS.first(),
         val language: AppLanguage = AppLanguage.SYSTEM,
         val readerAutoSave: Boolean = true,
@@ -139,8 +133,6 @@ class SettingsDataStore(
 
     private fun Preferences.toSettingsValues(): SettingsValues = SettingsValues(
         adult = this[ADULT] ?: defaults.adult,
-        theme = this[THEME]?.let { value -> AppThemeVariant.entries.firstOrNull { it.name == value } }
-            ?: defaults.theme,
         domain = this[DOMAIN]?.takeIf { it in SettingsDefaults.DOMAINS } ?: defaults.domain,
         language = AppLanguage.fromCode(this[LANGUAGE]),
         readerAutoSave = this[READER_AUTO_SAVE] ?: defaults.readerAutoSave,
@@ -155,7 +147,6 @@ class SettingsDataStore(
         const val FILE_NAME = "settings.preferences_pb"
         const val READER_AUTO_SAVE_KEY = SettingsDefaults.READER_AUTO_SAVE_KEY
         val ADULT = booleanPreferencesKey("adult")
-        val THEME = stringPreferencesKey("theme")
         val DOMAIN = stringPreferencesKey("domain")
         val LANGUAGE = stringPreferencesKey("language")
         val READER_AUTO_SAVE = booleanPreferencesKey("reader_auto_save")

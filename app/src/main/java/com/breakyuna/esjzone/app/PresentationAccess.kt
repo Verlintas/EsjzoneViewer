@@ -11,7 +11,6 @@ import com.breakyuna.esjzone.database.GeneralDatabase
 import com.breakyuna.esjzone.domain.repository.SettingsRepository
 import com.breakyuna.esjzone.network.EsjzoneClient
 import com.breakyuna.esjzone.offline.NovelDownloadStore
-import com.breakyuna.esjzone.ui.designsystem.AppThemeVariant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -72,7 +71,6 @@ object SettingsStateBoundary {
     private var boundRepository: SettingsRepository? = null
 
     private val _adult = mutableStateOf(true)
-    private val _theme = mutableStateOf(AppThemeVariant.DEFAULT)
     private val _domain = mutableStateOf(SettingsDefaults.DOMAINS.first())
     private val _language = mutableStateOf(AppLanguage.SYSTEM)
     private val _readerAutoSave = mutableStateOf(true)
@@ -87,7 +85,6 @@ object SettingsStateBoundary {
             if (boundRepository === repository) return repository
             boundRepository = repository
             _adult.value = repository.adult.value
-            _theme.value = repository.theme.value
             _domain.value = repository.domain.value
             _language.value = repository.language.value
             _readerAutoSave.value = repository.readerAutoSave.value
@@ -95,7 +92,6 @@ object SettingsStateBoundary {
             _novelListGridView.value = repository.novelListGridView.value
             _novelListAdultOnly.value = repository.novelListAdultOnly.value
             scope.launch { repository.adult.collect { _adult.value = it } }
-            scope.launch { repository.theme.collect { _theme.value = it } }
             scope.launch { repository.domain.collect { _domain.value = it } }
             scope.launch { repository.language.collect { _language.value = it } }
             scope.launch { repository.readerAutoSave.collect { _readerAutoSave.value = it } }
@@ -108,8 +104,6 @@ object SettingsStateBoundary {
 
     val adult: State<Boolean> get() { repository(); return _adult }
     val adultFlow: StateFlow<Boolean> get() = repository().adult
-    val theme: State<AppThemeVariant> get() { repository(); return _theme }
-    val themeFlow: StateFlow<AppThemeVariant> get() = repository().theme
     val domain: State<String> get() { repository(); return _domain }
     val domainFlow: StateFlow<String> get() = repository().domain
     val language: State<AppLanguage> get() { repository(); return _language }
@@ -124,7 +118,6 @@ object SettingsStateBoundary {
     val novelListAdultOnlyFlow: StateFlow<Boolean> get() = repository().novelListAdultOnly
 
     fun setAdult(value: Boolean) = repository().setAdult(value)
-    fun setTheme(value: AppThemeVariant) = repository().setTheme(value)
     fun setDomain(value: String) = repository().setDomain(value)
     fun setLanguage(value: AppLanguage) = repository().setLanguage(value)
     fun setReaderAutoSave(value: Boolean) = repository().setReaderAutoSave(value)

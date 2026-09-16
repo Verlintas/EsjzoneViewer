@@ -101,7 +101,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             val state by startup.collectAsState()
             val appLanguage by PresentationAccess.settings.language
-            val appTheme by PresentationAccess.settings.theme
             val baseContext = LocalContext.current
             val currentConfiguration = LocalConfiguration.current
 
@@ -117,7 +116,7 @@ class MainActivity : ComponentActivity() {
                 LocalContext provides localizedContext,
                 LocalConfiguration provides localizedConfiguration
             ) {
-                AppTheme(variant = appTheme) {
+                AppTheme {
                     if (state is StartupState.Ready) {
                         App()
                         ReleaseUpdateDialog()

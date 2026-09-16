@@ -36,6 +36,7 @@ import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTheme
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
+import com.breakyuna.esjzone.ui.designsystem.appAdultColors
 import com.breakyuna.esjzone.ui.designsystem.appStateColors
 
 @Immutable
@@ -60,6 +61,11 @@ fun NovelTag(
     onClick: (() -> Unit)? = null
 ) {
     val colors = appStateColors()
+    val isAdultTag = tag.label.contains("R18", ignoreCase = true) ||
+        tag.label.contains("18+") ||
+        tag.label.contains("成人") ||
+        tag.label.contains("限制")
+    val adultColors = appAdultColors()
     AssistChip(
         onClick = { onClick?.invoke() },
         label = { Text(tag.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -69,7 +75,11 @@ fun NovelTag(
         },
         enabled = onClick != null,
         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-            containerColor = if (tag.selected) colors.containerAccent else colors.containerRaised
+            containerColor = if (isAdultTag) adultColors.container
+            else if (tag.selected) colors.containerAccent else colors.containerRaised,
+            labelColor = if (isAdultTag) adultColors.content else MaterialTheme.colorScheme.onSurface,
+            disabledContainerColor = if (isAdultTag) adultColors.container else androidx.compose.ui.graphics.Color.Unspecified,
+            disabledLabelColor = if (isAdultTag) adultColors.content else androidx.compose.ui.graphics.Color.Unspecified
         )
     )
 }
