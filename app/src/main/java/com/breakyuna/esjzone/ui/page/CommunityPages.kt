@@ -82,7 +82,6 @@ import com.breakyuna.esjzone.ui.designsystem.AppElevation
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTouchTarget
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
-import com.breakyuna.esjzone.ui.designsystem.appAdultColors
 import com.breakyuna.esjzone.ui.designsystem.appStateColors
 import com.breakyuna.esjzone.ui.designsystem.rememberAppAdaptiveMetrics
 import com.breakyuna.esjzone.ui.product.EmptyState
@@ -513,7 +512,6 @@ private fun ForumCategoryCard(
 ) {
     val isAdult = category.name.contains("R18", ignoreCase = true) ||
         category.name.contains("成人") || category.name.contains("限制")
-    val adultColors = appAdultColors()
     val categoryIcon = when {
         isAdult -> Icons.Filled.NoAdultContent
         category.name.contains("戀") || category.name.contains("恋") -> Icons.Filled.FavoriteBorder
@@ -529,9 +527,8 @@ private fun ForumCategoryCard(
         modifier = Modifier
             .fillMaxWidth()
             .border(
-                width = if (isAdult) 2.dp else 1.dp,
-                color = if (isAdult) adultColors.outline
-                    else MaterialTheme.colorScheme.outlineVariant,
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
                 shape = cardShape
             ),
         shape = cardShape,
@@ -546,15 +543,13 @@ private fun ForumCategoryCard(
             Surface(
                 modifier = Modifier.size(AppTouchTarget.minimum),
                 shape = AppShapes.standard,
-                color = if (isAdult) adultColors.outline
-                    else MaterialTheme.colorScheme.surfaceContainer
+                color = MaterialTheme.colorScheme.surfaceContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = categoryIcon,
                         contentDescription = null,
-                        tint = if (isAdult) adultColors.content
-                            else MaterialTheme.colorScheme.onSurface,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
                 }

@@ -165,50 +165,51 @@ object SettingsPage : AppDestination {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     var showConcurrencyMenu by remember { mutableStateOf(false) }
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Surface(
-                            onClick = { showConcurrencyMenu = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = com.breakyuna.esjzone.ui.designsystem.AppShapes.compact,
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.outlineVariant
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = com.breakyuna.esjzone.ui.designsystem.AppSpacing.md, vertical = com.breakyuna.esjzone.ui.designsystem.AppSpacing.sm),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            stringResource(R.string.settings_download_concurrency_label),
+                            style = com.breakyuna.esjzone.ui.designsystem.AppTypography.labelLarge
+                        )
+                        Box {
+                            Surface(
+                                onClick = { showConcurrencyMenu = true },
+                                shape = com.breakyuna.esjzone.ui.designsystem.AppShapes.compact,
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant
+                                )
                             ) {
                                 Text(
-                                    stringResource(R.string.settings_download_concurrency_label),
-                                    style = com.breakyuna.esjzone.ui.designsystem.AppTypography.labelLarge
-                                )
-                                Text(
                                     downloadConcurrency.toString(),
-                                    style = com.breakyuna.esjzone.ui.designsystem.AppTypography.titleMedium
+                                    style = com.breakyuna.esjzone.ui.designsystem.AppTypography.titleMedium,
+                                    modifier = Modifier.padding(
+                                        horizontal = com.breakyuna.esjzone.ui.designsystem.AppSpacing.lg,
+                                        vertical = com.breakyuna.esjzone.ui.designsystem.AppSpacing.xs
+                                    )
                                 )
                             }
-                        }
-                        DropdownMenu(
-                            expanded = showConcurrencyMenu,
-                            onDismissRequest = { showConcurrencyMenu = false }
-                        ) {
-                            listOf(1, 3, 5, 8).forEach { candidate ->
-                                DropdownMenuItem(
-                                    text = { Text(candidate.toString()) },
-                                    onClick = {
-                                        PresentationAccess.settings.setDownloadConcurrency(candidate)
-                                        model.persist(PresentationAccess.settings.DOWNLOAD_CONCURRENCY_KEY, candidate.toString())
-                                        showConcurrencyMenu = false
-                                    },
-                                    trailingIcon = if (candidate == downloadConcurrency) {
-                                        { Icon(Icons.Filled.Check, contentDescription = null) }
-                                    } else null
-                                )
+                            DropdownMenu(
+                                expanded = showConcurrencyMenu,
+                                onDismissRequest = { showConcurrencyMenu = false }
+                            ) {
+                                listOf(1, 3, 5, 8).forEach { candidate ->
+                                    DropdownMenuItem(
+                                        text = { Text(candidate.toString()) },
+                                        onClick = {
+                                            PresentationAccess.settings.setDownloadConcurrency(candidate)
+                                            model.persist(PresentationAccess.settings.DOWNLOAD_CONCURRENCY_KEY, candidate.toString())
+                                            showConcurrencyMenu = false
+                                        },
+                                        trailingIcon = if (candidate == downloadConcurrency) {
+                                            { Icon(Icons.Filled.Check, contentDescription = null) }
+                                        } else null
+                                    )
+                                }
                             }
                         }
                     }

@@ -231,9 +231,26 @@ object HistoryPage : AppDestination {
                         leadingIcon = { Icon(Icons.Filled.Search, null) }
                     )
                 }
-                TabRow(selectedTabIndex = selectedPage) {
-                    Tab(selected = selectedPage == 0, onClick = { selectedPage = 0 }, text = { Text(stringResource(R.string.history_local)) }, icon = { Icon(Icons.Filled.AutoStories, null) })
-                    Tab(selected = selectedPage == 1, onClick = { selectedPage = 1 }, text = { Text(stringResource(R.string.history_cloud)) }, icon = { Icon(Icons.Filled.CloudSync, null) })
+                TabRow(
+                    selectedTabIndex = selectedPage,
+                    containerColor = MaterialTheme.colorScheme.background
+                ) {
+                    Tab(
+                        selected = selectedPage == 0,
+                        onClick = { selectedPage = 0 },
+                        text = { Text(stringResource(R.string.history_local)) },
+                        icon = { Icon(Icons.Filled.AutoStories, null) },
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Tab(
+                        selected = selectedPage == 1,
+                        onClick = { selectedPage = 1 },
+                        text = { Text(stringResource(R.string.history_cloud)) },
+                        icon = { Icon(Icons.Filled.CloudSync, null) },
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
                     if (page == 0) {
