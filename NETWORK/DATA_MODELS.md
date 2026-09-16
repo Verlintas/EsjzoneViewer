@@ -229,10 +229,10 @@
 | Topics | items: list[ForumTopic] | 天空大公國等普通讨论板；列表来自 Bootstrap Table 动态 JSON |
 | Topics | total_count: integer/null | `data-url` 或 JSON 的总主题数 |
 | Novel | detail_url: string | ESJ 作品板对应的 `/detail/{novelId}.html`，由页面正向证据识别 |
-| Novel | items: list[ForumTopic] | 作品板自己的主题，可为空；不能因存在作品详情链接而丢弃主题 |
-| Novel | total_count: integer/null | 作品板动态主题总数 |
+| Novel | items: list[ForumTopic] | 非 ESJ 页面兼容字段；五个 ESJ 小说分类不再解析旧主题表 |
+| Novel | total_count: integer/null | 非 ESJ 页面兼容字段；ESJ 小说旧入口为空 |
 
-`ForumTopic.board_id` 必须从最终主题 URL `/forum/{boardId}/{postId}.html` 读取。对 ESJ 作品板，它通常不同于父分类 ID；对天空大公國讨论板，它等于当前讨论板 ID。
+`ForumTopic.board_id` 必须从最终主题 URL `/forum/{boardId}/{postId}.html` 读取。天空大公國讨论板中它等于当前讨论板 ID；五个 ESJ 小说分类不再从旧入口构造 `ForumTopic`。
 
 ## 11. Pagination 与 PageSnapshot
 

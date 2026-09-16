@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -55,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
 import com.breakyuna.esjzone.ui.navigation.rememberAppViewModel
 import com.breakyuna.esjzone.ui.navigation.AppDestination
@@ -71,6 +73,7 @@ import com.breakyuna.esjzone.network.features.getForumThreads
 import com.breakyuna.esjzone.network.features.ForumBoardResult
 import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_ESJ
 import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_TIANKONG
+import com.breakyuna.esjzone.novellibrary.community.ESJ_FORUM_CATEGORY_IDS
 import com.breakyuna.esjzone.novellibrary.community.ForumCategory
 import com.breakyuna.esjzone.novellibrary.community.ForumPost
 import com.breakyuna.esjzone.novellibrary.community.ForumTopic
@@ -247,6 +250,23 @@ class ForumBoardPage(private val thread: ForumThread) : AppDestination {
         val authorization = LocalAuthorization.current
         val model = rememberAppViewModel { ForumBoardPageModel(authorization, thread) }
         val state by model.state.collectAsState()
+        val esjNovelBoard = (state as? CommunityState.Result)
+            ?.data
+            ?.let { it as? ForumBoardResult.Novel }
+
+        LaunchedEffect(esjNovelBoard?.detailUrl) {
+            val board = esjNovelBoard ?: return@LaunchedEffect
+            if (thread.categoryId !in ESJ_FORUM_CATEGORY_IDS) return@LaunchedEffect
+            navigator?.replace(
+                NovelPage(
+                    CategoryNovel(
+                        name = thread.title,
+                        url = board.detailUrl,
+                        forumUrl = thread.url
+                    )
+                )
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -267,24 +287,30 @@ class ForumBoardPage(private val thread: ForumThread) : AppDestination {
                 ) { board ->
                     when (board) {
                         is ForumBoardResult.Novel -> {
-                            ForumNovelBoardContent(
-                                board = board,
-                                thread = thread,
-                                onOpenNovel = {
-                                    navigator?.pushIfNotCurrent(
-                                        NovelPage(
-                                            CategoryNovel(
-                                                name = thread.title,
-                                                url = board.detailUrl,
-                                                forumUrl = thread.url
+                            if (thread.categoryId in ESJ_FORUM_CATEGORY_IDS) {
+                                // This route is immediately replaced by NovelPage above, so the
+                                // obsolete ESJ board never becomes a visible navigation level.
+                                LoadingSkeleton(modifier = Modifier.fillMaxWidth())
+                            } else {
+                                ForumNovelBoardContent(
+                                    board = board,
+                                    thread = thread,
+                                    onOpenNovel = {
+                                        navigator?.pushIfNotCurrent(
+                                            NovelPage(
+                                                CategoryNovel(
+                                                    name = thread.title,
+                                                    url = board.detailUrl,
+                                                    forumUrl = thread.url
+                                                )
                                             )
                                         )
-                                    )
-                                },
-                                onTopicClick = { topic ->
-                                    navigator?.pushIfNotCurrent(ForumPostPage(topic))
-                                }
-                            )
+                                    },
+                                    onTopicClick = { topic ->
+                                        navigator?.pushIfNotCurrent(ForumPostPage(topic))
+                                    }
+                                )
+                            }
                         }
 
                         is ForumBoardResult.Topics -> {
@@ -823,50 +849,53 @@ private fun ForumTopicCard(topic: ForumTopic, onClick: () -> Unit) {
 
 @Composable
 private fun ForumPostCard(post: ForumPost) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
-        shape = AppShapes.standard,
-        colors = CardDefaults.cardColors(containerColor = appStateColors().containerRaised),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = AppElevation.raised)
+            .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md)
     ) {
-        Column(modifier = Modifier.padding(AppSpacing.lg)) {
+        Text(
+            text = post.title,
+            style = AppTypography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        val authorAndDate = listOfNotNull(post.author, post.createdAt)
+            .joinToString(" · ")
+        if (authorAndDate.isNotBlank()) {
             Text(
-                text = post.title,
-                style = AppTypography.titleLarge,
-                fontWeight = FontWeight.Bold
+                text = authorAndDate,
+                style = AppTypography.bodySmall,
+                color = appStateColors().contentMuted,
+                modifier = Modifier.padding(top = AppSpacing.sm)
             )
-            val authorAndDate = listOfNotNull(post.author, post.createdAt)
-                .joinToString(" · ")
-            if (authorAndDate.isNotBlank()) {
-                Text(
-                    text = authorAndDate,
-                    style = AppTypography.bodySmall,
-                    color = appStateColors().contentMuted,
-                    modifier = Modifier.padding(top = AppSpacing.sm)
-                )
-            }
-            if (post.contentText.isNotBlank()) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = AppSpacing.lg),
-                    shape = AppShapes.standard,
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant
-                    )
-                ) {
-                    Text(
-                        text = post.contentText,
-                        style = AppTypography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(AppSpacing.md)
-                    )
-                }
+        }
+        if (post.contentText.isNotBlank()) {
+            HorizontalDivider(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = AppSpacing.lg),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = AppSpacing.lg),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+            ) {
+                post.contentText
+                    .lineSequence()
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .forEach { paragraph ->
+                        Text(
+                            text = paragraph,
+                            style = AppTypography.bodyLarge.copy(
+                                lineHeight = 27.sp,
+                                letterSpacing = 0.1.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
             }
         }
     }

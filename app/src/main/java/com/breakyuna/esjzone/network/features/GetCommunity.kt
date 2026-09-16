@@ -12,6 +12,7 @@ import com.breakyuna.esjzone.network.NetworkRequestException
 import com.breakyuna.esjzone.network.NetworkHttpException
 import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_ESJ
 import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_TIANKONG
+import com.breakyuna.esjzone.novellibrary.community.ESJ_FORUM_CATEGORY_IDS
 import com.breakyuna.esjzone.novellibrary.community.ForumCategory
 import com.breakyuna.esjzone.novellibrary.community.ForumPost
 import com.breakyuna.esjzone.novellibrary.community.ForumTopic
@@ -461,6 +462,14 @@ fun EsjzoneClient.getForumBoard(
         targetUrl
     )
     val novelDetailUrl = findForumNovelDetailUrl(document)
+    // The five ESJ groups are novel indexes. Their two-segment board pages are
+    // remnants of the site's old forum architecture; the only current
+    // destination we need from them is the novel detail link in the header.
+    // Do not load the obsolete topic table for these entries.
+    if (thread.categoryId in ESJ_FORUM_CATEGORY_IDS) {
+        return novelDetailUrl?.let { ForumBoardResult.Novel(detailUrl = it) }
+            ?: throw ForumBoardDataException("ESJ novel entry did not contain a detail link")
+    }
     val table = document.selectFirst("#dataTable[data-url]")
     if (table == null) {
         return novelDetailUrl?.let { ForumBoardResult.Novel(detailUrl = it) }

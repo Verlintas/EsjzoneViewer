@@ -287,7 +287,7 @@ table.table
 
 子板块页 `/forum/{categoryId}/{boardId}/` 有两种语义：
 
-- 作品论坛板：页面存在匹配 `/detail/{novelId}.html` 的作品详情链接，例如 `/forum/1584622325/1788015863/`；该板块仍可能同时包含自己的主题列表。
+- ESJ 小说旧入口：五个 ESJ 分类中的两段式页面存在匹配 `/detail/{novelId}.html` 的小说标题链接，例如 `/forum/1584622325/1788015863/`。客户端只解析该详情链接并直接进入小说详情，不解析或展示旧页面的主题表。
 - 普通讨论板：页面没有作品详情链接，例如 `/forum/1584622376/1585405336/`；主题链接中的第一个 ID 是实际板块 ID，而不是父分类 ID。
 
 主题表使用 `#dataTable[data-url]`。初始 HTML 的 `no-records-found` 行可能只是 Bootstrap Table 尚未完成动态加载的占位符；当 `data-url` 的 `totalRows` 大于 0 时必须请求其 JSON 数据并解析 `rows`，不能把初始占位符当作空列表。`totalRows=0` 才可以直接返回空列表。无法识别 JSON、行结构或主题链接时应返回加载错误，不能静默转换为空页。
