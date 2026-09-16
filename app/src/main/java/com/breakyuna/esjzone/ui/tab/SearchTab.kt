@@ -43,10 +43,10 @@ import com.breakyuna.esjzone.database.entity.SearchHistory
 import com.breakyuna.esjzone.network.LocalAuthorization
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
+import androidx.compose.material3.Scaffold
 import com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState
 import com.breakyuna.esjzone.ui.discovery.DiscoveryLoadingState
-import com.breakyuna.esjzone.ui.discovery.DiscoverySearchField
-import com.breakyuna.esjzone.ui.discovery.DiscoveryScaffold
+import com.breakyuna.esjzone.ui.discovery.DiscoverySearchTopBar
 import com.breakyuna.esjzone.ui.navigation.AppTab
 import com.breakyuna.esjzone.ui.navigation.AppTabOptions
 import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
@@ -91,8 +91,20 @@ object SearchTab : AppTab {
             }
         }
 
-        DiscoveryScaffold(
-            title = stringResource(R.string.search_result)
+        Scaffold(
+            topBar = {
+                DiscoverySearchTopBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = { submit(query) },
+                    onClear = {
+                        query = ""
+                        activeKeyword = null
+                    },
+                    onBack = { navigator?.pop() }
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.background
         ) { padding ->
             PullToRefreshBox(
                 isRefreshing = activeKeyword != null && searchState is SearchPageModel.State.Loading,
@@ -101,42 +113,27 @@ object SearchTab : AppTab {
                 },
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    DiscoverySearchField(
-                        value = query,
-                        onValueChange = { query = it },
-                        onSearch = { submit(query) },
-                        onClear = {
-                            query = ""
-                            activeKeyword = null
+                activeKeyword?.let { current ->
+                    DiscoverySearchResults(
+                        model = searchModel,
+                        state = searchState,
+                        keyword = current,
+                        category = category,
+                        sort = sort,
+                        onCategoryChange = { category = it },
+                        onSortChange = { sort = it },
+                        onRetry = {
+                            searchModel.search(current, category, sort, forceRefresh = true)
                         },
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        navigator = navigator,
+                        modifier = Modifier.fillMaxSize()
                     )
-                    activeKeyword?.let { current ->
-                        DiscoverySearchResults(
-                            model = searchModel,
-                            state = searchState,
-                            keyword = current,
-                            category = category,
-                            sort = sort,
-                            onCategoryChange = { category = it },
-                            onSortChange = { sort = it },
-                            onRetry = {
-                                searchModel.search(current, category, sort, forceRefresh = true)
-                            },
-                            navigator = navigator,
-                            modifier = Modifier.fillMaxWidth().weight(1f)
-                        )
-                    } ?: SearchHistoryList(
-                        state = historyState,
-                        onClear = historyModel::clear,
-                        onSelect = ::submit,
-                        modifier = Modifier.fillMaxWidth().weight(1f)
-                    )
-                }
+                } ?: SearchHistoryList(
+                    state = historyState,
+                    onClear = historyModel::clear,
+                    onSelect = ::submit,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
 

@@ -92,8 +92,11 @@ import com.breakyuna.esjzone.novellibrary.data.HomeData
 import com.breakyuna.esjzone.novellibrary.data.WeeklyUpdateDay
 import com.breakyuna.esjzone.novellibrary.data.WeeklyPopularNovel
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
+import androidx.compose.ui.semantics.Role
 import com.breakyuna.esjzone.ui.component.AppNovelCover
+import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
+import com.breakyuna.esjzone.ui.designsystem.AppTypography
 import com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState
 import com.breakyuna.esjzone.ui.discovery.DiscoveryErrorState
 import androidx.compose.foundation.layout.calculateStartPadding
@@ -165,7 +168,6 @@ object HomeTab : AppTab {
 
         val navPadding = LocalFloatingNavPadding.current
         val layoutDirection = LocalLayoutDirection.current
-        val searchActionLabel = stringResource(R.string.search_action)
         val listState = rememberLazyListState()
         val weeklyDays = (state as? HomeTabModel.State.Result)?.homeData?.weeklyUpdates
             .orEmpty().sortedByDescending { it.date }
@@ -186,13 +188,23 @@ object HomeTab : AppTab {
         }
 
         DiscoveryScaffold(
-            title = stringResource(R.string.home_discover),
-            actions = {
-                HomeAction(
-                    label = searchActionLabel,
-                    icon = Icons.Filled.Search,
-                    onClick = { navigator?.pushIfNotCurrent(SearchTab) }
-                )
+            titleContent = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = AppSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                ) {
+                    Text(
+                        text = stringResource(R.string.home_discover),
+                        style = AppTypography.titleLarge
+                    )
+                    HomeSearchBar(
+                        onClick = { navigator?.pushIfNotCurrent(SearchTab) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         ) { padding ->
             PullToRefreshBox(
@@ -816,13 +828,44 @@ private fun formatWeeklyHeat(value: Int): String = when {
 }
 
 @Composable
-private fun HomeAction(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit
+private fun HomeSearchBar(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
-        Icon(icon, contentDescription = null)
+    Surface(
+        modifier = modifier
+            .height(40.dp)
+            .clip(AppShapes.pill)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.search_action),
+                onClick = onClick
+            ),
+        shape = AppShapes.pill,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = AppSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = stringResource(R.string.search_placeholder),
+                style = AppTypography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

@@ -97,6 +97,7 @@ import com.breakyuna.esjzone.ui.designsystem.AppAvatarImage
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppElevation
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
+import com.breakyuna.esjzone.ui.designsystem.AppSyncStatusDot
 import com.breakyuna.esjzone.ui.designsystem.AppTouchTarget
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
 import com.breakyuna.esjzone.ui.designsystem.appStateColors
@@ -146,7 +147,7 @@ internal fun CommunityTopBar(
                 }
             },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = MaterialTheme.colorScheme.background
             )
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -165,11 +166,6 @@ internal fun CommunitySyncStatusIndicator(
     @StringRes failedRes: Int,
     @StringRes detailRes: Int
 ) {
-    val indicatorColor = when {
-        isSyncFailed -> MaterialTheme.colorScheme.onSurface
-        isSyncSuccess -> MaterialTheme.colorScheme.onSurface
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
     val statusLabelRes = when {
         syncing -> runningRes
         isSyncFailed -> failedRes
@@ -186,7 +182,7 @@ internal fun CommunitySyncStatusIndicator(
                 ) { onExpandedChange(true) },
             contentAlignment = Alignment.Center
         ) {
-            Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+            AppSyncStatusDot(syncing = syncing, isSuccess = isSyncSuccess)
         }
         DropdownMenu(
             expanded = expanded,
@@ -201,7 +197,7 @@ internal fun CommunitySyncStatusIndicator(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
-                    Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+                    AppSyncStatusDot(syncing = syncing, isSuccess = isSyncSuccess)
                     Text(
                         text = stringResource(statusLabelRes),
                         style = AppTypography.labelLarge,
@@ -230,7 +226,7 @@ internal fun CommunitySyncStatusIndicator(
 ) {
     val syncing = state is CommunityState.Loading
     val failed = state is CommunityState.Error
-    val isSuccess = state is CommunityState.Result || state is CommunityState.Empty
+    val isSuccess = !syncing && !failed && (state is CommunityState.Result || state is CommunityState.Empty)
     CommunitySyncStatusIndicator(
         syncing = syncing,
         isSyncSuccess = isSuccess,

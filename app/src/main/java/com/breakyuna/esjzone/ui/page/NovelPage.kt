@@ -210,7 +210,7 @@ class NovelPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             RebuiltDetailTopBar(
                 onBack = { navigator?.pop() },
@@ -910,7 +910,7 @@ private fun RebuiltDetailTopBar(
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.background
         )
     )
 }

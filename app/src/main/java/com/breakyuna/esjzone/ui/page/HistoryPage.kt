@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -47,6 +48,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -85,6 +87,7 @@ import com.breakyuna.esjzone.novellibrary.novel.FavoriteNovel
 import com.breakyuna.esjzone.novellibrary.novel.HistoryNovel
 import com.breakyuna.esjzone.ui.component.AppNovelCover
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
+import com.breakyuna.esjzone.ui.designsystem.AppSyncStatusDot
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
 import com.breakyuna.esjzone.ui.navigation.AppDestination
 import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
@@ -210,7 +213,10 @@ object HistoryPage : AppDestination {
                                 }
                             }
                         }
-                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
                 )
             }
         ) { padding ->
@@ -286,9 +292,7 @@ private fun HistoryCloudSyncStatusIndicator(
 ) {
     val syncing = state.isSyncing()
     val failed = state is HistoryPageModel.State.Error
-    val isSuccess = state is HistoryPageModel.State.Result
-    val indicatorColor = if (isSuccess) MaterialTheme.colorScheme.onSurface
-        else MaterialTheme.colorScheme.onSurfaceVariant
+    val isSuccess = !syncing && !failed && state is HistoryPageModel.State.Result
     val statusRes = when {
         syncing -> R.string.history_cloud_sync_running
         failed -> R.string.history_cloud_sync_failed
@@ -302,18 +306,19 @@ private fun HistoryCloudSyncStatusIndicator(
                 .clickable(onClickLabel = stringResource(statusRes)) { onExpandedChange(true) },
             contentAlignment = Alignment.Center
         ) {
-            Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+            AppSyncStatusDot(syncing = syncing, isSuccess = isSuccess)
         }
         DropdownMenu(
             expanded = expanded,
-            onDismissRequest = { onExpandedChange(false) }
+            onDismissRequest = { onExpandedChange(false) },
+            modifier = Modifier.widthIn(min = 200.dp, max = 280.dp)
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = AppSpacing.lg, vertical = AppSpacing.md),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-                    Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+                    AppSyncStatusDot(syncing = syncing, isSuccess = isSuccess)
                     Text(
                         text = stringResource(statusRes),
                         style = AppTypography.labelLarge,

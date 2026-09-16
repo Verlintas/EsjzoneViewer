@@ -87,6 +87,7 @@ import com.breakyuna.esjzone.ui.component.AppNovelCover
 import com.breakyuna.esjzone.ui.component.AppBookshelfRecentReads
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
+import com.breakyuna.esjzone.ui.designsystem.AppSyncStatusDot
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
 import com.breakyuna.esjzone.ui.navigation.AppDestination
 import com.breakyuna.esjzone.ui.navigation.BooleanStateHolder
@@ -529,7 +530,7 @@ private fun BookshelfTopBar(
     onSelectAll: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Surface(color = MaterialTheme.colorScheme.surface) {
+    Surface(color = MaterialTheme.colorScheme.background) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = AppSpacing.xs, vertical = AppSpacing.sm),
             verticalAlignment = Alignment.CenterVertically
@@ -586,8 +587,6 @@ private fun BookshelfSyncStatusIndicator(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit
 ) {
-    val indicatorColor = if (isSyncSuccess) MaterialTheme.colorScheme.onSurface
-        else MaterialTheme.colorScheme.onSurfaceVariant
     val statusLabelRes = when {
         syncing -> R.string.bookshelf_sync_running_short
         isSyncFailed -> R.string.bookshelf_sync_status_failed
@@ -610,7 +609,7 @@ private fun BookshelfSyncStatusIndicator(
                 ) { onExpandedChange(true) },
             contentAlignment = Alignment.Center
         ) {
-            Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+            AppSyncStatusDot(syncing = syncing, isSuccess = isSyncSuccess)
         }
         DropdownMenu(
             expanded = expanded,
@@ -622,7 +621,7 @@ private fun BookshelfSyncStatusIndicator(
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-                    Surface(modifier = Modifier.size(AppSpacing.sm), shape = CircleShape, color = indicatorColor) {}
+                    AppSyncStatusDot(syncing = syncing, isSuccess = isSyncSuccess)
                     Text(
                         text = stringResource(statusLabelRes),
                         style = AppTypography.labelLarge,

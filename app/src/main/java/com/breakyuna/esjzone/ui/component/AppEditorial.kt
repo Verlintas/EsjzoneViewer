@@ -61,7 +61,7 @@ fun AppBackHeader(
     actions: @Composable RowScope.() -> Unit = {},
     belowContent: @Composable ColumnScope.() -> Unit = {}
 ) {
-    Surface(modifier = modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface) {
+    Surface(modifier = modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.background) {
         Column {
             Row(
                 modifier = Modifier

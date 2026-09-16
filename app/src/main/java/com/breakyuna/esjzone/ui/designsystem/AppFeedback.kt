@@ -2,6 +2,12 @@ package com.breakyuna.esjzone.ui.designsystem
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -37,9 +43,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -335,4 +343,53 @@ fun AppSideSheet(
 @Composable
 fun AppSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
     SnackbarHost(hostState = hostState, modifier = modifier)
+}
+
+/** Stable indicator colors for synchronization status. */
+val SyncStatusGreen: Color = Color(0xFF4CAF50)
+val SyncStatusLightGray: Color = Color(0xFF9E9E9E)
+
+/**
+ * Visual status light for synchronization state.
+ *
+ * - syncing: green breathing light (alpha pulsing between 0.25f and 1.0f).
+ * - isSuccess: steady green light.
+ * - otherwise (failed or idle): light gray.
+ */
+@Composable
+fun AppSyncStatusDot(
+    syncing: Boolean,
+    isSuccess: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (syncing) {
+        BreathingSyncDot(modifier = modifier)
+    } else {
+        Surface(
+            modifier = modifier.size(AppSpacing.sm),
+            shape = CircleShape,
+            color = if (isSuccess) SyncStatusGreen else SyncStatusLightGray
+        ) {}
+    }
+}
+
+@Composable
+private fun BreathingSyncDot(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "SyncBreathingLight")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "SyncBreathingAlpha"
+    )
+    Surface(
+        modifier = modifier
+            .size(AppSpacing.sm)
+            .graphicsLayer { this.alpha = alpha },
+        shape = CircleShape,
+        color = SyncStatusGreen
+    ) {}
 }

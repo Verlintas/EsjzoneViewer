@@ -45,14 +45,14 @@ import com.breakyuna.esjzone.network.PageableRequester
 import com.breakyuna.esjzone.network.features.search
 import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
+import androidx.compose.material3.Scaffold
 import com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState
 import com.breakyuna.esjzone.ui.discovery.DiscoveryErrorState
 import com.breakyuna.esjzone.ui.discovery.DiscoveryFilterMenu
 import com.breakyuna.esjzone.ui.discovery.DiscoveryFilterOption
 import com.breakyuna.esjzone.ui.discovery.DiscoveryNovelCard
 import com.breakyuna.esjzone.ui.discovery.DiscoveryOfflineBanner
-import com.breakyuna.esjzone.ui.discovery.DiscoveryScaffold
-import com.breakyuna.esjzone.ui.discovery.DiscoverySearchField
+import com.breakyuna.esjzone.ui.discovery.DiscoverySearchTopBar
 import com.breakyuna.esjzone.ui.navigation.AppDestination
 import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
 import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
@@ -96,9 +96,26 @@ class SearchPage(private val keyword: String) : AppDestination {
         var category by rememberSaveable { mutableIntStateOf(0) }
         var sort by rememberSaveable { mutableIntStateOf(1) }
 
-        DiscoveryScaffold(
-            title = stringResource(R.string.search_result),
-            onBack = { navigator?.pop() }
+        Scaffold(
+            topBar = {
+                DiscoverySearchTopBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = {
+                        val trimmed = query.trim()
+                        if (trimmed.isNotBlank()) {
+                            if (activeQuery == trimmed) {
+                                model.search(trimmed, category, sort)
+                            } else {
+                                activeQuery = trimmed
+                            }
+                        }
+                    },
+                    onClear = { query = "" },
+                    onBack = { navigator?.pop() }
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.background
         ) { padding ->
             PullToRefreshBox(
                 isRefreshing = activeQuery.isNotBlank() && state is SearchPageModel.State.Loading,
@@ -107,41 +124,20 @@ class SearchPage(private val keyword: String) : AppDestination {
                 },
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    DiscoverySearchField(
-                        value = query,
-                        onValueChange = { query = it },
-                        onSearch = {
-                            val trimmed = query.trim()
-                            if (trimmed.isNotBlank()) {
-                                if (activeQuery == trimmed) {
-                                    model.search(trimmed, category, sort)
-                                } else {
-                                    activeQuery = trimmed
-                                }
-                            }
-                        },
-                        onClear = { query = "" },
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                    DiscoverySearchResults(
-                        model = model,
-                        state = state,
-                        keyword = activeQuery,
-                        category = category,
-                        sort = sort,
-                        onCategoryChange = { category = it },
-                        onSortChange = { sort = it },
-                        onRetry = {
-                            model.search(activeQuery, category, sort, forceRefresh = true)
-                        },
-                        navigator = navigator,
-                        modifier = Modifier.fillMaxWidth().weight(1f)
-                    )
-                }
+                DiscoverySearchResults(
+                    model = model,
+                    state = state,
+                    keyword = activeQuery,
+                    category = category,
+                    sort = sort,
+                    onCategoryChange = { category = it },
+                    onSortChange = { sort = it },
+                    onRetry = {
+                        model.search(activeQuery, category, sort, forceRefresh = true)
+                    },
+                    navigator = navigator,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
 

@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -507,7 +508,8 @@ fun AppNavigation() {
             // The root host stays edge-to-edge. Loading/Login own their
             // standalone safe drawing insets; Main's adaptive shell owns
             // content/chrome insets; Reader owns its immersive insets.
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
         ) {
             NavDisplay(
                 backStack = backStack,

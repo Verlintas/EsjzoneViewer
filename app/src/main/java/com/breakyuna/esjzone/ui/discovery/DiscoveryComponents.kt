@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoStories
@@ -77,17 +79,24 @@ import com.breakyuna.esjzone.ui.designsystem.appAdultColors
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoveryTopBar(
-    title: String,
+    title: String = "",
     onBack: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    titleContent: (@Composable () -> Unit)? = null
 ) {
     TopAppBar(
-        title = { Text(title, style = AppTypography.titleLarge) },
+        title = {
+            if (titleContent != null) {
+                titleContent()
+            } else {
+                Text(title, style = AppTypography.titleLarge)
+            }
+        },
         navigationIcon = {
             if (onBack != null) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(R.string.reader_back))
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = androidx.compose.ui.res.stringResource(R.string.reader_back))
                 }
             }
         },
@@ -103,18 +112,63 @@ fun DiscoveryTopBar(
 
 @Composable
 fun DiscoveryScaffold(
-    title: String,
+    title: String = "",
     onBack: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
+    titleContent: (@Composable () -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
         topBar = {
-            DiscoveryTopBar(title = title, onBack = onBack, actions = actions)
+            DiscoveryTopBar(title = title, onBack = onBack, actions = actions, titleContent = titleContent)
         },
         containerColor = MaterialTheme.colorScheme.background,
         content = content
     )
+}
+
+/** Top bar for search destinations containing a back action and an inline search field. */
+@Composable
+fun DiscoverySearchTopBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onClear: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(
+                    start = AppSpacing.xs,
+                    end = AppSpacing.md,
+                    top = AppSpacing.sm,
+                    bottom = AppSpacing.xs
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.reader_back)
+                )
+            }
+            DiscoverySearchField(
+                value = query,
+                onValueChange = onQueryChange,
+                onSearch = onSearch,
+                onClear = onClear,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
 }
 
 @Composable

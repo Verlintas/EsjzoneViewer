@@ -33,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,7 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -136,7 +136,16 @@ object ProfileTab : AppTab {
             } catch (e: CancellationException) { throw e } catch (e: Exception) { AppLogger.w("ProfileTab", "Profile unavailable; using local snapshot", e) } finally { loading = false }
         }
 
-        Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.navigation_profile), style = AppTypography.titleLarge) }) }) { padding ->
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.navigation_profile), style = AppTypography.titleLarge) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
+                )
+            }
+        ) { padding ->
             val navPadding = LocalFloatingNavPadding.current
             val layoutDirection = LocalLayoutDirection.current
             PullToRefreshBox(
@@ -178,11 +187,8 @@ private fun profileMenuItems(): List<ProfileMenuItem> = listOf(
 
 @Composable
 private fun ProfileHero(profile: UserProfile?, domain: String, loading: Boolean, onRetry: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Card(shape = AppShapes.prominent, colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerLow)) {
-        Row(Modifier.fillMaxWidth()
-            .background(Brush.linearGradient(listOf(colors.primaryContainer, colors.surfaceContainerLow)))
-            .padding(AppSpacing.xl), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
+    Card(shape = AppShapes.prominent, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Row(Modifier.fillMaxWidth().padding(AppSpacing.xl), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg)) {
             if (profile == null && loading) {
                 AppShimmerPlaceholder(
                     modifier = Modifier.size(72.dp),
