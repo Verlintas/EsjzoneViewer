@@ -321,7 +321,7 @@ object FavoritePage : AppDestination {
                 val endPadding = AppSpacing.lg
                 val columns = if (listView && !editing) 1 else bookshelfColumnCount(
                     (maxWidth - startPadding - endPadding).value,
-                    AppSpacing.md.value
+                    AppSpacing.xl.value
                 )
                 val rows = remember(shown, columns) { shown.chunked(columns) }
                 LazyColumn(
@@ -455,7 +455,7 @@ object FavoritePage : AppDestination {
                         ) { row ->
                             Row(
                                 Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.xl)
                             ) {
                                 row.forEach { entry ->
                                     key(entry.bookKey) {
