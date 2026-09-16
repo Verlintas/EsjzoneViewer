@@ -3,6 +3,7 @@ package com.breakyuna.esjzone
 import com.breakyuna.esjzone.network.features.ForumBoardDataException
 import com.breakyuna.esjzone.network.features.findForumNovelDetailUrl
 import com.breakyuna.esjzone.network.features.parseComments
+import com.breakyuna.esjzone.network.features.parseForumCategories
 import com.breakyuna.esjzone.network.features.parseForumPost
 import com.breakyuna.esjzone.network.features.parseForumReplyResponse
 import com.breakyuna.esjzone.network.features.parseForumThreads
@@ -10,7 +11,11 @@ import com.breakyuna.esjzone.network.features.parseForumTopicRows
 import com.breakyuna.esjzone.network.features.parseForumTopics
 import com.breakyuna.esjzone.network.features.requireForumAuthToken
 import com.breakyuna.esjzone.network.features.validateForumTableResponse
+import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_ESJ
+import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_TIANKONG
+import com.breakyuna.esjzone.novellibrary.community.ForumCategory
 import com.breakyuna.esjzone.novellibrary.community.ForumTopic
+import com.breakyuna.esjzone.novellibrary.community.groupForumCategories
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -324,5 +329,87 @@ class CommunityParserTest {
         assertEquals("Alice", post.author)
         assertEquals("2026-08-30 12:34", post.createdAt)
         assertEquals("Hello\nWorld", post.contentText)
+    }
+
+    @Test
+    fun parseForumCategories_splitsSectionsIntoEsjAndTiankongWithFiveToThreeRatio() {
+        val document = Jsoup.parse(
+            """
+            <section id="forum-boards">
+              <table class="forum-category">
+                <thead><tr><th>ESJ-曉朔國度</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><a href="/forum/1584680829/">板塊1</a></td>
+                    <td><a href="/forum/1584678947/">板塊2</a></td>
+                    <td><a href="/forum/1584622251/">板塊3</a></td>
+                    <td><a href="/forum/1584622325/">板塊4</a></td>
+                    <td><a href="/forum/1584679807/">板塊5</a></td>
+                  </tr>
+                </tbody>
+              </table>
+              <table class="forum-category">
+                <thead><tr><th>天空大公國</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><a href="/forum/1584622376/">R18 專區</a></td>
+                    <td><a href="/forum/1584622613/">天空討論</a></td>
+                    <td><a href="/forum/1584622628/">公國專區</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            """.trimIndent()
+        )
+
+        val categories = parseForumCategories(document)
+        assertEquals(8, categories.size)
+
+        val esjCategories = categories.filter { it.groupName == FORUM_GROUP_ESJ }
+        val tiankongCategories = categories.filter { it.groupName == FORUM_GROUP_TIANKONG }
+
+        assertEquals(5, esjCategories.size)
+        assertEquals(3, tiankongCategories.size)
+        assertEquals(
+            listOf("1584680829", "1584678947", "1584622251", "1584622325", "1584679807"),
+            esjCategories.map { it.id }
+        )
+        assertEquals(
+            listOf("1584622376", "1584622613", "1584622628"),
+            tiankongCategories.map { it.id }
+        )
+    }
+
+    @Test
+    fun groupForumCategories_partitionsCategoriesFiveToThree() {
+        val categories = listOf(
+            ForumCategory("1584680829", null, "B1", null, null, "/forum/1584680829/"),
+            ForumCategory("1584678947", null, "B2", null, null, "/forum/1584678947/"),
+            ForumCategory("1584622251", null, "B3", null, null, "/forum/1584622251/"),
+            ForumCategory("1584622325", null, "B4", null, null, "/forum/1584622325/"),
+            ForumCategory("1584679807", null, "B5", null, null, "/forum/1584679807/"),
+            ForumCategory("1584622376", null, "B6", null, null, "/forum/1584622376/"),
+            ForumCategory("1584622613", null, "B7", null, null, "/forum/1584622613/"),
+            ForumCategory("1584622628", null, "B8", null, null, "/forum/1584622628/")
+        )
+
+        val grouped = groupForumCategories(categories)
+        assertEquals(listOf(FORUM_GROUP_ESJ, FORUM_GROUP_TIANKONG), grouped.keys.toList())
+        assertEquals(5, grouped[FORUM_GROUP_ESJ]?.size)
+        assertEquals(3, grouped[FORUM_GROUP_TIANKONG]?.size)
+    }
+
+    @Test
+    fun groupForumCategories_fallsBackToFiveThreeSplitForUnassignedIds() {
+        val categories = (1..8).map { i ->
+            ForumCategory("unknown-$i", null, "Board $i", null, null, "/forum/unknown-$i/")
+        }
+
+        val grouped = groupForumCategories(categories)
+        assertEquals(listOf(FORUM_GROUP_ESJ, FORUM_GROUP_TIANKONG), grouped.keys.toList())
+        assertEquals(5, grouped[FORUM_GROUP_ESJ]?.size)
+        assertEquals(3, grouped[FORUM_GROUP_TIANKONG]?.size)
+        assertEquals(listOf("unknown-1", "unknown-2", "unknown-3", "unknown-4", "unknown-5"), grouped[FORUM_GROUP_ESJ]?.map { it.id })
+        assertEquals(listOf("unknown-6", "unknown-7", "unknown-8"), grouped[FORUM_GROUP_TIANKONG]?.map { it.id })
     }
 }

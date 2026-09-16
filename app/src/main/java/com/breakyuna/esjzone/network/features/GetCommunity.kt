@@ -10,10 +10,13 @@ import com.breakyuna.esjzone.network.PageCacheTtl
 import com.breakyuna.esjzone.network.PageKind
 import com.breakyuna.esjzone.network.NetworkRequestException
 import com.breakyuna.esjzone.network.NetworkHttpException
+import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_ESJ
+import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_TIANKONG
 import com.breakyuna.esjzone.novellibrary.community.ForumCategory
 import com.breakyuna.esjzone.novellibrary.community.ForumPost
 import com.breakyuna.esjzone.novellibrary.community.ForumTopic
 import com.breakyuna.esjzone.novellibrary.community.ForumThread
+import com.breakyuna.esjzone.novellibrary.community.resolveForumGroupName
 import com.breakyuna.esjzone.novellibrary.novel.Comment
 import com.breakyuna.esjzone.novellibrary.novel.COMMENT_PAGE_SIZE
 import com.breakyuna.esjzone.util.AppLogger
@@ -338,6 +341,10 @@ fun EsjzoneClient.getForumCategories(
         "${EsjzoneUrls.Forum}/"
     )
 
+    return parseForumCategories(document)
+}
+
+internal fun parseForumCategories(document: Document): List<ForumCategory> {
     val categories = mutableListOf<ForumCategory>()
     for (table in document.select("table")) {
         val groupName = forumGroupName(table)
@@ -349,9 +356,11 @@ fun EsjzoneClient.getForumCategories(
             val container = anchor.closest("td") ?: anchor.parent()
             val description = container?.selectFirst(".forum-desc")?.text()?.trim()
                 ?.takeIf { it.isNotBlank() }
+            val id = match.groupValues[1]
+            val resolvedGroup = resolveForumGroupName(id, groupName).takeIf { it.isNotBlank() }
             categories += ForumCategory(
-                id = match.groupValues[1],
-                groupName = groupName,
+                id = id,
+                groupName = resolvedGroup,
                 name = name,
                 description = description,
                 postCount = extractNumber(container?.text().orEmpty(), "(?:文章|貼文|帖子|主題)"),
@@ -359,7 +368,14 @@ fun EsjzoneClient.getForumCategories(
             )
         }
     }
-    return categories.distinctBy { it.id }
+    val distinct = categories.distinctBy { it.id }
+    if (distinct.size == 8 && distinct.none { it.groupName != null }) {
+        return distinct.mapIndexed { index, cat ->
+            val fallbackGroup = if (index < 5) FORUM_GROUP_ESJ else FORUM_GROUP_TIANKONG
+            cat.copy(groupName = fallbackGroup)
+        }
+    }
+    return distinct
 }
 
 fun EsjzoneClient.getForumThreads(
@@ -923,11 +939,14 @@ internal fun commentParentId(rawUrl: String): String {
 }
 
 private fun forumGroupName(table: Element): String? {
+    table.selectFirst("caption, thead")?.text()?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?.let { return it }
     var level: Element? = table
     repeat(3) {
         var previous = level?.previousElementSibling()
         while (previous != null) {
-            val headings = previous.select("h1, h2, h3, h4, h5, .card-title")
+            val headings = previous.select("h1, h2, h3, h4, h5, h6, .card-title, .card-header, .panel-heading")
             headings.lastOrNull()?.text()?.trim()
                 ?.takeIf { it.isNotBlank() }
                 ?.let { return it }

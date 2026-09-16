@@ -357,6 +357,8 @@
     <string name="logs_hide_stacktrace">收起堆栈详情</string>
     <string name="forum">论坛</string>
     <string name="forum_empty">暂无论坛分类</string>
+    <string name="forum_group_esj">ESJ-曉朔國度</string>
+    <string name="forum_group_tiankong">天空大公國</string>
     <string name="forum_threads_empty">该板块暂无主题</string>
     <string name="forum_board_empty">该板块还是空的</string>
     <string name="forum_board_empty_guidance">这里暂时没有可显示的主题。</string>

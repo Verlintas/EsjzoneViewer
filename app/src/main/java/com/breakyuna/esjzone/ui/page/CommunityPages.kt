@@ -63,10 +63,13 @@ import com.breakyuna.esjzone.network.features.getForumBoard
 import com.breakyuna.esjzone.network.features.getForumPost
 import com.breakyuna.esjzone.network.features.getForumThreads
 import com.breakyuna.esjzone.network.features.ForumBoardResult
+import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_ESJ
+import com.breakyuna.esjzone.novellibrary.community.FORUM_GROUP_TIANKONG
 import com.breakyuna.esjzone.novellibrary.community.ForumCategory
 import com.breakyuna.esjzone.novellibrary.community.ForumPost
 import com.breakyuna.esjzone.novellibrary.community.ForumTopic
 import com.breakyuna.esjzone.novellibrary.community.ForumThread
+import com.breakyuna.esjzone.novellibrary.community.groupForumCategories
 import com.breakyuna.esjzone.novellibrary.novel.CategoryNovel
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
@@ -116,7 +119,7 @@ object ForumPage : AppDestination {
                     onRetry = model::retry,
                     modifier = Modifier.fillMaxSize(),
                 ) { categories ->
-                    val grouped = categories.groupBy { it.groupName.orEmpty() }
+                    val grouped = groupForumCategories(categories)
                     LazyColumn(
                         modifier = Modifier
                             .widthIn(max = metrics.contentMaxWidth)
@@ -133,7 +136,11 @@ object ForumPage : AppDestination {
                         grouped.forEach { (groupName, groupCategories) ->
                             item(key = "group-$groupName", contentType = "forum-group") {
                                 ForumGroupHeader(
-                                    name = groupName.ifBlank { stringResource(R.string.forum) },
+                                    name = when (groupName) {
+                                        FORUM_GROUP_ESJ -> stringResource(R.string.forum_group_esj)
+                                        FORUM_GROUP_TIANKONG -> stringResource(R.string.forum_group_tiankong)
+                                        else -> groupName.ifBlank { stringResource(R.string.forum) }
+                                    },
                                     boardCount = groupCategories.size
                                 )
                             }

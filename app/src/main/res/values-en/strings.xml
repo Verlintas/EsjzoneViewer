@@ -357,6 +357,8 @@
     <string name="logs_hide_stacktrace">Hide Stack Trace</string>
     <string name="forum">Forum</string>
     <string name="forum_empty">No forum categories found</string>
+    <string name="forum_group_esj">ESJ-曉朔國度</string>
+    <string name="forum_group_tiankong">天空大公國</string>
     <string name="forum_threads_empty">No topics found in this board</string>
     <string name="forum_board_empty">This board is empty</string>
     <string name="forum_board_empty_guidance">There are no topics to show here yet.</string>
