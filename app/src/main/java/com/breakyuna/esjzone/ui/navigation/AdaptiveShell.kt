@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -228,6 +229,25 @@ fun AdaptiveAppShell(
                             .appGlassSource(navigationGlassScene)
                     )
                     if (showFloatingNavigation) {
+                        val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+                        val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                        // Faint ambient shadow layer starting slightly above the top of the floating navigation bar
+                        val ambientShadowHeight = bottomInset + NavigationGlassMetrics.bottomHeight + 32.dp
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(ambientShadowHeight)
+                                .background(
+                                    Brush.verticalGradient(
+                                        0f to Color.Transparent,
+                                        0.20f to Color.Black.copy(alpha = if (isDarkTheme) 0.015f else 0.008f),
+                                        0.50f to Color.Black.copy(alpha = if (isDarkTheme) 0.04f else 0.02f),
+                                        0.75f to Color.Black.copy(alpha = if (isDarkTheme) 0.065f else 0.03f),
+                                        1f to Color.Black.copy(alpha = if (isDarkTheme) 0.08f else 0.04f)
+                                    )
+                                )
+                        )
                         AppNavigationBar(
                             selected = tab,
                             onSelected = onTabSelected,
@@ -459,17 +479,17 @@ private fun AppNavigationBar(
         selectedFraction = ((tabs.indexOf(selected).coerceAtLeast(0)) + 0.5f) / tabs.size,
         itemCount = tabs.size,
         shape = navShape,
-        // The entire visible capsule owns its touch area. Empty slots cannot activate a card below.
-        modifier = modifier.fillMaxWidth().clip(navShape).clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = {}
-        )
+        modifier = modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(NavigationGlassMetrics.bottomHeight)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {}
+                )
                 .padding(
                     horizontal = NavigationGlassMetrics.horizontalPadding,
                     vertical = NavigationGlassMetrics.bottomVerticalPadding
@@ -504,17 +524,18 @@ private fun AppSideNavigationBar(
         scene = glassScene,
         selectedFraction = ((tabs.indexOf(selected).coerceAtLeast(0)) + 0.5f) / tabs.size,
         itemCount = tabs.size,
-        modifier = modifier.wrapContentSize().clip(RoundedCornerShape(percent = 50)).clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = {}
-        ),
+        modifier = modifier.wrapContentSize(),
         vertical = true
     ) {
         Column(
             modifier = Modifier
                 .width(NavigationGlassMetrics.railWidth)
                 .wrapContentHeight()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {}
+                )
                 .padding(
                     horizontal = NavigationGlassMetrics.horizontalPadding,
                     vertical = NavigationGlassMetrics.railVerticalPadding
@@ -588,7 +609,7 @@ private fun FloatingNavHorizontalItem(
     modifier: Modifier = Modifier
 ) {
     val colors = navigationItemColors(selected)
-    val pillShape = RoundedCornerShape(18.dp)
+    val pillShape = RoundedCornerShape(24.dp)
     Box(
         modifier = modifier.fillMaxHeight(),
         contentAlignment = Alignment.Center

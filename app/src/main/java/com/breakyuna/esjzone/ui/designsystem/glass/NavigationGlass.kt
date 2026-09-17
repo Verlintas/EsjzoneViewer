@@ -1,3 +1,5 @@
+@file:OptIn(dev.chrisbanes.haze.ExperimentalHazeApi::class)
+
 package com.breakyuna.esjzone.ui.designsystem.glass
 
 import androidx.compose.animation.core.Spring
@@ -26,6 +28,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.glass.SurfaceProfile
 
 /**
  * A modern liquid frosted glass dock surface with authentic backdrop blur,
@@ -61,21 +64,22 @@ fun AppNavigationGlassSurface(
             fallbackAlpha = 0.96f,
             blurRadius = 8.dp,
             depth = 0.18f,
-            refractionStrength = 0.85f,
-            refractionDisplacement = if (vertical) 12.dp else 18.dp,
-            refractionHeightFraction = 0.48f,
-            refractionFoldStrength = 0.42f,
-            edgeSoftness = 1.dp,
-            specularIntensity = if (dark) 0.65f else 0.72f,
-            ambientResponse = if (dark) 0.32f else 0.26f,
-            specularExponent = 32f,
-            fresnelExponent = 3f,
+            refractionStrength = 0.95f,
+            refractionDisplacement = if (vertical) 14.dp else 22.dp,
+            refractionHeightFraction = 0.50f,
+            refractionFoldStrength = 0.45f,
+            edgeSoftness = 1.2.dp,
+            specularIntensity = if (dark) 0.70f else 0.80f,
+            ambientResponse = if (dark) 0.35f else 0.30f,
+            specularExponent = 28f,
+            fresnelExponent = 2.6f,
+            surfaceProfile = SurfaceProfile.Circle,
             lightPosition = Alignment.TopStart,
-            chromaticAberrationStrength = 0.03f,
+            chromaticAberrationStrength = 0.05f,
             contrast = 0.04f,
             whitePoint = 0.06f,
             chromaMultiplier = 1.04f,
-            contentNormalBlend = 0.04f,
+            contentNormalBlend = 0.06f,
             borderAlpha = 0f,
             borderWidth = 0.dp,
         )
@@ -83,11 +87,11 @@ fun AppNavigationGlassSurface(
 
     AppGlassSurface(
         modifier = modifier.shadow(
-            elevation = if (dark) 10.dp else 12.dp,
+            elevation = if (dark) 8.dp else 10.dp,
             shape = shape,
             clip = false,
-            ambientColor = Color.Black.copy(alpha = if (dark) 0.20f else 0.08f),
-            spotColor = Color.Black.copy(alpha = if (dark) 0.38f else 0.16f)
+            ambientColor = Color.Black.copy(alpha = if (dark) 0.16f else 0.06f),
+            spotColor = Color.Black.copy(alpha = if (dark) 0.26f else 0.12f)
         ),
         spec = spec,
         scene = scene
@@ -138,14 +142,28 @@ internal fun Modifier.navigationCrystalBevel(
         endY = size.height
     )
 
-    // Sleek single-stroke gradient simulating light hitting the top bevel and glowing rim
+    // Sleek border gradient illuminating top rim and wrapping gracefully around rounded corner curves
+    val lightAngleStart = if (vertical) lightStart else Offset(0f, 0f)
+    val lightAngleEnd = if (vertical) lightEnd else Offset(size.width * 0.70f, size.height)
     val outerBorderBrush = Brush.linearGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.65f else 0.85f),
-        0.30f to Color.White.copy(alpha = if (dark) 0.25f else 0.45f),
-        0.70f to Color.White.copy(alpha = if (dark) 0.12f else 0.20f),
-        1f to if (dark) Color.Black.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.25f),
-        start = if (vertical) lightStart else Offset(0f, 0f),
-        end = if (vertical) lightEnd else Offset(0f, size.height)
+        0f to Color.White.copy(alpha = if (dark) 0.72f else 0.92f),
+        0.20f to Color.White.copy(alpha = if (dark) 0.40f else 0.65f),
+        0.50f to Color.White.copy(alpha = if (dark) 0.20f else 0.35f),
+        0.80f to Color.White.copy(alpha = if (dark) 0.30f else 0.45f),
+        1f to if (dark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.25f),
+        start = lightAngleStart,
+        end = lightAngleEnd
+    )
+
+    // Determine corner radius matching the exact dock shape
+    val cornerRadiusPx = if (vertical) size.minDimension / 2f else NavigationGlassMetrics.bottomCornerRadius.toPx().coerceAtMost(size.minDimension / 2f)
+
+    // Dedicated optical refraction fringe along the curved rounded glass corners
+    val cornerLensFringeBrush = Brush.horizontalGradient(
+        0f to Color.White.copy(alpha = if (dark) 0.38f else 0.55f),
+        (cornerRadiusPx / size.width).coerceIn(0f, 1f) to Color.Transparent,
+        ((size.width - cornerRadiusPx) / size.width).coerceIn(0f, 1f) to Color.Transparent,
+        1f to Color.White.copy(alpha = if (dark) 0.30f else 0.45f)
     )
 
     // A reflected strip light that travels along the rim when the tab changes
@@ -159,9 +177,6 @@ internal fun Modifier.navigationCrystalBevel(
     )
     val glintCompression = strokeWidth * 2.5f / glintRadius
 
-    // Determine corner radius matching the exact dock shape
-    val cornerRadiusPx = if (vertical) size.minDimension / 2f else NavigationGlassMetrics.bottomCornerRadius.toPx().coerceAtMost(size.minDimension / 2f)
-
     onDrawBehind {
         if (size.minDimension <= strokeWidth * 2f) return@onDrawBehind
 
@@ -173,7 +188,24 @@ internal fun Modifier.navigationCrystalBevel(
             cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
         )
 
-        // 2. Single refined outer border
+        // 2. Optical curved lens refraction edge along the rounded corners
+        if (!vertical && cornerRadiusPx > 0f) {
+            val lensRimStroke = 2.dp.toPx()
+            val lensRimInset = strokeWidth + 0.5.dp.toPx()
+            val lensRimHeight = (size.height - lensRimInset * 2f).coerceAtLeast(0f)
+            if (lensRimHeight > 0f) {
+                val lensRimRadius = (cornerRadiusPx - lensRimInset).coerceAtLeast(0f)
+                drawRoundRect(
+                    brush = cornerLensFringeBrush,
+                    topLeft = Offset(lensRimInset, lensRimInset),
+                    size = Size(size.width - lensRimInset * 2f, lensRimHeight),
+                    cornerRadius = CornerRadius(lensRimRadius, lensRimRadius),
+                    style = Stroke(lensRimStroke)
+                )
+            }
+        }
+
+        // 3. Single refined outer border with angled highlight wrapping around the curves
         val outerRimSize = Size(size.width - strokeWidth, size.height - strokeWidth)
         val outerCornerRadius = (cornerRadiusPx - halfStroke).coerceAtLeast(0f)
         drawRoundRect(
@@ -184,7 +216,7 @@ internal fun Modifier.navigationCrystalBevel(
             style = Stroke(strokeWidth)
         )
 
-        // 3. Dynamic traveling glint
+        // 4. Dynamic traveling glint
         val progress = lightPosition.value.coerceIn(0f, 1f)
         val glintCenter = if (vertical) {
             Offset(if (rtl) size.width else 0f, size.height * progress)
