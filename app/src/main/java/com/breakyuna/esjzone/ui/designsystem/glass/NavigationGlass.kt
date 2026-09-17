@@ -60,24 +60,24 @@ fun AppNavigationGlassSurface(
             tint = if (dark) colors.surfaceContainer else colors.surfaceContainerLow,
             // Transparent glass with light tint to allow background refraction to show through
             alpha = 1f,
-            tintAlpha = if (dark) 0.12f else 0.16f,
+            tintAlpha = if (dark) 0.14f else 0.20f,
             fallbackAlpha = 0.96f,
             blurRadius = 8.dp,
-            depth = 0.22f,
+            depth = 0.20f,
             refractionStrength = 1.0f,
-            refractionDisplacement = if (vertical) 16.dp else 26.dp,
-            refractionHeightFraction = 0.28f,
-            refractionFoldStrength = 0.70f,
-            edgeSoftness = 0.8.dp,
-            specularIntensity = if (dark) 0.70f else 0.80f,
-            ambientResponse = if (dark) 0.35f else 0.30f,
-            specularExponent = 28f,
-            fresnelExponent = 2.6f,
+            refractionDisplacement = 30.dp,
+            refractionHeightFraction = 0.50f,
+            refractionFoldStrength = 0.60f,
+            edgeSoftness = 1.0.dp,
+            specularIntensity = if (dark) 0.78f else 0.88f,
+            ambientResponse = if (dark) 0.38f else 0.35f,
+            specularExponent = 26f,
+            fresnelExponent = 2.4f,
             surfaceProfile = SurfaceProfile.Circle,
             lightPosition = Alignment.TopStart,
             chromaticAberrationStrength = 0.06f,
             contrast = 0.04f,
-            whitePoint = 0.06f,
+            whitePoint = 0.10f,
             chromaMultiplier = 1.04f,
             contentNormalBlend = 0.06f,
             borderAlpha = 0f,
@@ -87,11 +87,11 @@ fun AppNavigationGlassSurface(
 
     AppGlassSurface(
         modifier = modifier.shadow(
-            elevation = if (dark) 8.dp else 10.dp,
+            elevation = if (dark) 10.dp else 12.dp,
             shape = shape,
             clip = false,
-            ambientColor = Color.Black.copy(alpha = if (dark) 0.16f else 0.06f),
-            spotColor = Color.Black.copy(alpha = if (dark) 0.26f else 0.12f)
+            ambientColor = Color.Black.copy(alpha = if (dark) 0.22f else 0.10f),
+            spotColor = Color.Black.copy(alpha = if (dark) 0.35f else 0.18f)
         ),
         spec = spec,
         scene = scene
@@ -133,24 +133,24 @@ internal fun Modifier.navigationCrystalBevel(
     val lightStart = Offset(if (rtl) size.width else 0f, 0f)
     val lightEnd = Offset(if (rtl) 0f else size.width, size.height)
 
-    // Ambient volumetric sheen: delicate, subtle lift so the background remains transparent
+    // Ambient volumetric sheen: luminous white lift across the glass surface
     val bodySheenBrush = Brush.verticalGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.08f else 0.14f),
-        0.50f to Color.White.copy(alpha = if (dark) 0.03f else 0.06f),
-        1f to Color.Transparent,
+        0f to Color.White.copy(alpha = if (dark) 0.14f else 0.22f),
+        0.50f to Color.White.copy(alpha = if (dark) 0.06f else 0.10f),
+        1f to Color.White.copy(alpha = if (dark) 0.02f else 0.04f),
         startY = 0f,
         endY = size.height
     )
 
-    // Sleek border gradient illuminating top rim and wrapping gracefully around rounded corner curves
+    // Sleek border gradient: bright white highlight wrapping gracefully around rounded corner curves
     val lightAngleStart = if (vertical) lightStart else Offset(0f, 0f)
     val lightAngleEnd = if (vertical) lightEnd else Offset(size.width * 0.70f, size.height)
     val outerBorderBrush = Brush.linearGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.72f else 0.92f),
-        0.20f to Color.White.copy(alpha = if (dark) 0.45f else 0.70f),
-        0.50f to Color.White.copy(alpha = if (dark) 0.25f else 0.40f),
-        0.80f to Color.White.copy(alpha = if (dark) 0.30f else 0.45f),
-        1f to if (dark) Color.Black.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.25f),
+        0f to Color.White.copy(alpha = if (dark) 0.85f else 0.98f),
+        0.20f to Color.White.copy(alpha = if (dark) 0.55f else 0.80f),
+        0.50f to Color.White.copy(alpha = if (dark) 0.35f else 0.50f),
+        0.80f to Color.White.copy(alpha = if (dark) 0.38f else 0.55f),
+        1f to if (dark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.32f),
         start = lightAngleStart,
         end = lightAngleEnd
     )
@@ -161,8 +161,8 @@ internal fun Modifier.navigationCrystalBevel(
     // A reflected strip light that travels along the rim when the tab changes
     val glintRadius = (size.minDimension * 0.80f).coerceAtLeast(1f)
     val glintBrush = Brush.radialGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.40f else 0.55f),
-        0.40f to Color.White.copy(alpha = if (dark) 0.18f else 0.22f),
+        0f to Color.White.copy(alpha = if (dark) 0.50f else 0.68f),
+        0.40f to Color.White.copy(alpha = if (dark) 0.24f else 0.30f),
         1f to Color.Transparent,
         center = Offset.Zero,
         radius = glintRadius

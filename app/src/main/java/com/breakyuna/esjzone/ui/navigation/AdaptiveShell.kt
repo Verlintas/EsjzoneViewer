@@ -242,10 +242,10 @@ fun AdaptiveAppShell(
                                 .background(
                                     Brush.verticalGradient(
                                         0f to Color.Transparent,
-                                        0.20f to Color.Black.copy(alpha = if (isDarkTheme) 0.015f else 0.008f),
-                                        0.50f to Color.Black.copy(alpha = if (isDarkTheme) 0.04f else 0.02f),
-                                        0.75f to Color.Black.copy(alpha = if (isDarkTheme) 0.065f else 0.03f),
-                                        1f to Color.Black.copy(alpha = if (isDarkTheme) 0.08f else 0.04f)
+                                        0.20f to Color.Black.copy(alpha = if (isDarkTheme) 0.025f else 0.014f),
+                                        0.50f to Color.Black.copy(alpha = if (isDarkTheme) 0.06f else 0.032f),
+                                        0.75f to Color.Black.copy(alpha = if (isDarkTheme) 0.10f else 0.052f),
+                                        1f to Color.Black.copy(alpha = if (isDarkTheme) 0.13f else 0.068f)
                                     )
                                 )
                         )
