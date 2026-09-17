@@ -453,7 +453,7 @@ private fun AppNavigationBar(
     glassScene: AppGlassScene,
     modifier: Modifier = Modifier
 ) {
-    val navShape = RoundedCornerShape(30.dp)
+    val navShape = RoundedCornerShape(percent = 50)
     AppNavigationGlassSurface(
         scene = glassScene,
         selectedFraction = ((tabs.indexOf(selected).coerceAtLeast(0)) + 0.5f) / tabs.size,
@@ -588,7 +588,7 @@ private fun FloatingNavHorizontalItem(
     modifier: Modifier = Modifier
 ) {
     val colors = navigationItemColors(selected)
-    val pillShape = RoundedCornerShape(26.dp)
+    val pillShape = RoundedCornerShape(percent = 50)
     Box(
         modifier = modifier.fillMaxHeight(),
         contentAlignment = Alignment.Center

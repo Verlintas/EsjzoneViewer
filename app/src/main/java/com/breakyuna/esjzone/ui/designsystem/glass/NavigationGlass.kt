@@ -37,8 +37,7 @@ fun AppNavigationGlassSurface(
     modifier: Modifier = Modifier,
     vertical: Boolean = false,
     selectedFraction: Float = 0.125f,
-    itemCount: Int = 4,
-    shape: RoundedCornerShape = if (vertical) RoundedCornerShape(percent = 50) else RoundedCornerShape(30.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(percent = 50),
     content: @Composable BoxScope.() -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -55,25 +54,25 @@ fun AppNavigationGlassSurface(
             shape = shape,
             material = AppGlassMaterial.REGULAR,
             tint = if (dark) colors.surfaceContainer else colors.surfaceContainerLow,
-            // Surface wash provides natural legibility over complex background text and images
+            // Transparent glass with light tint to allow background refraction to show through
             alpha = 1f,
-            tintAlpha = if (dark) 0.65f else 0.68f,
+            tintAlpha = if (dark) 0.12f else 0.16f,
             fallbackAlpha = 0.96f,
-            blurRadius = 24.dp,
-            depth = 1f,
-            refractionStrength = 0.40f,
-            refractionDisplacement = if (vertical) 10.dp else 16.dp,
-            refractionHeightFraction = 0.22f,
-            refractionFoldStrength = 0.45f,
+            blurRadius = 8.dp,
+            depth = 0.18f,
+            refractionStrength = 0.85f,
+            refractionDisplacement = if (vertical) 12.dp else 18.dp,
+            refractionHeightFraction = 0.48f,
+            refractionFoldStrength = 0.42f,
             edgeSoftness = 1.dp,
-            specularIntensity = if (dark) 0.60f else 0.68f,
-            ambientResponse = if (dark) 0.38f else 0.32f,
+            specularIntensity = if (dark) 0.65f else 0.72f,
+            ambientResponse = if (dark) 0.32f else 0.26f,
             specularExponent = 32f,
             fresnelExponent = 3f,
             lightPosition = Alignment.TopStart,
-            chromaticAberrationStrength = 0.025f,
-            contrast = 0.05f,
-            whitePoint = 0.08f,
+            chromaticAberrationStrength = 0.03f,
+            contrast = 0.04f,
+            whitePoint = 0.06f,
             chromaMultiplier = 1.04f,
             contentNormalBlend = 0.04f,
             borderAlpha = 0f,
@@ -120,7 +119,7 @@ internal fun Modifier.navigationCrystalBevel(
     dark: Boolean,
     vertical: Boolean,
     lightPosition: State<Float>,
-    shape: RoundedCornerShape = if (vertical) RoundedCornerShape(percent = 50) else RoundedCornerShape(30.dp),
+    shape: RoundedCornerShape = RoundedCornerShape(percent = 50),
     borderWidth: Dp = 1.dp
 ): Modifier = drawWithCache {
     val strokeWidth = borderWidth.toPx()
@@ -130,23 +129,23 @@ internal fun Modifier.navigationCrystalBevel(
     val lightStart = Offset(if (rtl) size.width else 0f, 0f)
     val lightEnd = Offset(if (rtl) 0f else size.width, size.height)
 
-    // Ambient volumetric sheen: gives the entire dock a soft, translucent self-lit glow
+    // Ambient volumetric sheen: delicate, subtle lift so the background remains transparent
     val bodySheenBrush = Brush.verticalGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.16f else 0.26f),
-        0.45f to Color.White.copy(alpha = if (dark) 0.08f else 0.15f),
-        1f to Color.White.copy(alpha = if (dark) 0.03f else 0.08f),
+        0f to Color.White.copy(alpha = if (dark) 0.08f else 0.14f),
+        0.50f to Color.White.copy(alpha = if (dark) 0.03f else 0.06f),
+        1f to Color.Transparent,
         startY = 0f,
         endY = size.height
     )
 
-    // Horizontal liquid caustic refraction beam across the lower third of the dock
-    val causticHeight = 5.dp.toPx()
-    val causticY = size.height * 0.71f
+    // Horizontal liquid caustic refraction beam across the lower curve (82% of height)
+    val causticHeight = 4.5.dp.toPx()
+    val causticY = size.height * 0.82f
     val causticBrush = Brush.verticalGradient(
         0f to Color.Transparent,
-        0.30f to Color.White.copy(alpha = if (dark) 0.28f else 0.48f),
-        0.50f to Color.White.copy(alpha = if (dark) 0.42f else 0.68f),
-        0.70f to Color.White.copy(alpha = if (dark) 0.28f else 0.48f),
+        0.30f to Color.White.copy(alpha = if (dark) 0.35f else 0.55f),
+        0.50f to Color.White.copy(alpha = if (dark) 0.55f else 0.80f),
+        0.70f to Color.White.copy(alpha = if (dark) 0.35f else 0.55f),
         1f to Color.Transparent,
         startY = causticY - causticHeight / 2f,
         endY = causticY + causticHeight / 2f
@@ -154,10 +153,10 @@ internal fun Modifier.navigationCrystalBevel(
 
     // Subtle optical shadow shelf right beneath the caustic refraction band
     val causticShadowBrush = Brush.verticalGradient(
-        0f to Color.Black.copy(alpha = if (dark) 0.16f else 0.07f),
+        0f to Color.Black.copy(alpha = if (dark) 0.18f else 0.08f),
         1f to Color.Transparent,
         startY = causticY + causticHeight / 2f,
-        endY = causticY + causticHeight / 2f + 2.5.dp.toPx()
+        endY = causticY + causticHeight / 2f + 2.dp.toPx()
     )
 
     // Sleek single-stroke gradient simulating light hitting the top bevel and glowing rim
@@ -190,9 +189,8 @@ internal fun Modifier.navigationCrystalBevel(
     )
     val glintCompression = strokeWidth * 2.5f / glintRadius
 
-    // Determine corner radius in pixels matching the shape
-    val maxRadius = size.minDimension / 2f
-    val cornerRadiusPx = if (vertical) maxRadius else 30.dp.toPx().coerceAtMost(maxRadius)
+    // Determine corner radius: full half-circle capsule (percent = 50)
+    val cornerRadiusPx = size.minDimension / 2f
 
     onDrawBehind {
         if (size.minDimension <= strokeWidth * 2f) return@onDrawBehind

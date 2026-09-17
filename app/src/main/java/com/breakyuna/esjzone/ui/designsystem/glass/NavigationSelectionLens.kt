@@ -51,9 +51,7 @@ internal fun NavigationSelectionLens(
     require(itemCount > 0)
     val colors = MaterialTheme.colorScheme
     val dark = colors.surface.luminance() < 0.5f
-    val shape = remember(vertical) {
-        if (vertical) RoundedCornerShape(percent = 50) else RoundedCornerShape(26.dp)
-    }
+    val shape = remember { RoundedCornerShape(percent = 50) }
     // A slower follower stretches the moving lens, then settles back to its resting shape.
     // Both springs retain their current values on rapid retargeting and honor duration scale 0.
     val tail = animateFloatAsState(
@@ -68,12 +66,12 @@ internal fun NavigationSelectionLens(
             val pillFill = if (dark) {
                 Color.White.copy(alpha = 0.12f)
             } else {
-                Color.White.copy(alpha = 0.42f)
+                Color.White.copy(alpha = 0.30f)
             }
             val pillBorder = Brush.verticalGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = if (dark) 0.30f else 0.70f),
-                    Color.White.copy(alpha = if (dark) 0.05f else 0.20f)
+                    Color.White.copy(alpha = if (dark) 0.25f else 0.60f),
+                    Color.White.copy(alpha = if (dark) 0.05f else 0.12f)
                 )
             )
             Box(
