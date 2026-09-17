@@ -196,9 +196,7 @@ object FavoritePage : AppDestination {
         }
 
         LaunchedEffect(Unit) {
-            model.scheduleMetadataSupplement()
-            model.refreshDownloaded()
-            model.autoCheck()
+            model.initShelf()
         }
         LaunchedEffect(entries) { model.refreshDownloaded() }
         LaunchedEffect(visibleKeys) { selected = selected.intersect(visibleKeys) }

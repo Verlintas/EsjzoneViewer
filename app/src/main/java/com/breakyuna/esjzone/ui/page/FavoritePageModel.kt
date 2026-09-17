@@ -128,6 +128,15 @@ class FavoritePageModel(private val authorization: Authorization) :
             }
         }
     }
+    private var initialized = false
+
+    fun initShelf() {
+        if (initialized) return
+        initialized = true
+        scheduleMetadataSupplement()
+        refreshDownloaded()
+        autoCheck()
+    }
 
     fun autoCheck() {
         val scope = BookshelfRepository.scopeFor(authorization)
