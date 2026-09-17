@@ -2,15 +2,18 @@ package com.breakyuna.esjzone.ui.designsystem.glass
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.Layout
@@ -33,9 +36,8 @@ internal object NavigationGlassMetrics {
 }
 
 /**
- * One decorative lens, underneath ALL tab glyphs and hit targets. It samples the page scene,
- * never the outer glass or navigation content, so it cannot refract icons or capture itself.
- * The matched-size Layout does not contribute to the wrap-content rail's measured size.
+ * Animated soft glowing pill indicator underneath active tab glyphs and hit targets.
+ * Retains spring physics and layout placement without frame-by-frame recomposition.
  */
 @Composable
 internal fun NavigationSelectionLens(
@@ -49,7 +51,9 @@ internal fun NavigationSelectionLens(
     require(itemCount > 0)
     val colors = MaterialTheme.colorScheme
     val dark = colors.surface.luminance() < 0.5f
-    val shape = remember { RoundedCornerShape(percent = 50) }
+    val shape = remember(vertical) {
+        if (vertical) RoundedCornerShape(percent = 50) else RoundedCornerShape(26.dp)
+    }
     // A slower follower stretches the moving lens, then settles back to its resting shape.
     // Both springs retain their current values on rapid retargeting and honor duration scale 0.
     val tail = animateFloatAsState(
@@ -57,59 +61,38 @@ internal fun NavigationSelectionLens(
         animationSpec = spring(dampingRatio = 0.90f, stiffness = 90f),
         label = "navigation_lens_tail"
     )
-    val spec = remember(colors, dark, shape) {
-        AppGlassSpec(
-            shape = shape,
-            material = AppGlassMaterial.CLEAR,
-            tint = colors.primaryContainer,
-            alpha = 1f,
-            tintAlpha = if (dark) 0.045f else 0.06f,
-            fallbackAlpha = 0.10f,
-            blurRadius = 0.dp,
-            depth = 0f,
-            refractionStrength = 0.94f,
-            refractionDisplacement = 10.dp,
-            refractionHeightFraction = 0.23f,
-            refractionFoldStrength = 0.24f,
-            edgeSoftness = 0.5.dp,
-            specularIntensity = if (dark) 0.72f else 0.74f,
-            ambientResponse = if (dark) 0.20f else 0.16f,
-            specularExponent = 28f,
-            fresnelExponent = 3.5f,
-            lightPosition = Alignment.TopStart,
-            chromaticAberrationStrength = 0.025f,
-            contrast = 0f,
-            whitePoint = 0f,
-            chromaMultiplier = 1f,
-            contentNormalBlend = 0f,
-            borderAlpha = 0f,
-            borderWidth = 0.dp,
-        )
-    }
 
     Layout(
         modifier = modifier,
         content = {
-            AppGlassSurface(
-                scene = scene,
-                spec = spec,
-                modifier = Modifier.shadow(
-                    elevation = 5.dp,
-                    shape = shape,
-                    clip = false,
-                    ambientColor = Color.Black.copy(alpha = 0.08f),
-                    spotColor = Color.Black.copy(alpha = if (dark) 0.32f else 0.18f)
-                )
-            ) {
-                Box(
-                    Modifier.matchParentSize().navigationCrystalBevel(
-                        dark = dark,
-                        vertical = vertical,
-                        lightPosition = position,
-                        bevelWidth = 2.75.dp
-                    )
-                )
+            val pillFill = if (dark) {
+                Color.White.copy(alpha = 0.12f)
+            } else {
+                Color.White.copy(alpha = 0.42f)
             }
+            val pillBorder = Brush.verticalGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = if (dark) 0.30f else 0.70f),
+                    Color.White.copy(alpha = if (dark) 0.05f else 0.20f)
+                )
+            )
+            Box(
+                modifier = Modifier
+                    .shadow(
+                        elevation = if (dark) 2.dp else 4.dp,
+                        shape = shape,
+                        clip = false,
+                        ambientColor = Color.Black.copy(alpha = if (dark) 0.10f else 0.04f),
+                        spotColor = Color.Black.copy(alpha = if (dark) 0.20f else 0.08f)
+                    )
+                    .clip(shape)
+                    .background(pillFill)
+                    .border(
+                        width = 0.8.dp,
+                        brush = pillBorder,
+                        shape = shape
+                    )
+            )
         }
     ) { measurables, constraints ->
         // This overlay is always installed with BoxScope.matchParentSize().

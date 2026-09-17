@@ -64,14 +64,12 @@ import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.ui.discovery.DiscoveryScaffold
 import com.breakyuna.esjzone.ui.product.EmptyState
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -455,12 +453,14 @@ private fun AppNavigationBar(
     glassScene: AppGlassScene,
     modifier: Modifier = Modifier
 ) {
+    val navShape = RoundedCornerShape(30.dp)
     AppNavigationGlassSurface(
         scene = glassScene,
         selectedFraction = ((tabs.indexOf(selected).coerceAtLeast(0)) + 0.5f) / tabs.size,
         itemCount = tabs.size,
+        shape = navShape,
         // The entire visible capsule owns its touch area. Empty slots cannot activate a card below.
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)).clickable(
+        modifier = modifier.fillMaxWidth().clip(navShape).clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
             onClick = {}
@@ -545,32 +545,35 @@ private data class NavigationItemColors(
 @Composable
 private fun navigationItemColors(selected: Boolean): NavigationItemColors {
     val colors = MaterialTheme.colorScheme
-    val dark = colors.surface.luminance() < 0.5f
     val contentColor by animateColorAsState(
-        targetValue = if (selected) colors.onPrimaryContainer else colors.onSurface,
+        targetValue = if (selected) colors.primary else colors.onSurfaceVariant,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "nav_content"
     )
     return NavigationItemColors(
         content = contentColor,
-        halo = colors.surface.copy(alpha = if (dark) 0.76f else 0.70f)
+        halo = Color.Transparent
     )
 }
 
 /** Small feathered backing behind glyphs; leaves the pane and selection edges transparent. */
 private fun Modifier.navigationContentHalo(color: Color): Modifier = drawWithCache {
-    val radius = (size.height * 0.5f).coerceAtLeast(1f)
-    val horizontalScale = size.width / (radius * 2f)
-    val brush = Brush.radialGradient(
-        0f to color,
-        0.55f to color.copy(alpha = color.alpha * 0.90f),
-        1f to color.copy(alpha = 0f),
-        radius = radius
-    )
-    onDrawBehind {
-        // Fit an ellipse inside the content bounds; never cut a halo into a hard rectangle.
-        scale(scaleX = horizontalScale, scaleY = 1f) {
-            drawCircle(brush = brush, radius = radius)
+    if (color == Color.Transparent || color.alpha <= 0.01f) {
+        onDrawBehind { }
+    } else {
+        val radius = (size.height * 0.5f).coerceAtLeast(1f)
+        val horizontalScale = size.width / (radius * 2f)
+        val brush = Brush.radialGradient(
+            0f to color,
+            0.55f to color.copy(alpha = color.alpha * 0.90f),
+            1f to color.copy(alpha = 0f),
+            radius = radius
+        )
+        onDrawBehind {
+            // Fit an ellipse inside the content bounds; never cut a halo into a hard rectangle.
+            scale(scaleX = horizontalScale, scaleY = 1f) {
+                drawCircle(brush = brush, radius = radius)
+            }
         }
     }
 }
@@ -585,8 +588,7 @@ private fun FloatingNavHorizontalItem(
     modifier: Modifier = Modifier
 ) {
     val colors = navigationItemColors(selected)
-    val pillShape = RoundedCornerShape(percent = 50)
-    val labelHaloRadius = with(LocalDensity.current) { 2.dp.toPx() }
+    val pillShape = RoundedCornerShape(26.dp)
     Box(
         modifier = modifier.fillMaxHeight(),
         contentAlignment = Alignment.Center
@@ -622,13 +624,8 @@ private fun FloatingNavHorizontalItem(
                 )
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        shadow = Shadow(
-                            color = colors.halo.copy(alpha = 0.95f),
-                            blurRadius = labelHaloRadius
-                        )
-                    ),
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                     color = colors.content,
                     maxLines = 1
                 )
