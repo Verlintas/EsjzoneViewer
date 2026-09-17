@@ -38,6 +38,7 @@ interface SettingsRepository {
     val downloadConcurrency: StateFlow<Int>
     val novelListGridView: StateFlow<Boolean>
     val novelListAdultOnly: StateFlow<Boolean>
+    val navigationOrder: StateFlow<List<String>>
     fun setAdult(value: Boolean)
     fun setDomain(value: String)
     fun setLanguage(value: AppLanguage)
@@ -45,6 +46,7 @@ interface SettingsRepository {
     fun setDownloadConcurrency(value: Int)
     fun setNovelListGridView(value: Boolean)
     fun setNovelListAdultOnly(value: Boolean)
+    fun setNavigationOrder(value: List<String>)
 }
 
 interface NovelRepository {

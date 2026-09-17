@@ -1,6 +1,7 @@
 package com.breakyuna.esjzone.ui.page
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,12 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.NoAdultContent
+import androidx.compose.material.icons.filled.Reorder
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -46,17 +53,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.breakyuna.esjzone.AppLanguage
 import com.breakyuna.esjzone.BuildConfig
 import com.breakyuna.esjzone.Constants
@@ -93,10 +105,16 @@ object SettingsPage : AppDestination {
         val language by PresentationAccess.settings.language
         val autoSave by PresentationAccess.settings.readerAutoSave
         val downloadConcurrency by PresentationAccess.settings.downloadConcurrency
+        val navigationOrder by PresentationAccess.settings.navigationOrder
         val readerSettings by PresentationAccess.readerSettings.settings.collectAsStateWithLifecycle()
         val checkState by ReleaseUpdateChecker.status.collectAsStateWithLifecycle()
         val autoCheck by ReleaseUpdateChecker.autoCheck.collectAsStateWithLifecycle()
         var showLogout by remember { mutableStateOf(false) }
+        var draggingNavigationItem by remember { mutableStateOf<String?>(null) }
+        var editableNavigationOrder by remember { mutableStateOf(navigationOrder) }
+        LaunchedEffect(navigationOrder, draggingNavigationItem) {
+            if (draggingNavigationItem == null) editableNavigationOrder = navigationOrder
+        }
         LaunchedEffect(Unit) {
             model.refreshCacheStats()
             ReleaseUpdateChecker.initialize(context)
@@ -137,6 +155,129 @@ object SettingsPage : AppDestination {
 
                 SettingsSection(Icons.Filled.NoAdultContent, stringResource(R.string.settings_content_section)) {
                     ToggleRow(stringResource(R.string.settings_showadultcontent), stringResource(R.string.settings_adult_description), adult) { PresentationAccess.settings.setAdult(it); model.persist("show_adult", it.toString()) }
+                }
+
+                SettingsSection(Icons.Filled.Reorder, stringResource(R.string.settings_navigation_section)) {
+                    Text(
+                        stringResource(R.string.settings_navigation_description),
+                        style = com.breakyuna.esjzone.ui.designsystem.AppTypography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            editableNavigationOrder.forEach { item ->
+                                key(item) {
+                                val selected = draggingNavigationItem == item
+                                var dragOffsetX by remember(item) { mutableFloatStateOf(0f) }
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .zIndex(if (selected) 1f else 0f)
+                                        .graphicsLayer {
+                                            translationX = dragOffsetX
+                                            scaleX = if (selected) 1.05f else 1f
+                                            scaleY = if (selected) 1.05f else 1f
+                                        }
+                                        .pointerInput(item) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = {
+                                                    draggingNavigationItem = item
+                                                    dragOffsetX = 0f
+                                                },
+                                                onDragCancel = {
+                                                    dragOffsetX = 0f
+                                                    draggingNavigationItem = null
+                                                },
+                                                onDragEnd = {
+                                                    dragOffsetX = 0f
+                                                    draggingNavigationItem = null
+                                                    PresentationAccess.settings.setNavigationOrder(
+                                                        editableNavigationOrder
+                                                    )
+                                                },
+                                                onDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragOffsetX += dragAmount.x
+                                                    val threshold = size.width * 0.55f
+                                                    val currentIndex = editableNavigationOrder.indexOf(item)
+                                                    val targetIndex = when {
+                                                        dragOffsetX > threshold -> currentIndex + 1
+                                                        dragOffsetX < -threshold -> currentIndex - 1
+                                                        else -> currentIndex
+                                                    }
+                                                    if (targetIndex in editableNavigationOrder.indices && targetIndex != currentIndex) {
+                                                        val reordered = editableNavigationOrder.toMutableList()
+                                                        java.util.Collections.swap(reordered, currentIndex, targetIndex)
+                                                        editableNavigationOrder = reordered
+                                                        dragOffsetX = 0f
+                                                    }
+                                                }
+                                            )
+                                        },
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50),
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else Color.Transparent,
+                                    shadowElevation = if (selected) 6.dp else 0.dp
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Icon(
+                                            navigationItemIcon(item),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp),
+                                            tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            navigationItemLabel(item),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                }
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = {
+                                PresentationAccess.settings.setNavigationOrder(
+                                    com.breakyuna.esjzone.data.settings.SettingsDefaults.NAVIGATION_ORDER
+                                )
+                                editableNavigationOrder =
+                                    com.breakyuna.esjzone.data.settings.SettingsDefaults.NAVIGATION_ORDER
+                                draggingNavigationItem = null
+                            },
+                            enabled = editableNavigationOrder != com.breakyuna.esjzone.data.settings.SettingsDefaults.NAVIGATION_ORDER
+                        ) {
+                            Icon(Icons.Filled.RestartAlt, contentDescription = null)
+                            Text(stringResource(R.string.settings_navigation_reset), modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
                 }
 
                 SettingsSection(Icons.Filled.MenuBook, stringResource(R.string.settings_reader_section)) {
@@ -319,6 +460,23 @@ object SettingsPage : AppDestination {
             dismissButton = { TextButton(onClick = { showLogout = false }, enabled = !state.logoutInProgress) { Text(stringResource(R.string.logout_cancel)) } }
         )
     }
+}
+
+@Composable
+private fun navigationItemLabel(id: String): String = when (id) {
+    "HOME" -> stringResource(R.string.navigation_home)
+    "HISTORY" -> stringResource(R.string.history)
+    "BOOKSHELF" -> stringResource(R.string.bookshelf)
+    "PROFILE" -> stringResource(R.string.navigation_profile)
+    else -> id
+}
+
+private fun navigationItemIcon(id: String): ImageVector = when (id) {
+    "HOME" -> Icons.Filled.Home
+    "HISTORY" -> Icons.Filled.History
+    "BOOKSHELF" -> Icons.Filled.AutoStories
+    "PROFILE" -> Icons.Filled.Person
+    else -> Icons.Filled.Reorder
 }
 
 @Composable

@@ -15,6 +15,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.breakyuna.esjzone.ui.reader.ReaderBackground
 import com.breakyuna.esjzone.ui.reader.ReaderFont
 import com.breakyuna.esjzone.ui.reader.ReaderScript
+import com.breakyuna.esjzone.ui.reader.ReaderPageAnimation
 import com.breakyuna.esjzone.ui.reader.ReaderSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +83,7 @@ class ReaderSettingsDataStore(
                 PAGE_SPACING,
                 HORIZONTAL_PADDING,
                 SCRIPT,
+                PAGE_ANIMATION,
                 VOLUME_KEY_PAGING
             ).any { current.contains(it) }
             if (!hasCurrentSettings) {
@@ -106,6 +108,7 @@ class ReaderSettingsDataStore(
             pageSpacingDp = preferences.readFloat(LEGACY_PAGE_SPACING, defaults.pageSpacingDp, 16f, 80f),
             horizontalPaddingDp = preferences.readFloat(LEGACY_HORIZONTAL_PADDING, defaults.horizontalPaddingDp, 12f, 48f),
             script = enumOrDefault(preferences.readString(LEGACY_SCRIPT), defaults.script),
+            pageAnimation = defaults.pageAnimation,
             volumeKeyPaging = defaults.volumeKeyPaging
         )
     }
@@ -122,6 +125,7 @@ class ReaderSettingsDataStore(
             pageSpacingDp = this[PAGE_SPACING].safeValue(defaults.pageSpacingDp, 16f, 80f),
             horizontalPaddingDp = this[HORIZONTAL_PADDING].safeValue(defaults.horizontalPaddingDp, 12f, 48f),
             script = enumOrDefault(this[SCRIPT], defaults.script),
+            pageAnimation = enumOrDefault(this[PAGE_ANIMATION], defaults.pageAnimation),
             volumeKeyPaging = this[VOLUME_KEY_PAGING] ?: defaults.volumeKeyPaging
         )
     }
@@ -145,6 +149,7 @@ class ReaderSettingsDataStore(
         preferences[PAGE_SPACING] = pageSpacingDp
         preferences[HORIZONTAL_PADDING] = horizontalPaddingDp
         preferences[SCRIPT] = script.name
+        preferences[PAGE_ANIMATION] = pageAnimation.name
         preferences[VOLUME_KEY_PAGING] = volumeKeyPaging
     }
 
@@ -189,6 +194,7 @@ class ReaderSettingsDataStore(
         val PAGE_SPACING = floatPreferencesKey("page_spacing")
         val HORIZONTAL_PADDING = floatPreferencesKey("horizontal_padding")
         val SCRIPT = stringPreferencesKey("script")
+        val PAGE_ANIMATION = stringPreferencesKey("page_animation")
         val VOLUME_KEY_PAGING = booleanPreferencesKey("volume_key_paging")
         val MIGRATION_COMPLETE = androidx.datastore.preferences.core.booleanPreferencesKey(
             "legacy_reader_settings_migration_complete"

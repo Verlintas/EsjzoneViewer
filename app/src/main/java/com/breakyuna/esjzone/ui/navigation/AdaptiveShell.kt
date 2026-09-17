@@ -60,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import com.breakyuna.esjzone.R
+import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.ui.discovery.DiscoveryScaffold
 import com.breakyuna.esjzone.ui.product.EmptyState
 import androidx.compose.ui.graphics.Color
@@ -141,6 +142,13 @@ fun AdaptiveAppShell(
     var selectedTab by rememberSaveable { mutableStateOf(AppTabId.HOME.name) }
     val widthSizeClass = currentWindowAdaptiveInfoV2().windowSizeClass.windowWidthSizeClass
     val navigationGlassScene = rememberAppGlassScene()
+    val savedNavigationOrder by PresentationAccess.settings.navigationOrder
+    val orderedTabs = remember(savedNavigationOrder) {
+        val byName = AppTabId.entries.associateBy { it.name }
+        savedNavigationOrder.mapNotNull(byName::get).let { saved ->
+            saved + AppTabId.entries.filterNot { it in saved }
+        }
+    }
     val suppressedTabs = remember { mutableStateMapOf<AppTabId, Boolean>() }
     val tab = AppTabId.valueOf(selectedTab)
     val focusManager = LocalFocusManager.current
@@ -225,6 +233,7 @@ fun AdaptiveAppShell(
                         AppNavigationBar(
                             selected = tab,
                             onSelected = onTabSelected,
+                            tabs = orderedTabs,
                             glassScene = navigationGlassScene,
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
@@ -265,6 +274,7 @@ fun AdaptiveAppShell(
                         AppSideNavigationBar(
                             selected = tab,
                             onSelected = onTabSelected,
+                            tabs = orderedTabs,
                             glassScene = navigationGlassScene,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
@@ -441,13 +451,14 @@ private fun TabStackDisplay(
 private fun AppNavigationBar(
     selected: AppTabId,
     onSelected: (AppTabId) -> Unit,
+    tabs: List<AppTabId>,
     glassScene: AppGlassScene,
     modifier: Modifier = Modifier
 ) {
     AppNavigationGlassSurface(
         scene = glassScene,
-        selectedFraction = (selected.ordinal + 0.5f) / AppTabId.entries.size,
-        itemCount = AppTabId.entries.size,
+        selectedFraction = ((tabs.indexOf(selected).coerceAtLeast(0)) + 0.5f) / tabs.size,
+        itemCount = tabs.size,
         // The entire visible capsule owns its touch area. Empty slots cannot activate a card below.
         modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)).clickable(
             interactionSource = remember { MutableInteractionSource() },
@@ -467,7 +478,7 @@ private fun AppNavigationBar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AppTabId.entries.forEach { tab ->
+            tabs.forEach { tab ->
                 FloatingNavHorizontalItem(
                     selected = selected == tab,
                     onClick = { onSelected(tab) },
@@ -485,13 +496,14 @@ private fun AppNavigationBar(
 private fun AppSideNavigationBar(
     selected: AppTabId,
     onSelected: (AppTabId) -> Unit,
+    tabs: List<AppTabId>,
     glassScene: AppGlassScene,
     modifier: Modifier = Modifier
 ) {
     AppNavigationGlassSurface(
         scene = glassScene,
-        selectedFraction = (selected.ordinal + 0.5f) / AppTabId.entries.size,
-        itemCount = AppTabId.entries.size,
+        selectedFraction = ((tabs.indexOf(selected).coerceAtLeast(0)) + 0.5f) / tabs.size,
+        itemCount = tabs.size,
         modifier = modifier.wrapContentSize().clip(RoundedCornerShape(percent = 50)).clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
@@ -511,7 +523,7 @@ private fun AppSideNavigationBar(
             verticalArrangement = Arrangement.spacedBy(NavigationGlassMetrics.railItemGap, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            AppTabId.entries.forEach { tab ->
+            tabs.forEach { tab ->
                 FloatingNavVerticalItem(
                     selected = selected == tab,
                     onClick = { onSelected(tab) },

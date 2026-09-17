@@ -15,19 +15,25 @@ import com.breakyuna.esjzone.network.EsjzoneUrls
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Owns bookshelf synchronization and deletion jobs for the page. */
 class FavoritePageModel(private val authorization: Authorization) :
     AppStateViewModel<FavoritePageModel.State>(State.Idle) {
-    val entries = BookshelfRepository.observe(authorization)
+    /** Hot snapshots prevent an empty Room frame from resetting the restored shelf position. */
+    val entries: StateFlow<List<BookshelfEntry>> = BookshelfRepository.observe(authorization)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Full local reading timestamps used only for the optional shelf order. */
-    val readingActivities = PresentationAccess.database.localReadingActivityDao().observeAll()
+    val readingActivities: StateFlow<List<LocalReadingActivity>> =
+        PresentationAccess.database.localReadingActivityDao().observeAll()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Latest local activity for the showcase, grid progress labels, and reactive ordering. */
     data class ReadingIndex(
@@ -49,7 +55,8 @@ class FavoritePageModel(private val authorization: Authorization) :
     }
 
     // Exclude unread recent additions from the showcase; no remote history or extra requests.
-    val readingIndex = PresentationAccess.database.localReadingActivityDao().observeAll()
+    val readingIndex: StateFlow<ReadingIndex> =
+        PresentationAccess.database.localReadingActivityDao().observeAll()
         .map { activities ->
             val latestByNovelId = HashMap<String, LocalReadingActivity>()
             val latestByBookKey = HashMap<String, LocalReadingActivity>()
@@ -79,6 +86,7 @@ class FavoritePageModel(private val authorization: Authorization) :
         }
         .distinctUntilChanged()
         .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ReadingIndex())
 
     private val _downloadedBookKeys = MutableStateFlow<Set<String>>(emptySet())
     val downloadedBookKeys: StateFlow<Set<String>> = _downloadedBookKeys

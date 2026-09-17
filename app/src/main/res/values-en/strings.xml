@@ -314,6 +314,9 @@
     <string name="settings_language_en_description">English</string>
     <string name="settings_content_section">Content &amp; filtering</string>
     <string name="settings_reader_section">Reading</string>
+    <string name="settings_navigation_section">Navigation bar</string>
+    <string name="settings_navigation_description">Change the item order shared by the bottom navigation bar and side rail.</string>
+    <string name="settings_navigation_reset">Restore default order</string>
     <string name="settings_volume_key_paging">Volume key paging</string>
     <string name="settings_volume_key_paging_description">Use the volume keys to move one page up or down while reading</string>
     <string name="settings_adult_description">Show restricted works on Home, Categories and the catalog.</string>
@@ -369,6 +372,11 @@
     <string name="comments">Comments</string>
     <string name="comments_empty">No comments yet</string>
     <string name="reader_settings">Reader settings</string>
+    <string name="reader_paging_method">Page controls</string>
+    <string name="reader_page_animation_vertical">Vertical scroll</string>
+    <string name="reader_page_animation_slide">Horizontal slide</string>
+    <string name="reader_page_animation_fade">Fade</string>
+    <string name="reader_page_animation_cover">Cover</string>
     <string name="reader_reset">Reset</string>
     <string name="reader_background">Background</string>
     <string name="reader_background_system">System</string>

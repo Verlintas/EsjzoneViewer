@@ -5,6 +5,8 @@ import android.app.Activity
 import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -13,6 +15,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
@@ -84,6 +87,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -126,6 +130,7 @@ import com.breakyuna.esjzone.network.LocalAuthorization
 import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.novellibrary.novel.FavoriteNovel
 import com.breakyuna.esjzone.domain.reader.ReaderBlock
+import com.breakyuna.esjzone.ui.reader.ReaderPageAnimation
 import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
 import com.breakyuna.esjzone.ui.navigation.ChapterStateHolder
 import com.breakyuna.esjzone.ui.reader.ReaderBackground
@@ -842,14 +847,66 @@ class ChapterPage(
             }
         }
 
+        val pageTranslation = remember { Animatable(0f) }
+        val pageAlpha = remember { Animatable(1f) }
+        var pageTurnInProgress by remember { mutableStateOf(false) }
+
+        fun turnReaderPage(forward: Boolean) {
+            if (pageTurnInProgress) return
+            val viewportHeight = scrollState.layoutInfo.viewportSize.height.toFloat()
+            if (viewportHeight <= 0f) return
+            // Keep a small overlap so the reader never loses the line at the page boundary.
+            val distance = viewportHeight * 0.88f * if (forward) 1f else -1f
+            val viewportWidth = scrollState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(1f)
+            scope.launch {
+                pageTurnInProgress = true
+                try {
+                    when (readerSettings.pageAnimation) {
+                        ReaderPageAnimation.VERTICAL_SCROLL -> scrollState.animateScrollBy(distance)
+                        ReaderPageAnimation.HORIZONTAL_SLIDE -> {
+                            pageTranslation.animateTo(
+                                if (forward) -viewportWidth else viewportWidth,
+                                tween(180)
+                            )
+                            scrollState.scrollBy(distance)
+                            pageTranslation.snapTo(if (forward) viewportWidth else -viewportWidth)
+                            pageTranslation.animateTo(0f, tween(180))
+                        }
+                        ReaderPageAnimation.FADE -> {
+                            pageAlpha.animateTo(0f, tween(140))
+                            scrollState.scrollBy(distance)
+                            pageAlpha.animateTo(1f, tween(180))
+                        }
+                        ReaderPageAnimation.COVER -> {
+                            scrollState.scrollBy(distance)
+                            pageTranslation.snapTo(if (forward) viewportWidth else -viewportWidth)
+                            pageTranslation.animateTo(0f, tween(260))
+                        }
+                    }
+                } finally {
+                    pageTranslation.snapTo(0f)
+                    pageAlpha.snapTo(1f)
+                    pageTurnInProgress = false
+                }
+            }
+        }
+
         Box(modifier = Modifier.fillMaxSize()) {
             ReaderShell(
                 background = readerSettings.background.containerColor(),
-                onReadingAreaTap = {
+                horizontalSwipeEnabled = true,
+                onHorizontalSwipe = ::turnReaderPage,
+                onReadingAreaTap = { xFraction, _ ->
                     if (progressPreview != null) {
                         dismissProgressPreview()
                     } else {
-                        showToolbar = !showToolbar
+                        val forward = when {
+                            xFraction < 0.28f -> false
+                            xFraction > 0.72f -> true
+                            else -> null
+                        }
+                        if (forward == null) showToolbar = !showToolbar
+                        else turnReaderPage(forward)
                     }
                 }
             ) {
@@ -861,6 +918,10 @@ class ChapterPage(
                             .fillMaxWidth()
                             .widthIn(max = adaptiveMetrics.contentMaxWidth)
                             .align(Alignment.Center)
+                            .graphicsLayer {
+                                translationX = pageTranslation.value
+                                alpha = pageAlpha.value
+                            }
                             .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                             .padding(horizontal = readerSettings.horizontalPaddingDp.dp),
                         verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -2168,6 +2229,25 @@ private fun ReaderSettingsSheet(
                 ),
                 onSelected = { script ->
                     onSettingsChange(settings.copy(script = script))
+                }
+            )
+
+            Text(
+                text = stringResource(id = R.string.reader_paging_method),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = AppSpacing.lg, bottom = AppSpacing.sm)
+            )
+            ReaderSettingChoices(
+                selected = settings.pageAnimation,
+                options = listOf(
+                    ReaderPageAnimation.VERTICAL_SCROLL to stringResource(id = R.string.reader_page_animation_vertical),
+                    ReaderPageAnimation.HORIZONTAL_SLIDE to stringResource(id = R.string.reader_page_animation_slide),
+                    ReaderPageAnimation.FADE to stringResource(id = R.string.reader_page_animation_fade),
+                    ReaderPageAnimation.COVER to stringResource(id = R.string.reader_page_animation_cover)
+                ),
+                onSelected = { animation ->
+                    onSettingsChange(settings.copy(pageAnimation = animation))
                 }
             )
 

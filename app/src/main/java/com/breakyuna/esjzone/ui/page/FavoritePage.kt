@@ -125,9 +125,9 @@ object FavoritePage : AppDestination {
         val focusManager = LocalFocusManager.current
         val authorization = LocalAuthorization.current
         val model = rememberAppViewModel { FavoritePageModel(authorization) }
-        val entries by model.entries.collectAsStateWithLifecycle(initialValue = emptyList())
-        val readingActivities by model.readingActivities.collectAsStateWithLifecycle(initialValue = emptyList())
-        val readingIndex by model.readingIndex.collectAsStateWithLifecycle(initialValue = FavoritePageModel.ReadingIndex())
+        val entries by model.entries.collectAsStateWithLifecycle()
+        val readingActivities by model.readingActivities.collectAsStateWithLifecycle()
+        val readingIndex by model.readingIndex.collectAsStateWithLifecycle()
         val downloaded by model.downloadedBookKeys.collectAsStateWithLifecycle()
         val syncState by model.state.collectAsStateWithLifecycle()
         val deleteState by model.deleteState.collectAsStateWithLifecycle()

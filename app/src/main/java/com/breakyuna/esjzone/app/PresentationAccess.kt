@@ -77,6 +77,7 @@ object SettingsStateBoundary {
     private val _downloadConcurrency = mutableStateOf(SettingsDefaults.DEFAULT_DOWNLOAD_CONCURRENCY)
     private val _novelListGridView = mutableStateOf(false)
     private val _novelListAdultOnly = mutableStateOf(false)
+    private val _navigationOrder = mutableStateOf(SettingsDefaults.NAVIGATION_ORDER)
 
     private fun repository(): SettingsRepository {
         val repository = EsjzoneApplication.instance.container.settings
@@ -91,6 +92,7 @@ object SettingsStateBoundary {
             _downloadConcurrency.value = repository.downloadConcurrency.value
             _novelListGridView.value = repository.novelListGridView.value
             _novelListAdultOnly.value = repository.novelListAdultOnly.value
+            _navigationOrder.value = repository.navigationOrder.value
             scope.launch { repository.adult.collect { _adult.value = it } }
             scope.launch { repository.domain.collect { _domain.value = it } }
             scope.launch { repository.language.collect { _language.value = it } }
@@ -98,6 +100,7 @@ object SettingsStateBoundary {
             scope.launch { repository.downloadConcurrency.collect { _downloadConcurrency.value = it } }
             scope.launch { repository.novelListGridView.collect { _novelListGridView.value = it } }
             scope.launch { repository.novelListAdultOnly.collect { _novelListAdultOnly.value = it } }
+            scope.launch { repository.navigationOrder.collect { _navigationOrder.value = it } }
         }
         return repository
     }
@@ -116,6 +119,8 @@ object SettingsStateBoundary {
     val novelListGridViewFlow: StateFlow<Boolean> get() = repository().novelListGridView
     val novelListAdultOnly: State<Boolean> get() { repository(); return _novelListAdultOnly }
     val novelListAdultOnlyFlow: StateFlow<Boolean> get() = repository().novelListAdultOnly
+    val navigationOrder: State<List<String>> get() { repository(); return _navigationOrder }
+    val navigationOrderFlow: StateFlow<List<String>> get() = repository().navigationOrder
 
     fun setAdult(value: Boolean) = repository().setAdult(value)
     fun setDomain(value: String) = repository().setDomain(value)
@@ -124,4 +129,5 @@ object SettingsStateBoundary {
     fun setDownloadConcurrency(value: Int) = repository().setDownloadConcurrency(value)
     fun setNovelListGridView(value: Boolean) = repository().setNovelListGridView(value)
     fun setNovelListAdultOnly(value: Boolean) = repository().setNovelListAdultOnly(value)
+    fun setNavigationOrder(value: List<String>) = repository().setNavigationOrder(value)
 }

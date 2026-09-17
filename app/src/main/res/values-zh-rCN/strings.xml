@@ -314,6 +314,9 @@
     <string name="settings_language_en_description">English</string>
     <string name="settings_content_section">内容与过滤偏好</string>
     <string name="settings_reader_section">阅读设置</string>
+    <string name="settings_navigation_section">导航栏</string>
+    <string name="settings_navigation_description">调整导航项目的显示顺序，底部导航栏与侧边导航栏会同步更新。</string>
+    <string name="settings_navigation_reset">恢复默认顺序</string>
     <string name="settings_volume_key_paging">音量键翻页</string>
     <string name="settings_volume_key_paging_description">阅读时按音量键向上或向下翻一页</string>
     <string name="settings_adult_description">在首页、分类与小说库中显示限制级译文与原创小说。</string>
@@ -369,6 +372,11 @@
     <string name="comments">评论</string>
     <string name="comments_empty">还没有评论</string>
     <string name="reader_settings">阅读设置</string>
+    <string name="reader_paging_method">翻页方式</string>
+    <string name="reader_page_animation_vertical">上下滚动</string>
+    <string name="reader_page_animation_slide">横向平移</string>
+    <string name="reader_page_animation_fade">淡入淡出</string>
+    <string name="reader_page_animation_cover">覆盖翻页</string>
     <string name="reader_reset">恢复默认</string>
     <string name="reader_background">背景颜色</string>
     <string name="reader_background_system">跟随主题</string>

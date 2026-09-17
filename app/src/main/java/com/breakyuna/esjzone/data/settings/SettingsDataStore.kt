@@ -35,6 +35,7 @@ object SettingsDefaults {
     const val MIN_DOWNLOAD_CONCURRENCY = 1
     const val MAX_DOWNLOAD_CONCURRENCY = 8
     val DOMAINS: List<String> = listOf("www.esjzone.cc", "www.esjzone.one")
+    val NAVIGATION_ORDER: List<String> = listOf("HOME", "HISTORY", "BOOKSHELF", "PROFILE")
 }
 
 /** Preferences-backed settings boundary; callers can migrate independently of legacy storage. */
@@ -70,6 +71,8 @@ class SettingsDataStore(
         .stateIn(scope, SharingStarted.Eagerly, defaults.novelListGridView)
     override val novelListAdultOnly: StateFlow<Boolean> = values.map { it.novelListAdultOnly }
         .stateIn(scope, SharingStarted.Eagerly, defaults.novelListAdultOnly)
+    override val navigationOrder: StateFlow<List<String>> = values.map { it.navigationOrder }
+        .stateIn(scope, SharingStarted.Eagerly, defaults.navigationOrder)
 
     override fun setAdult(value: Boolean) = write { it[ADULT] = value }
     override fun setDomain(value: String) {
@@ -85,6 +88,9 @@ class SettingsDataStore(
     }
     override fun setNovelListGridView(value: Boolean) = write { it[NOVEL_LIST_GRID_VIEW] = value }
     override fun setNovelListAdultOnly(value: Boolean) = write { it[NOVEL_LIST_ADULT_ONLY] = value }
+    override fun setNavigationOrder(value: List<String>) = write {
+        it[NAVIGATION_ORDER] = normalizeNavigationOrder(value).joinToString(",")
+    }
 
     /** Copies legacy Room preferences once; authentication/session keys are intentionally excluded. */
     suspend fun migrateFromLegacy(database: GeneralDatabase) {
@@ -139,7 +145,8 @@ class SettingsDataStore(
         val readerAutoSave: Boolean = true,
         val downloadConcurrency: Int = SettingsDefaults.DEFAULT_DOWNLOAD_CONCURRENCY,
         val novelListGridView: Boolean = false,
-        val novelListAdultOnly: Boolean = false
+        val novelListAdultOnly: Boolean = false,
+        val navigationOrder: List<String> = SettingsDefaults.NAVIGATION_ORDER
     )
 
     private fun Preferences.toSettingsValues(): SettingsValues = SettingsValues(
@@ -151,8 +158,16 @@ class SettingsDataStore(
             ?.coerceIn(SettingsDefaults.MIN_DOWNLOAD_CONCURRENCY, SettingsDefaults.MAX_DOWNLOAD_CONCURRENCY)
             ?: defaults.downloadConcurrency,
         novelListGridView = this[NOVEL_LIST_GRID_VIEW] ?: defaults.novelListGridView,
-        novelListAdultOnly = this[NOVEL_LIST_ADULT_ONLY] ?: defaults.novelListAdultOnly
+        novelListAdultOnly = this[NOVEL_LIST_ADULT_ONLY] ?: defaults.novelListAdultOnly,
+        navigationOrder = normalizeNavigationOrder(
+            this[NAVIGATION_ORDER]?.split(',').orEmpty()
+        )
     )
+
+    private fun normalizeNavigationOrder(value: List<String>): List<String> {
+        val known = value.filter { it in SettingsDefaults.NAVIGATION_ORDER }.distinct()
+        return known + SettingsDefaults.NAVIGATION_ORDER.filterNot { it in known }
+    }
 
     private companion object {
         const val FILE_NAME = "settings.preferences_pb"
@@ -164,6 +179,7 @@ class SettingsDataStore(
         val DOWNLOAD_CONCURRENCY = intPreferencesKey("download_concurrency")
         val NOVEL_LIST_GRID_VIEW = booleanPreferencesKey("novel_list_grid_view")
         val NOVEL_LIST_ADULT_ONLY = booleanPreferencesKey("novel_list_adult_only")
+        val NAVIGATION_ORDER = stringPreferencesKey("navigation_order")
         val MIGRATION_COMPLETE = booleanPreferencesKey("legacy_room_migration_complete")
     }
 }

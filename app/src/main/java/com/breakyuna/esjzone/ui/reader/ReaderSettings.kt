@@ -65,6 +65,13 @@ enum class ReaderFont {
         }
 }
 
+enum class ReaderPageAnimation {
+    VERTICAL_SCROLL,
+    HORIZONTAL_SLIDE,
+    FADE,
+    COVER
+}
+
 data class ReaderSettings(
     val background: ReaderBackground = ReaderBackground.SYSTEM,
     val font: ReaderFont = ReaderFont.SYSTEM,
@@ -75,6 +82,7 @@ data class ReaderSettings(
     val pageSpacingDp: Float = 32f,
     val horizontalPaddingDp: Float = 20f,
     val script: ReaderScript = ReaderScript.ORIGINAL,
+    val pageAnimation: ReaderPageAnimation = ReaderPageAnimation.VERTICAL_SCROLL,
     val volumeKeyPaging: Boolean = false
 ) {
     val lineHeightSp: Float
