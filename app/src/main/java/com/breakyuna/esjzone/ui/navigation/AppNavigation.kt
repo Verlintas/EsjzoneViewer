@@ -120,14 +120,14 @@ sealed interface LegacyRoute {
     @Serializable data class Static(val token: String) : LegacyRoute
     @Serializable data class Search(val keyword: String) : LegacyRoute
     @Serializable data class Novel(val identity: String) : LegacyRoute
-    @Serializable data class Category(val identity: String) : LegacyRoute
+    @Serializable data class Category(val identity: String, val name: String = "") : LegacyRoute
     @Serializable data class NovelList(
         val novelType: Int,
         val sortType: Int,
         val adultOnly: Boolean
     ) : LegacyRoute
     @Serializable data class ChapterComments(val identity: String) : LegacyRoute
-    @Serializable data class ForumCategory(val id: String, val url: String) : LegacyRoute
+    @Serializable data class ForumCategory(val id: String, val url: String, val name: String = "") : LegacyRoute
     @Serializable data class ForumBoard(val identity: String) : LegacyRoute
     @Serializable data class ForumPost(val identity: String) : LegacyRoute
 }
@@ -143,10 +143,10 @@ private fun LegacyRoute.token(): String = when (this) {
     is LegacyRoute.Static -> token
     is LegacyRoute.Search -> "SearchPage:$keyword"
     is LegacyRoute.Novel -> "NovelPage:$identity"
-    is LegacyRoute.Category -> "CategoryPage:$identity"
+    is LegacyRoute.Category -> if (name.isNotBlank()) "CategoryPage:$identity:$name" else "CategoryPage:$identity"
     is LegacyRoute.NovelList -> "NovelListPage:$novelType:$sortType:$adultOnly"
     is LegacyRoute.ChapterComments -> "ChapterCommentsPage:$identity"
-    is LegacyRoute.ForumCategory -> "ForumCategoryPage:$id:$url"
+    is LegacyRoute.ForumCategory -> if (name.isNotBlank()) "ForumCategoryPage:$id:$url:$name" else "ForumCategoryPage:$id:$url"
     is LegacyRoute.ForumBoard -> "ForumBoardPage:$identity"
     is LegacyRoute.ForumPost -> "ForumPostPage:$identity"
 }
@@ -157,7 +157,13 @@ private fun routeFromToken(token: String): LegacyRoute {
     return when (kind) {
         "SearchPage" -> LegacyRoute.Search(argument)
         "NovelPage" -> LegacyRoute.Novel(argument)
-        "CategoryPage" -> LegacyRoute.Category(argument)
+        "CategoryPage" -> {
+            val parts = argument.split(':', limit = 2)
+            LegacyRoute.Category(
+                identity = parts.getOrNull(0).orEmpty(),
+                name = parts.getOrNull(1).orEmpty()
+            )
+        }
         "NovelListPage" -> {
             val parts = argument.split(':')
             LegacyRoute.NovelList(
@@ -168,15 +174,16 @@ private fun routeFromToken(token: String): LegacyRoute {
         }
         "ChapterCommentsPage" -> LegacyRoute.ChapterComments(argument)
         "ForumCategoryPage" -> {
-            val parts = argument.split(':', limit = 2)
+            val parts = argument.split(':', limit = 3)
+            val id = parts.getOrNull(0).orEmpty()
+            val url = parts.getOrNull(1).orEmpty().ifBlank {
+                "/forum/${parts.getOrNull(0).orEmpty()}/"
+            }
+            val name = parts.getOrNull(2).orEmpty()
             LegacyRoute.ForumCategory(
-                id = parts.getOrNull(0).orEmpty(),
-                // Older persisted keys contained only the forum id. Derive
-                // the canonical route shape so those entries remain
-                // reconstructible after process recreation as well.
-                url = parts.getOrNull(1).orEmpty().ifBlank {
-                    "/forum/${parts.getOrNull(0).orEmpty()}/"
-                }
+                id = id,
+                url = url,
+                name = name
             )
         }
         "ForumBoardPage" -> LegacyRoute.ForumBoard(argument)
@@ -265,11 +272,11 @@ class AppNavigator internal constructor(
     val items: List<AppDestination>
         get() = backStack.mapNotNull { key ->
             when (key) {
-                AppNavKey.Loading -> registry["LoadingScreen"]
-                AppNavKey.Login -> registry["LoginScreen"]
+                AppNavKey.Loading -> registry["LoadingScreen"] ?: LoadingScreen()
+                AppNavKey.Login -> registry["LoginScreen"] ?: LoginScreen
                 AppNavKey.Main -> registry["MainScreen"]
-                is AppNavKey.Legacy -> registry[key.route.token()]
-                is AppNavKey.Reader -> registry[readerToken(key.route)]
+                is AppNavKey.Legacy -> destination(key.route)
+                is AppNavKey.Reader -> readerDestination(key.route)
                 else -> null
             }
         }
@@ -295,7 +302,11 @@ class AppNavigator internal constructor(
         }
         if (existingIndex == backStack.lastIndex) return false
         if (existingIndex >= 0) {
-            while (backStack.lastIndex > existingIndex) backStack.removeLastOrNull()
+            val removedList = mutableListOf<NavKey>()
+            while (backStack.lastIndex > existingIndex) {
+                backStack.removeLastOrNull()?.let { removedList.add(it) }
+            }
+            removedList.forEach { cleanupKey(it) }
             return false
         }
         push(destination)
@@ -304,7 +315,8 @@ class AppNavigator internal constructor(
 
     fun pop(): Boolean {
         if (backStack.size <= 1) return false
-        backStack.removeLastOrNull()
+        val removed = backStack.removeLastOrNull()
+        cleanupKey(removed)
         return true
     }
 
@@ -335,6 +347,7 @@ class AppNavigator internal constructor(
     }
 
     fun replaceAll(destination: AppDestination) {
+        val oldKeys = backStack.toList()
         when (destination) {
             LoginScreen -> {
                 register(destination)
@@ -353,14 +366,37 @@ class AppNavigator internal constructor(
                 backStack.add(AppNavKey.Legacy(routeFromToken(destination.key)))
             }
         }
+        oldKeys.forEach { cleanupKey(it) }
     }
 
     private fun replaceTop(key: AppNavKey) {
+        val removed = if (backStack.isNotEmpty()) backStack.lastOrNull() else null
         if (backStack.isEmpty()) backStack.add(key) else backStack[backStack.lastIndex] = key
+        if (removed != null && removed != key) {
+            cleanupKey(removed)
+        }
     }
 
     private fun register(destination: AppDestination) {
         registry[destination.key] = destination
+    }
+
+    private fun cleanupKey(key: NavKey?) {
+        val token = when (key) {
+            is AppNavKey.Legacy -> key.route.token()
+            is AppNavKey.Reader -> readerToken(key.route)
+            else -> null
+        } ?: return
+        val stillInUse = backStack.any {
+            when (it) {
+                is AppNavKey.Legacy -> it.route.token() == token
+                is AppNavKey.Reader -> readerToken(it.route) == token
+                else -> false
+            }
+        }
+        if (!stillInUse) {
+            registry.remove(token)
+        }
     }
 
     internal fun child(stack: MutableList<NavKey>): AppNavigator =
@@ -415,7 +451,7 @@ private fun LegacyRoute.restore(): AppDestination? = when (this) {
     is LegacyRoute.Search -> SearchPage(keyword)
     is LegacyRoute.Novel -> NovelPage(FavoriteNovel(name = "", url = identity))
     is LegacyRoute.Category -> CategoryPage(
-        Category(name = "", url = identity, isAdult = false)
+        Category(name = name, url = identity, isAdult = false)
     )
     is LegacyRoute.NovelList -> NovelListPage(novelType, sortType, adultOnly)
     is LegacyRoute.ChapterComments -> ChapterCommentsPage("", identity)
@@ -423,7 +459,7 @@ private fun LegacyRoute.restore(): AppDestination? = when (this) {
         ForumCategory(
             id = id,
             groupName = null,
-            name = "",
+            name = name,
             description = null,
             postCount = null,
             url = url
@@ -476,15 +512,21 @@ internal val predictivePopTransition:
 @Composable
 fun AppNavigation() {
     val backStack: MutableList<NavKey> = rememberNavBackStack(AppNavKey.Loading)
-    val registry = remember { linkedMapOf<String, AppDestination>() }
+    val registry = remember {
+        object : java.util.LinkedHashMap<String, AppDestination>(32, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, AppDestination>?): Boolean =
+                size > 32
+        }
+    }
     // A restored Reader can be the first visible root entry, so it cannot rely
     // on MainScreen's CompositionLocal scope. Read the process-persisted
     // cookie session before composing the root NavDisplay; LoadingScreen still
     // owns the legacy Room import for the normal Loading route.
-    var authorization by remember {
+    val currentDomain by PresentationAccess.settings.domain
+    var authorization by remember(currentDomain) {
         mutableStateOf(
             PresentationAccess.client.restoreAuthorization(
-                PresentationAccess.settings.domain.value
+                currentDomain
             )
         )
     }

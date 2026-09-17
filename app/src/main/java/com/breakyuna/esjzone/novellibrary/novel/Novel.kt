@@ -1,13 +1,16 @@
 package com.breakyuna.esjzone.novellibrary.novel
 
+import androidx.compose.runtime.Immutable
 import com.google.gson.annotations.SerializedName
 import java.io.Serializable
 
+@Immutable
 interface Novel : Serializable {
     val name: String
     val url: String
 }
 
+@Immutable
 interface CoveredNovel : Novel {
     val coverUrl: String
     val views: Int

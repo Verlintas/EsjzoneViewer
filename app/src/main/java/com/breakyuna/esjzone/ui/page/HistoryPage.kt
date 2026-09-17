@@ -2,6 +2,7 @@
 
 package com.breakyuna.esjzone.ui.page
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
 
@@ -53,6 +54,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -115,6 +117,8 @@ import kotlinx.coroutines.sync.withPermit
 object HistoryPage : AppDestination {
     private fun readResolve(): Any = HistoryPage
 
+    override val key: String = "HistoryPage"
+
     @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() = Content(showBack = true)
@@ -126,8 +130,8 @@ object HistoryPage : AppDestination {
         val authorization = LocalAuthorization.current
         val localModel = rememberAppViewModel { LocalHistoryPageModel(authorization) }
         val cloudModel = rememberAppViewModel { HistoryPageModel(authorization) }
-        val localState by localModel.state.collectAsState()
-        val cloudState by cloudModel.state.collectAsState()
+        val localState by localModel.state.collectAsStateWithLifecycle()
+        val cloudState by cloudModel.state.collectAsStateWithLifecycle()
         var selectedPage by rememberSaveable { mutableIntStateOf(0) }
         var searchOpen by rememberSaveable { mutableStateOf(false) }
         var query by rememberSaveable { mutableStateOf("") }
@@ -136,6 +140,11 @@ object HistoryPage : AppDestination {
         var pendingLocalDelete by remember { mutableStateOf<Set<String>>(emptySet()) }
         var showLocalDeleteDialog by remember { mutableStateOf(false) }
         var showCloudSyncStatusMenu by remember { mutableStateOf(false) }
+
+        BackHandler(enabled = localEditing && !showLocalDeleteDialog) {
+            localEditing = false
+            localSelected = emptySet()
+        }
         val suppressFloatingNav = LocalFloatingNavSuppression.current
         DisposableEffect(localEditing, showLocalDeleteDialog, suppressFloatingNav) {
             suppressFloatingNav(localEditing || showLocalDeleteDialog)

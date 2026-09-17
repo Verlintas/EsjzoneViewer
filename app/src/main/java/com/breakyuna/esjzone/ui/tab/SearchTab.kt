@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -71,9 +72,9 @@ object SearchTab : AppTab {
         val navigator = LocalBaseNavigator.current
         val authorization = LocalAuthorization.current
         val searchModel = rememberAppViewModel { SearchPageModel(authorization) }
-        val searchState by searchModel.state.collectAsState()
+        val searchState by searchModel.state.collectAsStateWithLifecycle()
         val historyModel = rememberAppViewModel { SearchHistoryModel() }
-        val historyState by historyModel.state.collectAsState()
+        val historyState by historyModel.state.collectAsStateWithLifecycle()
         var query by rememberSaveable { mutableStateOf("") }
         var activeKeyword by rememberSaveable { mutableStateOf<String?>(null) }
         var category by rememberSaveable { mutableIntStateOf(0) }

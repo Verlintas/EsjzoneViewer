@@ -17,6 +17,7 @@ import com.breakyuna.esjzone.novellibrary.novel.Novel
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
 import com.breakyuna.esjzone.novellibrary.novel.FavoriteNovel
 import com.breakyuna.esjzone.util.AppLogger
+import androidx.room.withTransaction
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -52,6 +53,7 @@ data class BookshelfSyncResult(
  * stable account identifier is available.
  */
 object BookshelfRepository {
+    private lateinit var database: GeneralDatabase
     private lateinit var dao: BookshelfDao
     private lateinit var localReadingDao: LocalReadingActivityDao
     private val syncMutex = Mutex()
@@ -68,8 +70,14 @@ object BookshelfRepository {
     private const val METADATA_BATCH_COOLDOWN_MILLIS = 3_000L
 
     fun initialize(database: GeneralDatabase) {
+        this.database = database
         dao = database.bookshelfDao()
         localReadingDao = database.localReadingActivityDao()
+    }
+
+    private fun requireDatabase(): GeneralDatabase {
+        check(::database.isInitialized) { "BookshelfRepository has not been initialized" }
+        return database
     }
 
     private fun requireDao(): BookshelfDao {
@@ -355,6 +363,7 @@ object BookshelfRepository {
         val processedRemovalKeys = mutableSetOf<String>()
 
         // Resolve pending intents against the snapshot before importing it.
+        var remoteCallCount = 0
         pendingRows.forEach { local ->
             val remoteHas = remoteByKey.containsKey(local.bookKey)
             if (local.syncState == BookshelfSyncState.PENDING_ADD) {
@@ -367,18 +376,22 @@ object BookshelfRepository {
                         dao.updateStateIfVersion(scope, local.bookKey, local.operationVersion,
                             BookshelfSyncState.SYNCED, visible = true)
                     }
-                } else if (EsjzoneClient.toggleFavorite(authorization, local)) {
-                    val current = dao.find(scope, local.bookKey)
-                    if (current != null && BookshelfSyncRules.shouldApplyResponse(
-                            current.operationVersion, local.operationVersion
-                        )
-                    ) {
-                        dao.updateStateIfVersion(scope, local.bookKey, local.operationVersion,
-                            BookshelfSyncState.SYNCED, visible = true)
-                    }
                 } else {
-                    operationFailed = true
-                    dao.markRetry(scope, local.bookKey, local.operationVersion, "favorite request failed")
+                    if (remoteCallCount > 0) delay(150)
+                    remoteCallCount++
+                    if (EsjzoneClient.toggleFavorite(authorization, local)) {
+                        val current = dao.find(scope, local.bookKey)
+                        if (current != null && BookshelfSyncRules.shouldApplyResponse(
+                                current.operationVersion, local.operationVersion
+                            )
+                        ) {
+                            dao.updateStateIfVersion(scope, local.bookKey, local.operationVersion,
+                                BookshelfSyncState.SYNCED, visible = true)
+                        }
+                    } else {
+                        operationFailed = true
+                        dao.markRetry(scope, local.bookKey, local.operationVersion, "favorite request failed")
+                    }
                 }
             } else {
                 processedRemovalKeys += local.bookKey
@@ -390,17 +403,21 @@ object BookshelfRepository {
                     ) {
                         dao.deleteIfVersion(scope, local.bookKey, local.operationVersion)
                     }
-                } else if (EsjzoneClient.toggleFavorite(authorization, local)) {
-                    val current = dao.find(scope, local.bookKey)
-                    if (current != null && BookshelfSyncRules.shouldApplyResponse(
-                            current.operationVersion, local.operationVersion
-                        )
-                    ) {
-                        dao.deleteIfVersion(scope, local.bookKey, local.operationVersion)
-                    }
                 } else {
-                    operationFailed = true
-                    dao.markRetry(scope, local.bookKey, local.operationVersion, "unfavorite request failed")
+                    if (remoteCallCount > 0) delay(150)
+                    remoteCallCount++
+                    if (EsjzoneClient.toggleFavorite(authorization, local)) {
+                        val current = dao.find(scope, local.bookKey)
+                        if (current != null && BookshelfSyncRules.shouldApplyResponse(
+                                current.operationVersion, local.operationVersion
+                            )
+                        ) {
+                            dao.deleteIfVersion(scope, local.bookKey, local.operationVersion)
+                        }
+                    } else {
+                        operationFailed = true
+                        dao.markRetry(scope, local.bookKey, local.operationVersion, "unfavorite request failed")
+                    }
                 }
             }
         }
@@ -441,22 +458,24 @@ object BookshelfRepository {
         }
         // The favorite page itself exposes the latest chapter and update time;
         // persist that snapshot without touching local favorite/remove intent.
-        remoteByKey.values.forEach { remoteNovel ->
-            val key = keyFor(remoteNovel.url)
-            val current = dao.find(scope, key) ?: return@forEach
-            val latestUrl = remoteNovel.latestUrl.orEmpty()
-            val fingerprint = EsjzoneUrls.canonicalPageKey(latestUrl).ifBlank {
-                listOf(remoteNovel.latestTitle.orEmpty(), remoteNovel.remoteUpdatedAt.orEmpty())
-                    .joinToString("|").takeIf { it != "|" }.orEmpty()
+        requireDatabase().withTransaction {
+            remoteByKey.values.forEach { remoteNovel ->
+                val key = keyFor(remoteNovel.url)
+                val current = dao.find(scope, key) ?: return@forEach
+                val latestUrl = remoteNovel.latestUrl.orEmpty()
+                val fingerprint = EsjzoneUrls.canonicalPageKey(latestUrl).ifBlank {
+                    listOf(remoteNovel.latestTitle.orEmpty(), remoteNovel.remoteUpdatedAt.orEmpty())
+                        .joinToString("|").takeIf { it != "|" }.orEmpty()
+                }
+                val effectiveFingerprint = fingerprint.ifBlank { current.latestFingerprint }
+                val changed = current.latestFingerprint.isNotBlank() && fingerprint.isNotBlank() &&
+                    current.latestFingerprint != fingerprint
+                dao.updateRemoteStatus(
+                    scope, key, remoteNovel.latestTitle.orEmpty(), latestUrl,
+                    remoteNovel.remoteLastViewedTitle.orEmpty(), remoteNovel.remoteUpdatedAt.orEmpty(),
+                    effectiveFingerprint, current.hasUpdate || changed
+                )
             }
-            val effectiveFingerprint = fingerprint.ifBlank { current.latestFingerprint }
-            val changed = current.latestFingerprint.isNotBlank() && fingerprint.isNotBlank() &&
-                current.latestFingerprint != fingerprint
-            dao.updateRemoteStatus(
-                scope, key, remoteNovel.latestTitle.orEmpty(), latestUrl,
-                remoteNovel.remoteLastViewedTitle.orEmpty(), remoteNovel.remoteUpdatedAt.orEmpty(),
-                effectiveFingerprint, current.hasUpdate || changed
-            )
         }
         scheduleMetadataSupplement(authorization)
         BookshelfSyncResult(success = !operationFailed, added = added)

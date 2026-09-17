@@ -32,6 +32,10 @@ import com.breakyuna.esjzone.network.EsjzoneClient
 import com.breakyuna.esjzone.network.features.HomeDataCache
 import com.breakyuna.esjzone.offline.NovelDownloadStore
 import okio.Path.Companion.toOkioPath
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Application-scoped ownership of infrastructure and repository adapters.
@@ -52,7 +56,8 @@ class AppContainer(context: Context) {
         GeneralDatabase.MIGRATION_3_4,
         GeneralDatabase.MIGRATION_4_5,
         GeneralDatabase.MIGRATION_5_6,
-        GeneralDatabase.MIGRATION_6_7
+        GeneralDatabase.MIGRATION_6_7,
+        GeneralDatabase.MIGRATION_7_8
     ).build()
 
     val imageLoader: ImageLoader = ImageLoader.Builder(appContext)
@@ -83,9 +88,14 @@ class AppContainer(context: Context) {
     val community: CommunityRepository = NetworkCommunityRepository()
     val reader: ReaderRepository = novel as ReaderRepository
 
-    init {
-        EsjzoneClient.initialize(appContext)
-        NovelDownloadStore.initialize(appContext)
-        HomeDataCache.initialize(appContext)
+    suspend fun initializeAsync() = withContext(Dispatchers.IO) {
+        coroutineScope {
+            val clientJob = launch { EsjzoneClient.initialize(appContext) }
+            val downloadJob = launch { NovelDownloadStore.initialize(appContext) }
+            val homeCacheJob = launch { HomeDataCache.initialize(appContext) }
+            clientJob.join()
+            downloadJob.join()
+            homeCacheJob.join()
+        }
     }
 }

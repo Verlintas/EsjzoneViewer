@@ -54,6 +54,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -107,7 +109,7 @@ object LogsPage : AppDestination {
                     title = { Text(stringResource(R.string.system_logs), style = AppTypography.titleLarge) },
                     navigationIcon = { BackIconButton { navigator?.pop() } },
                     actions = {
-                        if (crashReport != null) IconButton(onClick = { crashDialog = true }) { Icon(Icons.Filled.BugReport, stringResource(R.string.logs_crash_report_btn), tint = MaterialTheme.colorScheme.error) }
+                        if (crashReport != null) IconButton(onClick = { crashDialog = true }) { Icon(Icons.Filled.BugReport, stringResource(R.string.logs_crash_report_btn), tint = logCrashErrorColor()) }
                         IconButton(onClick = { copyText(context, AppLogger.exportLogsText()); Toast.makeText(context, copiedToast, Toast.LENGTH_SHORT).show() }) { Icon(Icons.Filled.ContentCopy, stringResource(R.string.logs_copy_all)) }
                         IconButton(onClick = {
                             val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, AppLogger.exportLogsText()); putExtra(Intent.EXTRA_SUBJECT, "Esjzone System Logs") }
@@ -188,8 +190,8 @@ private fun LogItem(entry: LogEntry, context: Context) {
         LogLevel.DEBUG -> stringResource(R.string.logs_filter_debug)
     }
     val accent = when (entry.level) {
-        LogLevel.CRASH, LogLevel.ERROR -> MaterialTheme.colorScheme.error
-        LogLevel.WARN -> MaterialTheme.colorScheme.onSurface
+        LogLevel.CRASH, LogLevel.ERROR -> logCrashErrorColor()
+        LogLevel.WARN -> logWarnColor()
         else -> MaterialTheme.colorScheme.primary
     }
     Surface(shape = AppShapes.standard, color = if (entry.level == LogLevel.CRASH) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f) else MaterialTheme.colorScheme.surfaceContainer) {
@@ -217,6 +219,18 @@ private fun LogItem(entry: LogEntry, context: Context) {
             }
         }
     }
+}
+
+@Composable
+private fun logCrashErrorColor(): Color {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    return if (dark) Color(0xFFFF8A80) else Color(0xFFC62828)
+}
+
+@Composable
+private fun logWarnColor(): Color {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    return if (dark) Color(0xFFFFA726) else Color(0xFF7A4800)
 }
 
 private fun copyText(context: Context, text: String) {

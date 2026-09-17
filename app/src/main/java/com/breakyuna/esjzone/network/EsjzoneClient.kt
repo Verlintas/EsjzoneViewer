@@ -8,6 +8,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -187,11 +188,25 @@ object EsjzoneClient {
         val existing = inFlightPages.putIfAbsent(cacheKey, owner)
         if (existing != null) {
             return try {
-                existing.get()
+                existing.get(35, TimeUnit.SECONDS)
+            } catch (error: TimeoutException) {
+                throw NetworkRequestException(
+                    url,
+                    SocketTimeoutException("Timed out waiting for coalesced request for $url")
+                )
             } catch (error: ExecutionException) {
                 val cause = error.cause
+                if (cause is CancellationException) {
+                    throw NetworkRequestException(
+                        url,
+                        java.io.IOException("Coalesced request was cancelled by initiator", cause)
+                    )
+                }
                 if (cause is Exception) throw cause
                 throw error
+            } catch (error: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw NetworkRequestException(url, error)
             }
         }
 
@@ -272,16 +287,17 @@ object EsjzoneClient {
         } catch (error: CancellationException) {
             owner.completeExceptionally(error)
             throw error
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             // A previously fetched page is preferable to a blank screen during a transient
             // timeout or offline period. The page remains scoped to this account and URL.
-            val result = stalePage.takeIf { allowStaleOnError }
+            val result = if (error is Exception) stalePage.takeIf { allowStaleOnError } else null
             if (result != null) {
                 owner.complete(result)
                 result
             } else {
                 owner.completeExceptionally(error)
-                throw error
+                if (error is Exception) throw error
+                throw java.lang.RuntimeException(error)
             }
         } finally {
             inFlightPages.remove(cacheKey, owner)
@@ -388,9 +404,8 @@ object EsjzoneClient {
 
     private fun pageCacheKey(authorization: Authorization, url: String): String {
         val host = url.toHttpUrlOrNull()?.host ?: authorization.domain
-        val scope = persistentCookieJar?.cacheScopeFor(host) ?: if (authorization.hasCredentials()) {
-            // Use a one-way digest so credentials never appear in cache file names.
-            MessageDigest.getInstance("SHA-256")
+        val scope = if (authorization.hasCredentials()) {
+            persistentCookieJar?.cacheScopeFor(host) ?: MessageDigest.getInstance("SHA-256")
                 .digest(
                     "${authorization.ewsKey}:${authorization.ewsToken}"
                         .toByteArray(StandardCharsets.UTF_8)

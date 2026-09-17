@@ -13,6 +13,7 @@ class AuthorizationCookieJar(
     private val sessionEpoch = persistentJar?.sessionEpoch()
 
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
+        if (!authorization.hasCredentials()) return emptyList()
         if (!persistResponses) return legacyCookies(url)
         if (persistentJar != null) {
             // Once the persistent jar is available it is the source of truth.  Falling
@@ -23,6 +24,7 @@ class AuthorizationCookieJar(
     }
 
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+        if (!authorization.hasCredentials()) return
         if (persistResponses) persistentJar?.saveFromResponse(url, cookies, sessionEpoch)
     }
 

@@ -85,6 +85,7 @@ class ChapterPageModel(
     private var pendingPreviousRequest = false
     private var initialLoadStarted = false
     private var failedAppendChapterKey: String? = null
+    private var failedPrependChapterKey: String? = null
     /** Latest completed reader layout anchor; null means no safe trim point. */
     private var windowAnchor: ReaderWindowAnchor? = null
 
@@ -136,6 +137,7 @@ class ChapterPageModel(
             pendingPreviousRequest = false
             offlineChapterKeys.clear()
             failedAppendChapterKey = null
+            failedPrependChapterKey = null
             windowAnchor = null
         }
         // Cancel outside the model lock: cancellation handlers may publish or
@@ -283,6 +285,7 @@ class ChapterPageModel(
             if (loadingPrevious || loadedChapters.isEmpty()) return
             val first = loadedChapters.first()
             val candidate = adjacentChapter(first.chapter, -1, first.detail) ?: return
+            if (chapterKey(candidate) == failedPrependChapterKey) return
             if (loadedChapters.any { sameChapter(it.chapter, candidate) }) return
             previousChapter = candidate
             loadingPrevious = true
@@ -309,6 +312,7 @@ class ChapterPageModel(
                                     isOffline = loadedOffline
                                 )
                             )
+                            failedPrependChapterKey = null
                             trimLoadedChaptersFromEnd()
                         }
                     }
@@ -318,6 +322,11 @@ class ChapterPageModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                synchronized(lock) {
+                    if (isCurrentSessionLocked(session)) {
+                        failedPrependChapterKey = chapterKey(chapterToLoad)
+                    }
+                }
                 AppLogger.e(
                     "ChapterPageModel",
                     "Failed to prepend chapter ${chapterToLoad.name}",

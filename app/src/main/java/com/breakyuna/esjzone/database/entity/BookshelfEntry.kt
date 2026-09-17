@@ -29,12 +29,12 @@ data class BookshelfEntry(
     @ColumnInfo(name = "last_error") val lastError: String? = null,
     /** Monotonically increases for each local intent, protecting against stale responses. */
     @ColumnInfo(name = "operation_version") val operationVersion: Long = 0L,
-    @ColumnInfo(name = "latest_chapter_title") val latestChapterTitle: String = "",
-    @ColumnInfo(name = "latest_chapter_url") val latestChapterUrl: String = "",
-    @ColumnInfo(name = "remote_last_viewed_title") val remoteLastViewedTitle: String = "",
-    @ColumnInfo(name = "remote_updated_at") val remoteUpdatedAt: String = "",
-    @ColumnInfo(name = "latest_fingerprint") val latestFingerprint: String = "",
-    @ColumnInfo(name = "has_update") val hasUpdate: Boolean = false
+    @ColumnInfo(name = "latest_chapter_title", defaultValue = "''") val latestChapterTitle: String = "",
+    @ColumnInfo(name = "latest_chapter_url", defaultValue = "''") val latestChapterUrl: String = "",
+    @ColumnInfo(name = "remote_last_viewed_title", defaultValue = "''") val remoteLastViewedTitle: String = "",
+    @ColumnInfo(name = "remote_updated_at", defaultValue = "''") val remoteUpdatedAt: String = "",
+    @ColumnInfo(name = "latest_fingerprint", defaultValue = "''") val latestFingerprint: String = "",
+    @ColumnInfo(name = "has_update", defaultValue = "0") val hasUpdate: Boolean = false
 )
 
 object BookshelfSyncState {

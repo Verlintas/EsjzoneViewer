@@ -28,4 +28,10 @@ object ReaderVolumeKeyDispatcher {
         if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return false
         return handler?.invoke(keyCode) == true
     }
+
+    @Synchronized
+    fun isIntercepting(keyCode: Int): Boolean {
+        if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return false
+        return handler != null
+    }
 }

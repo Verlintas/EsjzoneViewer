@@ -499,4 +499,13 @@
     <string name="community_sync_failed">Post sync failed</string>
     <string name="community_sync_detail">Latest post and replies synchronized</string>
     <string name="community_sync_refresh">Refresh community content</string>
+    <string name="bookshelf_entry_latest">Latest: %s</string>
+    <string name="bookshelf_entry_updated_at">Updated: %s</string>
+    <string name="bookshelf_entry_last_viewed">Last read: %s</string>
+    <string name="loading">Loading</string>
+    <string name="load_failed_short">Failed to load</string>
+    <string name="offline_device_content_message">You can still access content saved on this device.</string>
+    <string name="reconnect">Reconnect</string>
+    <string name="cancel">Cancel</string>
+    <string name="comment_write_placeholder">Write a comment</string>
 </resources>

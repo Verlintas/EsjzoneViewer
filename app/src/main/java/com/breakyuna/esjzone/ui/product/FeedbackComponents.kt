@@ -9,13 +9,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.ui.designsystem.AppFeedback
 import com.breakyuna.esjzone.ui.designsystem.AppLottieAsset
 import com.breakyuna.esjzone.ui.designsystem.AppLottieState
@@ -26,7 +29,7 @@ import com.breakyuna.esjzone.ui.designsystem.AppTheme
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
 
 @Composable
-fun LoadingSkeleton(modifier: Modifier = Modifier, label: String = "正在加载") {
+fun LoadingSkeleton(modifier: Modifier = Modifier, label: String = stringResource(R.string.loading)) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -82,10 +85,10 @@ fun EmptyState(
 
 @Composable
 fun ErrorState(
-    title: String = "加载失败",
+    title: String = stringResource(R.string.load_failed_short),
     message: String,
     modifier: Modifier = Modifier,
-    retryLabel: String = "重试",
+    retryLabel: String = stringResource(R.string.retry),
     onRetry: (() -> Unit)? = null
 ) {
     AppFeedback(title = title, message = message, actionLabel = retryLabel.takeIf { onRetry != null }, onAction = onRetry, modifier = modifier)
@@ -93,19 +96,19 @@ fun ErrorState(
 
 @Composable
 fun OfflineState(
-    title: String = "当前处于离线状态",
-    message: String = "你仍然可以查看已经保存在设备上的内容。",
+    title: String = stringResource(R.string.reader_offline_title),
+    message: String = stringResource(R.string.offline_device_content_message),
     modifier: Modifier = Modifier,
     onRetry: (() -> Unit)? = null
 ) {
-    EmptyState(title, message, modifier, actionLabel = "重新连接".takeIf { onRetry != null }, onAction = onRetry)
+    EmptyState(title, message, modifier, actionLabel = stringResource(R.string.reconnect).takeIf { onRetry != null }, onAction = onRetry)
 }
 
 @Composable
 fun ErrorStateCompact(message: String, modifier: Modifier = Modifier, onRetry: (() -> Unit)? = null) {
-    androidx.compose.foundation.layout.Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(message, style = AppTypography.bodySmall, modifier = Modifier.weight(1f))
-        if (onRetry != null) androidx.compose.material3.TextButton(onClick = onRetry) { Text("重试") }
+        if (onRetry != null) TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
     }
 }
 

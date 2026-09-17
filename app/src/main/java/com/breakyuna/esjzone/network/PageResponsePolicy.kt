@@ -141,23 +141,35 @@ internal object PageResponsePolicy {
 
     private fun looksLikeBlockPage(lowerBody: String): Boolean {
         val document = Jsoup.parse(lowerBody)
-        // Do not treat a reflected site hostname in a WAF error page as proof of
-        // an ESJ document.  The WAF classifier needs actual page structure.
+        // Active challenge elements rendered by Cloudflare Turnstile/Managed Challenges.
+        val hasChallengeElement = document.select(
+            "#challenge-stage, #challenge-form, .cf-turnstile, #challenge-error-text, .cf-error-title, .cf-error-details, [data-testid=challenge-error]"
+        ).isNotEmpty()
+        if (hasChallengeElement) {
+            return true
+        }
+
+        // Do not treat a reflected site hostname or URL path in a WAF error page as proof of
+        // an ESJ document. The WAF classifier needs actual page structure.
         val hasEsjMarker = hasEsjStructureMarker(lowerBody)
+
+        val title = document.title().trim()
+        val isWafExclusiveTitle = title.startsWith("Just a moment", ignoreCase = true) ||
+            title.startsWith("Attention Required", ignoreCase = true) ||
+            title.equals("403 Forbidden", ignoreCase = true) ||
+            title.equals("Access Denied", ignoreCase = true)
+        if (isWafExclusiveTitle && (!hasEsjMarker || hasChallengeElement)) {
+            return true
+        }
+
         val titleAndWafDetails = document.select(
             "title, #challenge-error-text, .cf-error-title, .cf-error-details, [data-testid=challenge-error]"
         ).text()
         val headings = document.select("h1, h2, [role=heading]").text()
         val bodyText = document.body()?.text().orEmpty()
 
-        // A title or Cloudflare error element is a strong signal.  Headings/body
-        // text are only considered when the document has no ESJ structure, so a
-        // forum post discussing "captcha" or "forbidden" remains valid content.
-        val hasWafDetailElement = document.select(
-            "#challenge-error-text, .cf-error-title, .cf-error-details, [data-testid=challenge-error]"
-        ).isNotEmpty()
         if (blockMessage.containsMatchIn(titleAndWafDetails) &&
-            (!hasEsjMarker || hasWafDetailElement)
+            (!hasEsjMarker || hasChallengeElement)
         ) {
             return true
         }
@@ -184,11 +196,10 @@ internal object PageResponsePolicy {
             hasEsjStructureMarker(lowerBody)
 
     private fun hasEsjStructureMarker(lowerBody: String): Boolean =
-        lowerBody.contains("/detail/") ||
-            lowerBody.contains("/forum/") ||
-            lowerBody.contains("/my/") ||
-            lowerBody.contains("id=\"integration\"") ||
+        lowerBody.contains("id=\"integration\"") ||
             lowerBody.contains("class=\"comments-section") ||
+            lowerBody.contains("class=\"book-detail") ||
+            lowerBody.contains("class=\"product-item") ||
             (lowerBody.contains("<nav") && lowerBody.contains("<section"))
 
     private fun String.isHomeRoute(): Boolean =

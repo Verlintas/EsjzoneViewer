@@ -195,6 +195,7 @@ object NovelDownloadStore {
      * (bookshelf, reading history, bookmarks and cloud state) is untouched.
      */
     fun delete(novelUrl: String): Boolean = synchronized(ioLock) {
+        cancelActiveWork(novelUrl)
         val directory = directoryFor(novelUrl, create = false) ?: return@synchronized false
         chapterIndex.clear()
         inventorySnapshot = null
@@ -207,9 +208,17 @@ object NovelDownloadStore {
         inventorySnapshot = null
         novelUrls.distinct()
             .count { url ->
+                cancelActiveWork(url)
                 val directory = directoryFor(url, create = false) ?: return@count false
                 directory.deleteRecursively()
             }
+    }
+
+    private fun cancelActiveWork(novelUrl: String) {
+        runCatching {
+            val context = com.breakyuna.esjzone.EsjzoneApplication.instance
+            NovelDownloadManager.cancel(context, novelUrl)
+        }
     }
 
     /**
@@ -448,15 +457,18 @@ object NovelDownloadStore {
                     }
                 }
             } finally {
-                // Cancellation and partial failure must still publish completed chapters.
+                // Cancellation and partial failure must still publish completed chapters,
+                // but only if the directory was not deleted concurrently by the user.
                 synchronized(ioLock) {
-                    currentManifest = manifestFrom(
-                        novel = novel,
-                        records = currentRecords.toList(),
-                        downloadedAt = System.currentTimeMillis(),
-                        complete = completedCounter.get() == totalCount
-                    )
-                    writeManifest(directory, currentManifest)
+                    if (directory.isDirectory) {
+                        currentManifest = manifestFrom(
+                            novel = novel,
+                            records = currentRecords.toList(),
+                            downloadedAt = System.currentTimeMillis(),
+                            complete = completedCounter.get() == totalCount
+                        )
+                        writeManifest(directory, currentManifest)
+                    }
                 }
             }
 
@@ -813,7 +825,7 @@ object NovelDownloadStore {
                         val relativeName = "images/$imagePrefix$extension"
                         val destination = File(novelDirectory, relativeName)
                         if (!destination.isFile || destination.length() == 0L) {
-                            val temporary = File(imagesDirectory, "${destination.name}.tmp")
+                            val temporary = File.createTempFile("dl_${destination.nameWithoutExtension}_", ".tmp", imagesDirectory)
                             try {
                                 body.byteStream().use { input ->
                                     temporary.outputStream().buffered().use { output ->
@@ -861,9 +873,18 @@ object NovelDownloadStore {
         }
 
     private fun writeJson(file: File, value: Any) {
-        val temporary = File(file.parentFile, "${file.name}.tmp")
-        temporary.writeText(gson.toJson(value), StandardCharsets.UTF_8)
-        moveReplacing(temporary, file)
+        val parent = file.parentFile ?: return
+        if (!parent.exists()) parent.mkdirs()
+        val prefix = (file.nameWithoutExtension.take(16).ifBlank { "temp" } + "_").takeLast(20).padStart(3, '_')
+        val temporary = File.createTempFile(prefix, ".tmp", parent)
+        try {
+            temporary.writeText(gson.toJson(value), StandardCharsets.UTF_8)
+            moveReplacing(temporary, file)
+        } finally {
+            if (temporary.exists()) {
+                temporary.delete()
+            }
+        }
     }
 
     private fun moveReplacing(temporary: File, destination: File) {

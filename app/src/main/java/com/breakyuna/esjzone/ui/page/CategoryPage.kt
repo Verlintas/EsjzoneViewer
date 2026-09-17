@@ -45,7 +45,9 @@ import kotlinx.coroutines.launch
 
 /** Novel names in a category are already available from the list endpoint. */
 class CategoryPage(private val category: Category) : AppDestination {
-    override val key: String = "CategoryPage:" + category.url.trim().ifBlank { category.name.trim() }
+    override val key: String =
+        "CategoryPage:" + category.url.trim().ifBlank { category.name.trim() } +
+            if (category.name.isNotBlank()) ":" + category.name.trim() else ""
 
     @Composable
     override fun Content() {

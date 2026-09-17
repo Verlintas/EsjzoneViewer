@@ -56,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -113,6 +114,8 @@ private fun BookshelfSort.Order.labelRes(): Int = when (this) {
 object FavoritePage : AppDestination {
     private fun readResolve(): Any = FavoritePage
 
+    override val key: String = "FavoritePage"
+
     @Composable
     override fun Content() = Content(showBack = true)
 
@@ -122,12 +125,12 @@ object FavoritePage : AppDestination {
         val focusManager = LocalFocusManager.current
         val authorization = LocalAuthorization.current
         val model = rememberAppViewModel { FavoritePageModel(authorization) }
-        val entries by model.entries.collectAsState(initial = emptyList())
-        val readingActivities by model.readingActivities.collectAsState(initial = emptyList())
-        val readingIndex by model.readingIndex.collectAsState(initial = FavoritePageModel.ReadingIndex())
-        val downloaded by model.downloadedBookKeys.collectAsState()
-        val syncState by model.state.collectAsState()
-        val deleteState by model.deleteState.collectAsState()
+        val entries by model.entries.collectAsStateWithLifecycle(initialValue = emptyList())
+        val readingActivities by model.readingActivities.collectAsStateWithLifecycle(initialValue = emptyList())
+        val readingIndex by model.readingIndex.collectAsStateWithLifecycle(initialValue = FavoritePageModel.ReadingIndex())
+        val downloaded by model.downloadedBookKeys.collectAsStateWithLifecycle()
+        val syncState by model.state.collectAsStateWithLifecycle()
+        val deleteState by model.deleteState.collectAsStateWithLifecycle()
         val adult by PresentationAccess.settings.adult
         val snackbar = remember { SnackbarHostState() }
         val listState = rememberLazyListState()
@@ -718,9 +721,9 @@ private fun ShelfListItem(entry: BookshelfEntry, enabled: Boolean, onClick: () -
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
             Text(entry.title, style = AppTypography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            entry.latestChapterTitle.takeIf { it.isNotBlank() }?.let { Text("最新：$it", style = AppTypography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-            entry.remoteUpdatedAt.takeIf { it.isNotBlank() }?.let { Text("更新日期：$it", style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            entry.remoteLastViewedTitle.takeIf { it.isNotBlank() }?.let { Text("最后观看：$it", style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            entry.latestChapterTitle.takeIf { it.isNotBlank() }?.let { Text(stringResource(R.string.bookshelf_entry_latest, it), style = AppTypography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+            entry.remoteUpdatedAt.takeIf { it.isNotBlank() }?.let { Text(stringResource(R.string.bookshelf_entry_updated_at, it), style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            entry.remoteLastViewedTitle.takeIf { it.isNotBlank() }?.let { Text(stringResource(R.string.bookshelf_entry_last_viewed, it), style = AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
     }
 }

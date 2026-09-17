@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -98,7 +99,7 @@ object CategoryTab : AppTab {
 @Composable
 private fun CategoryBrowserContent(model: CategoryModel, modifier: Modifier) {
     val navigator = LocalBaseNavigator.current
-    val state by model.state.collectAsState()
+    val state by model.state.collectAsStateWithLifecycle()
     val adult by PresentationAccess.settings.adult
 
     PullToRefreshBox(

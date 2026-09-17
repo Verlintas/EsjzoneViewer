@@ -66,6 +66,13 @@ class MainActivity : ComponentActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (ReaderVolumeKeyDispatcher.isIntercepting(keyCode)) {
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
+    }
+
     companion object {
 
         private val startupState = MutableStateFlow<StartupState>(StartupState.Starting)
@@ -80,7 +87,8 @@ class MainActivity : ComponentActivity() {
                 AppLogger.init(appContext)
                 CrashHandler.init(appContext)
                 val container = (appContext as EsjzoneApplication).container
-                AppLogger.i("MainActivity", "Initializing settings and Room database...")
+                AppLogger.i("MainActivity", "Initializing network, download store, settings and Room database...")
+                container.initializeAsync()
                 val settings = container.settingsDataStore
                 settings.migrateFromLegacy(container.database)
                 container.readerSettingsDataStore.migrateFromLegacy(appContext)

@@ -86,6 +86,13 @@ object NovelDownloadManager {
         return request.id
     }
 
+    fun cancel(context: Context, novelUrl: String) {
+        runCatching {
+            WorkManager.getInstance(context.applicationContext)
+                .cancelUniqueWork(uniqueWorkName(novelUrl))
+        }
+    }
+
     fun status(context: Context, novelUrl: String): BackgroundDownloadStatus? {
         val infos = WorkManager.getInstance(context.applicationContext)
             .getWorkInfosForUniqueWork(uniqueWorkName(novelUrl))

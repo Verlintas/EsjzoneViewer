@@ -23,8 +23,8 @@ class CrashHandler private constructor(
         try {
             // Record full crash details to AppLogger (sync disk flush)
             AppLogger.crash(thread, throwable)
-        } catch (e: Exception) {
-            android.util.Log.e("CrashHandler", "Error while logging crash: ${AppLogger.sanitizeForDisplay(e.message.orEmpty())}")
+        } catch (t: Throwable) {
+            android.util.Log.e("CrashHandler", "Error while logging crash: ${AppLogger.sanitizeForDisplay(t.message.orEmpty())}")
         } finally {
             // Hand over to system default handler
             defaultHandler?.uncaughtException(thread, throwable)

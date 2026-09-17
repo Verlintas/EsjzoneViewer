@@ -17,9 +17,43 @@ object ReaderScriptConverter {
         Transliterator.getInstance("Simplified-Traditional")
     }
 
+    private val convertCache = object : LinkedHashMap<Pair<String, ReaderScript>, String>(128, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<String, ReaderScript>, String>?): Boolean {
+            return size > 512
+        }
+    }
+
+    private val transliteratorLock = Any()
+
     fun convert(text: String, script: ReaderScript): String = when (script) {
         ReaderScript.ORIGINAL -> text
-        ReaderScript.SIMPLIFIED -> traditionalToSimplified.transliterate(text)
-        ReaderScript.TRADITIONAL -> simplifiedToTraditional.transliterate(text)
+        ReaderScript.SIMPLIFIED -> {
+            if (text.isEmpty()) ""
+            else synchronized(convertCache) {
+                convertCache[text to script]
+            } ?: run {
+                val converted = synchronized(transliteratorLock) {
+                    traditionalToSimplified.transliterate(text)
+                }
+                synchronized(convertCache) {
+                    convertCache[text to script] = converted
+                }
+                converted
+            }
+        }
+        ReaderScript.TRADITIONAL -> {
+            if (text.isEmpty()) ""
+            else synchronized(convertCache) {
+                convertCache[text to script]
+            } ?: run {
+                val converted = synchronized(transliteratorLock) {
+                    simplifiedToTraditional.transliterate(text)
+                }
+                synchronized(convertCache) {
+                    convertCache[text to script] = converted
+                }
+                converted
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.breakyuna.esjzone.ui.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -54,9 +55,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
+import com.breakyuna.esjzone.R
+import com.breakyuna.esjzone.ui.discovery.DiscoveryScaffold
+import com.breakyuna.esjzone.ui.product.EmptyState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.scale
@@ -163,6 +168,33 @@ fun AdaptiveAppShell(
         else -> PaddingValues(bottom = 96.dp)
     }
 
+    val isRootOfSecondaryTab = tab != AppTabId.HOME && (selectedStack.size <= 1 || selectedStack.lastOrNull() == tab.route)
+    BackHandler(enabled = isRootOfSecondaryTab) {
+        selectedTab = AppTabId.HOME.name
+    }
+
+    var lastHistoryTabClickTime by remember { mutableStateOf(0L) }
+
+    val onTabSelected: (AppTabId) -> Unit = { targetTab ->
+        focusManager.clearFocus(force = true)
+        if (tab == targetTab) {
+            if (targetTab == AppTabId.HISTORY) {
+                val now = System.currentTimeMillis()
+                if (now - lastHistoryTabClickTime < 400L) {
+                    HistoryTab.requestOpenLastReading()
+                    lastHistoryTabClickTime = 0L
+                } else {
+                    lastHistoryTabClickTime = now
+                }
+            }
+        } else {
+            selectedTab = targetTab.name
+            if (targetTab == AppTabId.HISTORY) {
+                lastHistoryTabClickTime = System.currentTimeMillis()
+            }
+        }
+    }
+
     CompositionLocalProvider(
         LocalAuthorization provides authorization,
         LocalFloatingNavPadding provides if (showFloatingNavigation) floatingNavPadding else PaddingValues(0.dp)
@@ -192,7 +224,7 @@ fun AdaptiveAppShell(
                     if (showFloatingNavigation) {
                         AppNavigationBar(
                             selected = tab,
-                            onSelected = { focusManager.clearFocus(force = true); selectedTab = it.name },
+                            onSelected = onTabSelected,
                             glassScene = navigationGlassScene,
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
@@ -232,7 +264,7 @@ fun AdaptiveAppShell(
                     if (showFloatingNavigation) {
                         AppSideNavigationBar(
                             selected = tab,
-                            onSelected = { focusManager.clearFocus(force = true); selectedTab = it.name },
+                            onSelected = onTabSelected,
                             glassScene = navigationGlassScene,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
@@ -382,7 +414,23 @@ private fun TabStackDisplay(
                 entry<AppNavKey.BookshelfTab> { FavoriteTab.Content() }
                 entry<AppNavKey.ProfileTab> { ProfileTab.Content() }
                 entry<AppNavKey.Legacy> { key ->
-                    navigator.destination(key.route)?.Content()
+                    val destination = navigator.destination(key.route)
+                    if (destination != null) {
+                        destination.Content()
+                    } else {
+                        DiscoveryScaffold(
+                            title = stringResource(R.string.load_failed_short),
+                            onBack = { if (!navigator.pop()) Unit }
+                        ) { padding ->
+                            EmptyState(
+                                title = stringResource(R.string.load_failed_short),
+                                message = stringResource(R.string.community_empty_guidance),
+                                modifier = Modifier.fillMaxSize().padding(padding),
+                                actionLabel = stringResource(R.string.close),
+                                onAction = { if (!navigator.pop()) Unit }
+                            )
+                        }
+                    }
                 }
             }
         )

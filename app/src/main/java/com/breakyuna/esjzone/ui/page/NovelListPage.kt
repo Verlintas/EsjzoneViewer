@@ -4,6 +4,7 @@ package com.breakyuna.esjzone.ui.page
 
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -112,16 +113,18 @@ class NovelListPage(
         val settings = PresentationAccess.settings
         val rememberedGridView by settings.novelListGridViewFlow.collectAsState()
         val rememberedAdultOnly by settings.novelListAdultOnlyFlow.collectAsState()
-        val novelType = rememberSaveable { mutableIntStateOf(initializedNovelType) }
-        val sortType = rememberSaveable { mutableIntStateOf(initializedSortType) }
+        val model = rememberAppViewModel {
+            NovelListPageModel(authorization, initializedNovelType, initializedSortType)
+        }
+        val novelType = rememberSaveable { mutableIntStateOf(model.novelType) }
+        val sortType = rememberSaveable { mutableIntStateOf(model.sortType) }
         var adultOnly by rememberSaveable {
             mutableStateOf(initializedAdultOnly || rememberedAdultOnly)
         }
         var gridView by rememberSaveable { mutableStateOf(rememberedGridView) }
         var gridViewChangedHere by rememberSaveable { mutableStateOf(false) }
         var adultOnlyChangedHere by rememberSaveable { mutableStateOf(initializedAdultOnly) }
-        val model = rememberAppViewModel { NovelListPageModel(authorization, novelType, sortType) }
-        val state by model.state.collectAsState()
+        val state by model.state.collectAsStateWithLifecycle()
         val adult by PresentationAccess.settings.adult
 
         DiscoveryScaffold(
@@ -174,7 +177,7 @@ class NovelListPage(
                             adultOnlyChangedHere = true
                             settings.setNovelListAdultOnly(it)
                         },
-                        onFilterChanged = { model.getRequester(forceRefresh = true) },
+                        onFilterChanged = { model.updateFilters(novelType.intValue, sortType.intValue) },
                         gridView = gridView,
                         navigator = navigator,
                         modifier = Modifier.fillMaxSize().padding(padding)
@@ -445,9 +448,13 @@ private fun listFailureMessage(failure: LoadFailureKind): Int = when (failure) {
 
 class NovelListPageModel(
     private val authorization: Authorization,
-    private val novelType: androidx.compose.runtime.MutableIntState,
-    private val sortType: androidx.compose.runtime.MutableIntState
+    initialNovelType: Int,
+    initialSortType: Int
 ) : AppStateViewModel<NovelListPageModel.State>(State.Loading) {
+    var novelType: Int = initialNovelType
+        private set
+    var sortType: Int = initialSortType
+        private set
     private var requestJob: kotlinx.coroutines.Job? = null
     private var initialRequestStarted = false
 
@@ -460,6 +467,13 @@ class NovelListPageModel(
         ) : State()
     }
 
+    fun updateFilters(newNovelType: Int, newSortType: Int) {
+        if (novelType == newNovelType && sortType == newSortType && initialRequestStarted) return
+        novelType = newNovelType
+        sortType = newSortType
+        getRequester(forceRefresh = true)
+    }
+
     fun getRequester(forceRefresh: Boolean = false) {
         if (!forceRefresh && initialRequestStarted) return
         initialRequestStarted = true
@@ -469,8 +483,8 @@ class NovelListPageModel(
             try {
                 val (requester, firstPage) = PresentationAccess.client.novels(
                     authorization = authorization,
-                    novelType = novelType.intValue,
-                    sortType = sortType.intValue,
+                    novelType = novelType,
+                    sortType = sortType,
                     forceRefresh = forceRefresh
                 )
                 ensureActive()
@@ -482,7 +496,7 @@ class NovelListPageModel(
                 mutableState.value = State.Error(e.loadFailureKind())
                 com.breakyuna.esjzone.util.AppLogger.e(
                     "NovelListPageModel",
-                    "Failed to load novel list for type=${novelType.intValue}, sort=${sortType.intValue}",
+                    "Failed to load novel list for type=$novelType, sort=$sortType",
                     e
                 )
             }

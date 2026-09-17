@@ -13,7 +13,11 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "local_reading_history",
-    indices = [Index(value = ["last_read_at"])]
+    indices = [
+        Index(value = ["last_read_at"]),
+        Index(value = ["novel_id"]),
+        Index(value = ["novel_url"])
+    ]
 )
 data class LocalReadingActivity(
     @PrimaryKey

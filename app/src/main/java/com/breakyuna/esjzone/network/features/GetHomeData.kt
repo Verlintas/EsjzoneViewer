@@ -13,12 +13,18 @@ import com.breakyuna.esjzone.novellibrary.novel.analyseDescription
 import com.breakyuna.esjzone.novellibrary.novel.preview
 import com.breakyuna.esjzone.util.AppLogger
 import java.io.IOException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 
-fun EsjzoneClient.getHomeData(
+suspend fun EsjzoneClient.getHomeData(
     authorization: Authorization,
     forceRefresh: Boolean = false
-): HomeData {
+): HomeData = withContext(Dispatchers.IO) {
     AppLogger.i("GetHomeData", "Fetching home data from ${EsjzoneUrls.Home} (forceRefresh=$forceRefresh)")
 
     val responseBody = getPage(
@@ -39,16 +45,26 @@ fun EsjzoneClient.getHomeData(
     val weeklyUpdates = runCatching { getWeeklyUpdates(authorization, forceRefresh = forceRefresh) }
         .onFailure { AppLogger.w("GetHomeData", "Error parsing weekly updates", it) }
         .getOrDefault(emptyList())
-    val weeklyPopular = selectWeeklyPopularSeeds(document).mapNotNull { seed ->
-            runCatching {
-                // Detail HTML is already covered by the six-hour page cache. Keep this
-                // cache-first even for pull-to-refresh so the carousel never creates ten forced
-                // refreshes in addition to the single home request.
-                enrichWeeklyPopular(authorization, seed)
-            }.onFailure {
-                AppLogger.w("GetHomeData", "Failed to enrich weekly popular item: ${seed.name}", it)
-            }.getOrNull()
-        }
+    val popularSeeds = selectWeeklyPopularSeeds(document)
+    val weeklyPopular = if (popularSeeds.isEmpty()) {
+        emptyList()
+    } else {
+        val semaphore = Semaphore(4)
+        popularSeeds.map { seed ->
+            async {
+                semaphore.withPermit {
+                    runCatching {
+                        // Detail HTML is already covered by the six-hour page cache. Keep this
+                        // cache-first even for pull-to-refresh so the carousel never creates ten forced
+                        // refreshes in addition to the single home request.
+                        enrichWeeklyPopular(authorization, seed)
+                    }.onFailure {
+                        AppLogger.w("GetHomeData", "Failed to enrich weekly popular item: ${seed.name}", it)
+                    }.getOrNull()
+                }
+            }
+        }.awaitAll().filterNotNull()
+    }
 
     try {
         for (recentlyUpdateTranslatedData in selectHomeSectionCards(document, HomeSection.TRANSLATED)) {
@@ -115,7 +131,7 @@ fun EsjzoneClient.getHomeData(
 
     AppLogger.i("GetHomeData", "Home data parsed successfully: rec=${recommendationNovels.size}, trans=${recentlyUpdateTranslatedNovels.size}, orig=${recentlyUpdateOriginalNovels.size}")
 
-    return HomeData(
+    HomeData(
         recentlyUpdateTranslatedNovels,
         recentlyUpdateOriginalNovels,
         recentlyUpdateTranslatedR18Novels,

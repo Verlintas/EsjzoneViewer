@@ -44,6 +44,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,6 +76,7 @@ import com.breakyuna.esjzone.util.LocaleHelper
 
 /** Account preferences and local maintenance; every write retains existing semantics. */
 object SettingsPage : AppDestination {
+    override val key: String = "SettingsPage"
     private fun readResolve(): Any = SettingsPage
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -85,15 +87,15 @@ object SettingsPage : AppDestination {
         val authorization = LocalAuthorization.current
         val context = LocalContext.current
         val model = rememberAppViewModel { SettingsPageModel() }
-        val state by model.state.collectAsState()
+        val state by model.state.collectAsStateWithLifecycle()
         val adult by PresentationAccess.settings.adult
         val domain by PresentationAccess.settings.domain
         val language by PresentationAccess.settings.language
         val autoSave by PresentationAccess.settings.readerAutoSave
         val downloadConcurrency by PresentationAccess.settings.downloadConcurrency
-        val readerSettings by PresentationAccess.readerSettings.settings.collectAsState()
-        val checkState by ReleaseUpdateChecker.status.collectAsState()
-        val autoCheck by ReleaseUpdateChecker.autoCheck.collectAsState()
+        val readerSettings by PresentationAccess.readerSettings.settings.collectAsStateWithLifecycle()
+        val checkState by ReleaseUpdateChecker.status.collectAsStateWithLifecycle()
+        val autoCheck by ReleaseUpdateChecker.autoCheck.collectAsStateWithLifecycle()
         var showLogout by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) {
             model.refreshCacheStats()

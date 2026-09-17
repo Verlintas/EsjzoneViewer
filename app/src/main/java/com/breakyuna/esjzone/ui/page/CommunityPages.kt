@@ -98,6 +98,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 object ForumPage : AppDestination {
+    override val key: String = "ForumPage"
     private fun readResolve(): Any = ForumPage
 
     @Composable
@@ -179,8 +180,8 @@ object ForumPage : AppDestination {
 class ForumCategoryPage(private val category: ForumCategory) : AppDestination {
     override val key: String =
         "ForumCategoryPage:" + category.id.ifBlank { category.url.trim() } + ":" +
-            EsjzoneUrls.canonicalPageKey(category.url)
-                .ifBlank { category.url.trim() }
+            EsjzoneUrls.canonicalPageKey(category.url).ifBlank { category.url.trim() } +
+            if (category.name.isNotBlank()) ":" + category.name.trim() else ""
 
     @Composable
     override fun Content() {

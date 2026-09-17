@@ -37,7 +37,9 @@ class GeneralDatabaseMigrationTest {
             GeneralDatabase.MIGRATION_2_3,
             GeneralDatabase.MIGRATION_3_4,
             GeneralDatabase.MIGRATION_4_5,
-            GeneralDatabase.MIGRATION_5_6
+            GeneralDatabase.MIGRATION_5_6,
+            GeneralDatabase.MIGRATION_6_7,
+            GeneralDatabase.MIGRATION_7_8
         )
         try {
             val sqlite = database.openHelper.writableDatabase
@@ -64,7 +66,9 @@ class GeneralDatabaseMigrationTest {
             GeneralDatabase.MIGRATION_2_3,
             GeneralDatabase.MIGRATION_3_4,
             GeneralDatabase.MIGRATION_4_5,
-            GeneralDatabase.MIGRATION_5_6
+            GeneralDatabase.MIGRATION_5_6,
+            GeneralDatabase.MIGRATION_6_7,
+            GeneralDatabase.MIGRATION_7_8
         )
         try {
             val sqlite = database.openHelper.writableDatabase
@@ -93,7 +97,9 @@ class GeneralDatabaseMigrationTest {
             databaseName,
             GeneralDatabase.MIGRATION_3_4,
             GeneralDatabase.MIGRATION_4_5,
-            GeneralDatabase.MIGRATION_5_6
+            GeneralDatabase.MIGRATION_5_6,
+            GeneralDatabase.MIGRATION_6_7,
+            GeneralDatabase.MIGRATION_7_8
         )
         try {
             val sqlite = database.openHelper.writableDatabase
@@ -122,7 +128,9 @@ class GeneralDatabaseMigrationTest {
         val database = openWithMigrations(
             databaseName,
             GeneralDatabase.MIGRATION_4_5,
-            GeneralDatabase.MIGRATION_5_6
+            GeneralDatabase.MIGRATION_5_6,
+            GeneralDatabase.MIGRATION_6_7,
+            GeneralDatabase.MIGRATION_7_8
         )
         try {
             val sqlite = database.openHelper.writableDatabase
@@ -223,7 +231,9 @@ class GeneralDatabaseMigrationTest {
         val database = openWithMigrations(
             databaseName,
             GeneralDatabase.MIGRATION_4_5,
-            GeneralDatabase.MIGRATION_5_6
+            GeneralDatabase.MIGRATION_5_6,
+            GeneralDatabase.MIGRATION_6_7,
+            GeneralDatabase.MIGRATION_7_8
         )
         try {
             val sqlite = database.openHelper.writableDatabase
@@ -234,6 +244,136 @@ class GeneralDatabaseMigrationTest {
                     while (cursor.moveToNext()) add(cursor.getString(0))
                 }
                 assertEquals(listOf("rowid-new", "started-new", "url-new"), winners)
+            }
+        } finally {
+            database.close()
+            ApplicationProvider.getApplicationContext<android.content.Context>()
+                .deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun migrateVersion6To7PreservesBookshelfAndAddsStatusColumns() {
+        val databaseName = "general-migration-v6-${System.nanoTime()}"
+        createFixtureDatabase(databaseName, version = 6) { database ->
+            createVersion4Schema(database)
+            insertBaseRows(database)
+            insertBookmark(database)
+            insertReadingRow(database, "row-1", lastReadAt = 10, startedAt = 1)
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS bookshelf (
+                    scope TEXT NOT NULL,
+                    book_key TEXT NOT NULL,
+                    novel_id TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    author TEXT NOT NULL,
+                    cover_url TEXT NOT NULL,
+                    is_adult INTEGER NOT NULL DEFAULT 0,
+                    added_at INTEGER NOT NULL,
+                    sync_state TEXT NOT NULL,
+                    visible INTEGER NOT NULL,
+                    retry_count INTEGER NOT NULL,
+                    last_error TEXT,
+                    operation_version INTEGER NOT NULL,
+                    PRIMARY KEY(scope, book_key)
+                )
+                """.trimIndent()
+            )
+            database.execSQL(
+                "INSERT INTO bookshelf(" +
+                    "scope, book_key, novel_id, url, title, author, cover_url, is_adult, " +
+                    "added_at, sync_state, visible, retry_count, last_error, operation_version) " +
+                    "VALUES ('domain:example.test', 'novel-1', '1', 'https://example.test/novel/1', " +
+                    "'Migration v6 fixture', 'author', '', 0, 123, 'SYNCED', 1, 0, NULL, 1)"
+            )
+        }
+
+        val database = openWithMigrations(
+            databaseName,
+            GeneralDatabase.MIGRATION_6_7,
+            GeneralDatabase.MIGRATION_7_8
+        )
+        try {
+            val sqlite = database.openHelper.writableDatabase
+            sqlite.query(
+                "SELECT title, latest_chapter_title, latest_chapter_url, has_update FROM bookshelf WHERE book_key = 'novel-1'"
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("Migration v6 fixture", cursor.getString(0))
+                assertEquals("", cursor.getString(1))
+                assertEquals("", cursor.getString(2))
+                assertEquals(0, cursor.getInt(3))
+            }
+        } finally {
+            database.close()
+            ApplicationProvider.getApplicationContext<android.content.Context>()
+                .deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun migrateVersion7To8PreservesReadingHistoryAndCreatesNovelIndexes() {
+        val databaseName = "general-migration-v7-${System.nanoTime()}"
+        createFixtureDatabase(databaseName, version = 7) { database ->
+            createVersion4Schema(database)
+            insertBaseRows(database)
+            insertBookmark(database)
+            insertReadingRow(
+                database, "row-1", lastReadAt = 10, startedAt = 1,
+                novelId = "novel-1", novelUrl = "https://example.test/novel/1"
+            )
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS bookshelf (
+                    scope TEXT NOT NULL,
+                    book_key TEXT NOT NULL,
+                    novel_id TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    author TEXT NOT NULL,
+                    cover_url TEXT NOT NULL,
+                    is_adult INTEGER NOT NULL DEFAULT 0,
+                    added_at INTEGER NOT NULL,
+                    sync_state TEXT NOT NULL,
+                    visible INTEGER NOT NULL,
+                    retry_count INTEGER NOT NULL,
+                    last_error TEXT,
+                    operation_version INTEGER NOT NULL,
+                    latest_chapter_title TEXT NOT NULL DEFAULT '',
+                    latest_chapter_url TEXT NOT NULL DEFAULT '',
+                    remote_last_viewed_title TEXT NOT NULL DEFAULT '',
+                    remote_updated_at TEXT NOT NULL DEFAULT '',
+                    latest_fingerprint TEXT NOT NULL DEFAULT '',
+                    has_update INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY(scope, book_key)
+                )
+                """.trimIndent()
+            )
+        }
+
+        val database = openWithMigrations(
+            databaseName,
+            GeneralDatabase.MIGRATION_7_8
+        )
+        try {
+            val sqlite = database.openHelper.writableDatabase
+            sqlite.query(
+                "SELECT activity_id, novel_id, novel_url FROM local_reading_history WHERE activity_id = 'row-1'"
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("row-1", cursor.getString(0))
+                assertEquals("novel-1", cursor.getString(1))
+                assertEquals("https://example.test/novel/1", cursor.getString(2))
+            }
+            sqlite.query(
+                "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN " +
+                    "('index_local_reading_history_novel_id', 'index_local_reading_history_novel_url')"
+            ).use { cursor ->
+                var count = 0
+                while (cursor.moveToNext()) count++
+                assertEquals(2, count)
             }
         } finally {
             database.close()

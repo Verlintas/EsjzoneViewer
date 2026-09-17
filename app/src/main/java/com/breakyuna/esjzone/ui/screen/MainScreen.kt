@@ -58,6 +58,7 @@ class MainScreen(val authorization: Authorization) : AppDestination {
         LaunchedEffect(authorization, activeDomain) {
             val sessionDomain = authorization.domain.ifBlank { activeDomain }
             if (sessionDomain != activeDomain) return@LaunchedEffect
+            if (!authorization.hasCredentials()) return@LaunchedEffect
 
             val result = try {
                 withContext(Dispatchers.IO) {
@@ -84,8 +85,9 @@ class MainScreen(val authorization: Authorization) : AppDestination {
             LocalAuthorization provides authorization
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                val showSessionBanner = authorizationCheckResult ==
-                    AuthorizationCheckResult.UNAUTHORIZED && !sessionPromptDismissed
+                val showSessionBanner = authorization.hasCredentials() &&
+                    authorizationCheckResult == AuthorizationCheckResult.UNAUTHORIZED &&
+                    !sessionPromptDismissed
                 if (showSessionBanner) {
                     SessionExpiredBanner(
                         onRelogin = {

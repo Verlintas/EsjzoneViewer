@@ -13,6 +13,7 @@ import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.novellibrary.novel.DetailedChapter
 import com.breakyuna.esjzone.util.AppLogger
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 
 private val chapterSelector: HtmlSelector = JsoupHtmlSelector
 
@@ -73,21 +74,8 @@ fun EsjzoneClient.getChapterDetail(
         "a.btn-next, a[rel='next'], a[data-direction='next']"
     )
 
-    val previous = if (previousChapter != null) {
-        Chapter(
-            previousChapter.attr("data-title").ifBlank { previousChapter.text() },
-            previousChapter.attr("href"),
-            false
-        )
-    } else null
-
-    val next = if (nextChapter != null) {
-        Chapter(
-            nextChapter.attr("data-title").ifBlank { nextChapter.text() },
-            nextChapter.attr("href"),
-            false
-        )
-    } else null
+    val previous = parseChapterNav(previousChapter, targetUrl)
+    val next = parseChapterNav(nextChapter, targetUrl)
 
     return DetailedChapter(
         chapter.name,
@@ -97,4 +85,15 @@ fun EsjzoneClient.getChapterDetail(
         contentElement?.html(),
         targetUrl
     )
+}
+
+private fun parseChapterNav(element: Element?, targetUrl: String): Chapter? {
+    if (element == null || element.hasClass("disabled")) return null
+    val rawHref = element.attr("href").trim()
+    if (rawHref.isBlank() || rawHref == "#" || rawHref.startsWith("javascript:", ignoreCase = true)) {
+        return null
+    }
+    val resolvedUrl = EsjzoneUrls.resolve(rawHref, targetUrl).takeIf { it.isNotBlank() } ?: return null
+    val title = element.attr("data-title").ifBlank { element.text() }.trim()
+    return Chapter(title, resolvedUrl, false)
 }

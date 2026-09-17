@@ -2,7 +2,8 @@ package com.breakyuna.esjzone.data.settings
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -21,8 +22,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.io.IOException
+import com.breakyuna.esjzone.util.AppLogger
 
 /** Stable application setting keys and values shared by the DataStore boundary and UI adapter. */
 object SettingsDefaults {
@@ -42,13 +43,14 @@ class SettingsDataStore(
     private val dataStoreFileName: String = FILE_NAME
 ) : SettingsRepository {
     private val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
         scope = scope,
         produceFile = { context.applicationContext.preferencesDataStoreFile(dataStoreFileName) }
     )
 
     private val defaults = SettingsValues()
     private val values: StateFlow<SettingsValues> = dataStore.data
-        .catch { error -> if (error is IOException) emit(androidx.datastore.preferences.core.emptyPreferences()) else throw error }
+        .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
         .map { it.toSettingsValues() }
         .stateIn(scope, SharingStarted.Eagerly, defaults)
 
@@ -106,7 +108,8 @@ class SettingsDataStore(
         // Session/cookie, profile, search and other cache rows are deliberately
         // left untouched. If the process dies before cleanup, the next startup
         // reaches this same branch because the marker is already complete.
-        if (dataStore.data.first()[MIGRATION_COMPLETE] == true) {
+        val isMigrated = runCatching { dataStore.data.first()[MIGRATION_COMPLETE] == true }.getOrDefault(false)
+        if (isMigrated) {
             database.cacheDao().deleteByKey("show_adult")
             database.cacheDao().deleteByKey("adult")
             database.cacheDao().deleteByKey("theme")
@@ -118,7 +121,13 @@ class SettingsDataStore(
     }
 
     private fun write(update: suspend (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
-        scope.launch { dataStore.edit { preferences -> update(preferences) } }
+        scope.launch {
+            try {
+                dataStore.edit { preferences -> update(preferences) }
+            } catch (e: IOException) {
+                AppLogger.e("SettingsDataStore", "Failed to persist setting update", e)
+            }
+        }
     }
 
     private data class SettingsValues(

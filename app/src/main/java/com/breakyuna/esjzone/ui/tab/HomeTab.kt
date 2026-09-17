@@ -57,6 +57,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
@@ -82,6 +83,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.network.Authorization
+import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.LoadFailureKind
 import com.breakyuna.esjzone.network.LocalAuthorization
 import com.breakyuna.esjzone.network.features.HomeDataCache
@@ -152,8 +154,8 @@ object HomeTab : AppTab {
         val navigator = LocalBaseNavigator.current
         val authorization = LocalAuthorization.current
         val model = rememberAppViewModel { HomeTabModel(authorization) }
-        val state by model.state.collectAsState()
-        val randomState by model.randomRecommendations.collectAsState()
+        val state by model.state.collectAsStateWithLifecycle()
+        val randomState by model.randomRecommendations.collectAsStateWithLifecycle()
         val adult by PresentationAccess.settings.adult
         val editorPicksTitle = stringResource(R.string.home_editor_picks)
         val translatedTitle = stringResource(R.string.tab_home_recentlyupdate_tranlated)
@@ -252,15 +254,15 @@ object HomeTab : AppTab {
                                     navigator?.pushIfNotCurrent(
                                         ForumPostPage(
                                             ForumTopic(
-                                                boardId = "1585405223",
-                                                id = "103280",
+                                                boardId = EsjzoneUrls.WATER_COOLER_BOARD_ID,
+                                                id = EsjzoneUrls.WATER_COOLER_TOPIC_ID,
                                                 title = waterCoolerTitle,
                                                 author = null,
                                                 createdAt = null,
                                                 replyCount = null,
                                                 viewCount = null,
                                                 lastReplyAt = null,
-                                                url = WATER_COOLER_URL
+                                                url = EsjzoneUrls.WaterCooler
                                             )
                                         )
                                     )
@@ -377,8 +379,6 @@ private const val WEEKLY_UPDATE_TRANSITION_DURATION = 280
 private const val RANDOM_RECOMMENDATION_BATCH_SIZE = 32
 private const val RANDOM_RECOMMENDATION_MAX_PAGES_PER_BATCH = 3
 
-private const val WATER_COOLER_URL =
-    "https://www.esjzone.cc/forum/1585405223/103280.html"
 
 private fun LazyListScope.weeklyUpdatesCollection(
     days: List<WeeklyUpdateDay>,

@@ -15,11 +15,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTheme
@@ -53,7 +55,7 @@ fun CommentCard(
             Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm), modifier = Modifier.fillMaxWidth()) {
                 Text(comment.author, style = AppTypography.labelLarge, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (comment.isAuthor) {
-                    Text("作者", style = AppTypography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.author), style = AppTypography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
                 comment.timestamp?.let { Text(it, style = AppTypography.bodySmall, color = appStateColors().contentMuted) }
             }
@@ -83,8 +85,8 @@ fun CommentComposer(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     replyTarget: ReplyTarget? = null,
-    placeholder: String = "写下评论",
-    sendLabel: String = "发送",
+    placeholder: String = stringResource(R.string.comment_write_placeholder),
+    sendLabel: String = stringResource(R.string.comment_send),
     enabled: Boolean = true,
     onCancelReply: (() -> Unit)? = null,
     onSend: () -> Unit
@@ -92,9 +94,9 @@ fun CommentComposer(
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
         replyTarget?.let { target ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-                Text("回复 ${target.displayName}", style = AppTypography.labelMedium, color = appStateColors().contentMuted, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.comment_replying_to, target.displayName), style = AppTypography.labelMedium, color = appStateColors().contentMuted, modifier = Modifier.weight(1f))
                 if (onCancelReply != null) {
-                    TextButton(onClick = onCancelReply) { Text("取消") }
+                    TextButton(onClick = onCancelReply) { Text(stringResource(R.string.cancel)) }
                 }
             }
         }

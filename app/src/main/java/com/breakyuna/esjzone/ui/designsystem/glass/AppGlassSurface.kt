@@ -2,7 +2,6 @@
 
 package com.breakyuna.esjzone.ui.designsystem.glass
 
-import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -20,11 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
+import com.breakyuna.esjzone.ui.designsystem.rememberSystemReducedMotion
 import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
@@ -260,20 +258,5 @@ private fun MaterialFallbackSurface(
         border = borderStroke
     ) {
         Box(content = content)
-    }
-}
-
-@Composable
-private fun rememberSystemReducedMotion(): Boolean {
-    val context = LocalContext.current
-    val view = LocalView.current
-    return remember(context, view) {
-        val resolver = context.contentResolver
-        fun scale(name: String): Float = runCatching {
-            Settings.Global.getFloat(resolver, name)
-        }.getOrDefault(1f)
-        scale(Settings.Global.ANIMATOR_DURATION_SCALE) <= 0f ||
-            scale(Settings.Global.TRANSITION_ANIMATION_SCALE) <= 0f ||
-            scale(Settings.Global.WINDOW_ANIMATION_SCALE) <= 0f
     }
 }

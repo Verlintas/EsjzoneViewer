@@ -93,6 +93,20 @@ private fun TextStyle.toReaderStyle(): ReaderTextStyle? = when {
 private fun Color.toReaderColor(factory: (Int, Int, Int) -> ReaderTextStyle): ReaderTextStyle =
     factory((red * 255).toInt(), (green * 255).toInt(), (blue * 255).toInt())
 
+private data class RubyMeasureKey(
+    val text: String,
+    val fontSizeSp: Float,
+    val fontWeight: FontWeight?,
+    val fontStyle: FontStyle?,
+    val densityDensity: Float
+)
+
+private val rubyMeasureCache = object : LinkedHashMap<RubyMeasureKey, Pair<androidx.compose.ui.unit.TextUnit, androidx.compose.ui.unit.TextUnit>>(128, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<RubyMeasureKey, Pair<androidx.compose.ui.unit.TextUnit, androidx.compose.ui.unit.TextUnit>>?): Boolean {
+        return size > 256
+    }
+}
+
 /** Converts one domain text block to an annotated string while preserving inline ruby. */
 internal fun ReaderBlock.Text.toAnnotatedReaderText(
     baseStyle: ComposeTextStyle,
@@ -111,10 +125,27 @@ internal fun ReaderBlock.Text.toAnnotatedReaderText(
     }
 
     val key = "reader-ruby-${value.hashCode()}-${ruby.reading.hashCode()}"
-    val measured = textMeasurer.measure(displayed, baseStyle.merge(span)).size
-    val measuredWidth = with(density) { measured.width.toDp().toSp() }
-    val width = if (measuredWidth.value < 1f) 1.sp else measuredWidth
-    val height = (baseStyle.lineHeight.value * 1.45f).coerceAtLeast(18f).sp
+    val effectiveStyle = baseStyle.merge(span)
+    val measureKey = RubyMeasureKey(
+        text = displayed,
+        fontSizeSp = effectiveStyle.fontSize.value,
+        fontWeight = effectiveStyle.fontWeight,
+        fontStyle = effectiveStyle.fontStyle,
+        densityDensity = density.density
+    )
+    val (width, height) = synchronized(rubyMeasureCache) {
+        rubyMeasureCache[measureKey]
+    } ?: run {
+        val measured = textMeasurer.measure(displayed, effectiveStyle).size
+        val measuredWidth = with(density) { measured.width.toDp().toSp() }
+        val w = if (measuredWidth.value < 1f) 1.sp else measuredWidth
+        val h = (baseStyle.lineHeight.value * 1.45f).coerceAtLeast(18f).sp
+        val dimensions = w to h
+        synchronized(rubyMeasureCache) {
+            rubyMeasureCache[measureKey] = dimensions
+        }
+        dimensions
+    }
     val inline = InlineTextContent(
         placeholder = androidx.compose.ui.text.Placeholder(
             width = width,

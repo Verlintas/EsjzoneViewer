@@ -1,7 +1,6 @@
 package com.breakyuna.esjzone.ui.designsystem
 
-import android.content.Context
-import android.provider.Settings
+
 import androidx.annotation.RawRes
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -84,24 +83,5 @@ fun AppLottieState(
             progress = { progress },
             modifier = accessibleModifier
         )
-    }
-}
-
-@Composable
-private fun rememberSystemReducedMotion(): Boolean {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    return remember(context) { context.hasReducedMotionEnabled() }
-}
-
-private fun Context.hasReducedMotionEnabled(): Boolean {
-    val resolver = contentResolver
-    return sequenceOf(
-        Settings.Global.ANIMATOR_DURATION_SCALE,
-        Settings.Global.TRANSITION_ANIMATION_SCALE,
-        Settings.Global.WINDOW_ANIMATION_SCALE
-    ).any { key ->
-        runCatching {
-            Settings.Global.getFloat(resolver, key, 1f) <= 0f
-        }.getOrDefault(false)
     }
 }

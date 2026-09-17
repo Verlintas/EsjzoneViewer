@@ -499,4 +499,13 @@
     <string name="community_sync_failed">帖子同步失败</string>
     <string name="community_sync_detail">已获取最新帖子与回复</string>
     <string name="community_sync_refresh">刷新社区内容</string>
+    <string name="bookshelf_entry_latest">最新：%s</string>
+    <string name="bookshelf_entry_updated_at">更新日期：%s</string>
+    <string name="bookshelf_entry_last_viewed">最后观看：%s</string>
+    <string name="loading">正在加载</string>
+    <string name="load_failed_short">加载失败</string>
+    <string name="offline_device_content_message">你仍然可以查看已经保存在设备上的内容。</string>
+    <string name="reconnect">重新连接</string>
+    <string name="cancel">取消</string>
+    <string name="comment_write_placeholder">写下评论</string>
 </resources>

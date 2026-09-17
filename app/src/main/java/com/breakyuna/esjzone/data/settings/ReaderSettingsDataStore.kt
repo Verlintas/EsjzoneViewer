@@ -3,7 +3,9 @@ package com.breakyuna.esjzone.data.settings
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -25,8 +27,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.launch
 import java.io.IOException
+import com.breakyuna.esjzone.util.AppLogger
 
 /** Preferences-backed reader appearance settings and one-time legacy SharedPreferences importer. */
 class ReaderSettingsDataStore(
@@ -36,6 +38,7 @@ class ReaderSettingsDataStore(
     private val dataStoreFileName: String = FILE_NAME
 ) {
     private val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
         scope = scope,
         produceFile = { context.applicationContext.preferencesDataStoreFile(dataStoreFileName) }
     )
@@ -43,7 +46,7 @@ class ReaderSettingsDataStore(
     private val migrationMutex = Mutex()
 
     val settings: StateFlow<ReaderSettings> = dataStore.data
-        .catch { error -> if (error is IOException) emit(androidx.datastore.preferences.core.emptyPreferences()) else throw error }
+        .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
         .map { it.toReaderSettings() }
         .stateIn(scope, SharingStarted.Eagerly, ReaderSettings())
 
@@ -54,13 +57,19 @@ class ReaderSettingsDataStore(
     }
 
     fun saveInBackground(settings: ReaderSettings) {
-        scope.launch { save(settings) }
+        scope.launch {
+            try {
+                save(settings)
+            } catch (e: IOException) {
+                AppLogger.e("ReaderSettingsDataStore", "Failed to save reader settings in background", e)
+            }
+        }
     }
 
     /** Copies the legacy synchronous preference store once, keeping the Reader API compatible. */
     suspend fun migrateFromLegacy(context: Context) {
         migrationMutex.withLock {
-            val current = dataStore.data.first()
+            val current = runCatching { dataStore.data.first() }.getOrElse { emptyPreferences() }
             if (current[MIGRATION_COMPLETE] == true) return
             val hasCurrentSettings = listOf(
                 BACKGROUND,

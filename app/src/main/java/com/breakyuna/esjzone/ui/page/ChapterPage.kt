@@ -1,6 +1,8 @@
 package com.breakyuna.esjzone.ui.page
 import com.breakyuna.esjzone.app.PresentationAccess
 
+import android.app.Activity
+import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -8,24 +10,32 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.animateScrollBy
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -73,10 +83,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -167,6 +181,39 @@ class ChapterPage(
         val storedReaderSettings by PresentationAccess.readerSettings.settings.collectAsState()
         var readerSettings by remember(storedReaderSettings) {
             mutableStateOf(storedReaderSettings)
+        }
+
+        val view = LocalView.current
+        val window = remember(view) {
+            var ctx: android.content.Context? = view.context
+            while (ctx is ContextWrapper) {
+                if (ctx is Activity) return@remember ctx.window
+                ctx = ctx.baseContext
+            }
+            null
+        }
+        val isLightBackground = readerSettings.background.containerColor().luminance() > 0.5f
+
+        DisposableEffect(window, view) {
+            val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+            val originalStatusAppearance = controller?.isAppearanceLightStatusBars
+            val originalNavAppearance = controller?.isAppearanceLightNavigationBars
+            onDispose {
+                if (originalStatusAppearance != null) {
+                    controller.isAppearanceLightStatusBars = originalStatusAppearance
+                }
+                if (originalNavAppearance != null) {
+                    controller.isAppearanceLightNavigationBars = originalNavAppearance
+                }
+            }
+        }
+
+        LaunchedEffect(isLightBackground, window, view) {
+            window?.let {
+                val controller = WindowCompat.getInsetsController(it, view)
+                controller.isAppearanceLightStatusBars = isLightBackground
+                controller.isAppearanceLightNavigationBars = isLightBackground
+            }
         }
         var showReaderSettings by rememberSaveable {
             mutableStateOf(false)
@@ -269,11 +316,14 @@ class ChapterPage(
             }
         }
         var isBookProgressDragging by remember { mutableStateOf(false) }
+        var draggingBookProgress by remember { mutableStateOf<Float?>(null) }
         var isProgrammaticScroll by remember { mutableStateOf(false) }
 
         fun dismissProgressPreview() {
             progressPreview = null
             progressReturnLocation = null
+            draggingBookProgress = null
+            isBookProgressDragging = false
         }
 
         LaunchedEffect(scrollState.isScrollInProgress) {
@@ -397,10 +447,25 @@ class ChapterPage(
             }
         }
 
-        val measuredChapterProgress = activeChapterItem?.let { visible ->
-            displayByKey[visible.key.toString()]?.let { item ->
-                (item.ordinal + (chapterProgressFor(visible.offset, visible.size) ?: 0f)) /
-                    item.itemCount.toFloat()
+        val isAtEndOfChapter = remember(displayByKey, activeChapter, scrollState) {
+            derivedStateOf {
+                val layoutInfo = scrollState.layoutInfo
+                val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf false
+                val activeKey = activeChapter?.chapter?.let(::chapterIdentity)
+                val item = displayByKey[lastVisible.key.toString()]
+                item != null && item.chapterKey == activeKey &&
+                    item.ordinal == item.itemCount - 1 &&
+                    (lastVisible.offset + lastVisible.size <= layoutInfo.viewportEndOffset)
+            }
+        }
+        val measuredChapterProgress = if (isAtEndOfChapter.value) {
+            1.0f
+        } else {
+            activeChapterItem?.let { visible ->
+                displayByKey[visible.key.toString()]?.let { item ->
+                    (item.ordinal + (chapterProgressFor(visible.offset, visible.size) ?: 0f)) /
+                        item.itemCount.toFloat()
+                }
             }
         }
         val bookChapterOrder = result?.chapterOrder.orEmpty()
@@ -492,7 +557,7 @@ class ChapterPage(
                 chapterName = currentReadingChapter.name,
                 chapterIndex = currentBookLocation?.chapterIndex ?: -1,
                 totalChapters = currentBookLocation?.totalChapters ?: bookChapterOrder.size,
-                chapterProgress = currentBookLocation?.chapterProgress ?: 0f
+                chapterProgress = currentBookLocation?.chapterProgress ?: measuredChapterProgress ?: 0f
             )
         )
 
@@ -569,8 +634,20 @@ class ChapterPage(
                     )
                 }
         }
-        DisposableEffect(localHistoryActivityId) {
+        DisposableEffect(lifecycleOwner, localHistoryActivityId) {
+            val observer = LifecycleEventObserver { _, event ->
+                if ((event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) && !resumePending) {
+                    LocalReadingHistoryRecorder.upsert(
+                        localHistoryPosition.value.toLocalReadingActivity(
+                            activityId = localHistoryActivityId,
+                            startedAt = localHistoryStartedAt
+                        )
+                    )
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
             onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
                 if (!resumePending) {
                     LocalReadingHistoryRecorder.upsert(
                         localHistoryPosition.value.toLocalReadingActivity(
@@ -582,7 +659,7 @@ class ChapterPage(
             }
         }
         val displayedBookProgress = if (isBookProgressDragging) {
-            progressPreview?.bookProgress ?: currentBookLocation?.bookProgress ?: 0f
+            draggingBookProgress ?: progressPreview?.bookProgress ?: currentBookLocation?.bookProgress ?: 0f
         } else {
             currentBookLocation?.bookProgress ?: 0f
         }
@@ -610,6 +687,7 @@ class ChapterPage(
         fun beginBookProgressPreview(progress: Float) {
             progressReturnLocation = currentBookLocation
             isBookProgressDragging = true
+            draggingBookProgress = progress
             progressPreview = readerBookLocationFor(
                 bookProgress = progress,
                 chapterOrder = bookChapterOrder
@@ -617,6 +695,7 @@ class ChapterPage(
         }
 
         fun updateBookProgressPreview(progress: Float) {
+            draggingBookProgress = progress
             progressPreview = readerBookLocationFor(
                 bookProgress = progress,
                 chapterOrder = bookChapterOrder
@@ -625,7 +704,14 @@ class ChapterPage(
 
         fun finishBookProgressPreview() {
             isBookProgressDragging = false
+            draggingBookProgress = null
             progressPreview?.copy(chapterProgress = 0f)?.let(::seekTo)
+        }
+
+        fun cancelBookProgressPreview() {
+            isBookProgressDragging = false
+            draggingBookProgress = null
+            dismissProgressPreview()
         }
 
         var previousRequestedChapterUrl by remember { mutableStateOf<String?>(null) }
@@ -699,11 +785,13 @@ class ChapterPage(
             try {
                 scrollState.scrollToItem(targetIndex)
                 if (scaled > 0f) {
-                    val itemSize = snapshotFlow {
-                        scrollState.layoutInfo.visibleItemsInfo
-                            .firstOrNull { it.key == targetItemKey }
-                            ?.let { it.index to it.size }
-                    }.first { layout -> layout?.second?.let { it > 0 } == true }
+                    val itemSize = kotlinx.coroutines.withTimeoutOrNull(1000L) {
+                        snapshotFlow {
+                            scrollState.layoutInfo.visibleItemsInfo
+                                .firstOrNull { it.key == targetItemKey }
+                                ?.let { it.index to it.size }
+                        }.first { layout -> layout?.second?.let { it > 0 } == true }
+                    }
                     if (itemSize != null) {
                         scrollState.scrollToItem(
                             itemSize.first,
@@ -773,6 +861,7 @@ class ChapterPage(
                             .fillMaxWidth()
                             .widthIn(max = adaptiveMetrics.contentMaxWidth)
                             .align(Alignment.Center)
+                            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                             .padding(horizontal = readerSettings.horizontalPaddingDp.dp),
                         verticalArrangement = Arrangement.spacedBy(0.dp),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -968,6 +1057,7 @@ class ChapterPage(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                     .padding(bottom = ReaderLayout.progressPreviewBottomPadding)
                     .zIndex(3f)
             ) {
@@ -992,14 +1082,24 @@ class ChapterPage(
                 visible = showToolbar,
                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                 exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     AppGlassSurface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {}
+                            ),
                         spec = com.breakyuna.esjzone.ui.designsystem.glass.AppGlassSpec(
                             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                             alpha = 0.94f
@@ -1058,7 +1158,7 @@ class ChapterPage(
                                         onDragStart = ::beginBookProgressPreview,
                                         onDrag = ::updateBookProgressPreview,
                                         onDragFinished = ::finishBookProgressPreview,
-                                        onDragCancelled = ::finishBookProgressPreview
+                                        onDragCancelled = ::cancelBookProgressPreview
                                     )
                                 } else {
                                     Text(
@@ -1185,11 +1285,18 @@ class ChapterPage(
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .statusBarsPadding()
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                     .padding(top = 4.dp)
                     .zIndex(2f)
             ) {
                 AppGlassSurface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {}
+                        ),
                     spec = com.breakyuna.esjzone.ui.designsystem.glass.AppGlassSpec(
                         shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
                         alpha = 0.94f
@@ -1457,6 +1564,7 @@ private fun ReaderStatusBar(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
+            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
             .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs)
             .zIndex(1f),
         verticalAlignment = Alignment.CenterVertically
@@ -1647,15 +1755,58 @@ private fun ReaderProgressRail(
                         return ((x - trackInset) / usableWidth).coerceIn(0f, 1f)
                     }
 
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = { offset -> currentOnDragStart(progressAt(offset.x)) },
-                        onDrag = { change, _ ->
-                            change.consume()
-                            currentOnDrag(progressAt(change.position.x))
-                        },
-                        onDragEnd = currentOnDragFinished,
-                        onDragCancel = currentOnDragCancelled
-                    )
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val touchSlop = viewConfiguration.touchSlop
+                        val startPos = down.position
+                        var isDragging = false
+                        var dragFinished = false
+
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.isConsumed) {
+                                    break
+                                }
+                                val dx = change.position.x - startPos.x
+                                val dy = change.position.y - startPos.y
+                                if (!isDragging) {
+                                    if (kotlin.math.abs(dx) > touchSlop) {
+                                        isDragging = true
+                                        down.consume()
+                                        currentOnDragStart(progressAt(change.position.x))
+                                    }
+                                }
+                                if (isDragging) {
+                                    // If pulled vertically away (e.g. 56dp), abort and cancel
+                                    if (kotlin.math.abs(dy) > 56f * density) {
+                                        break
+                                    }
+                                    if (change.changedToUp()) {
+                                        change.consume()
+                                        dragFinished = true
+                                        break
+                                    }
+                                    change.consume()
+                                    currentOnDrag(progressAt(change.position.x))
+                                } else if (change.changedToUp()) {
+                                    change.consume()
+                                    currentOnDragStart(progressAt(change.position.x))
+                                    currentOnDragFinished()
+                                    break
+                                }
+                            }
+                        } finally {
+                            if (isDragging) {
+                                if (dragFinished) {
+                                    currentOnDragFinished()
+                                } else {
+                                    currentOnDragCancelled()
+                                }
+                            }
+                        }
+                    }
                 }
                 .semantics {
                     contentDescription = progressDescription
