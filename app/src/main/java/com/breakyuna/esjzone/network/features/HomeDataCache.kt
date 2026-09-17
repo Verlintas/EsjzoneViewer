@@ -9,6 +9,7 @@ import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovelImpl
 import com.breakyuna.esjzone.util.AppLogger
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -97,25 +98,10 @@ object HomeDataCache {
             snapshot?.toHomeData()
         } catch (e: Exception) {
             AppLogger.w("HomeDataCache", "Failed to read home data snapshot", e)
+            runCatching { file.delete() }
             null
         }
     }
-
-    private data class HomeDataSnapshot(
-        val recentlyUpdateTranslated: List<CoveredNovelImpl>,
-        val recentlyUpdateOriginal: List<CoveredNovelImpl>,
-        val recentlyUpdateTranslatedR18: List<CoveredNovelImpl>,
-        val recentlyUpdateOriginalR18: List<CoveredNovelImpl>,
-        val recommendation: List<CoveredNovelImpl>,
-        val weeklyUpdates: List<WeeklyUpdateDaySnapshot>,
-        // Nullable keeps Gson snapshots written before this field was introduced readable.
-        val weeklyPopular: List<WeeklyPopularNovel>? = null
-    )
-
-    private data class WeeklyUpdateDaySnapshot(
-        val dateString: String,
-        val novels: List<CoveredNovelImpl>
-    )
 
     private fun HomeData.toSnapshot(): HomeDataSnapshot = HomeDataSnapshot(
         recentlyUpdateTranslated = recentlyUpdateTranslated.map(::toImpl),
@@ -131,22 +117,6 @@ object HomeDataCache {
             )
         }
     )
-
-    private fun HomeDataSnapshot.toHomeData(): HomeData {
-        val parsedWeekly = weeklyUpdates.mapNotNull { daySnapshot ->
-            val date = runCatching { LocalDate.parse(daySnapshot.dateString) }.getOrNull() ?: return@mapNotNull null
-            WeeklyUpdateDay(date, daySnapshot.novels)
-        }
-        return HomeData(
-            recentlyUpdateTranslated = recentlyUpdateTranslated,
-            recentlyUpdateOriginal = recentlyUpdateOriginal,
-            recentlyUpdateTranslatedR18 = recentlyUpdateTranslatedR18,
-            recentlyUpdateOriginalR18 = recentlyUpdateOriginalR18,
-            recommendation = recommendation,
-            weeklyUpdates = parsedWeekly,
-            weeklyPopular = weeklyPopular.orEmpty()
-        )
-    }
 
     private fun toImpl(novel: CoveredNovel): CoveredNovelImpl =
         (novel as? CoveredNovelImpl) ?: CoveredNovelImpl(
@@ -165,3 +135,45 @@ object HomeDataCache {
             discussionCount = novel.discussionCount
         )
 }
+
+internal data class HomeDataSnapshot(
+    @SerializedName("recentlyUpdateTranslated")
+    val recentlyUpdateTranslated: List<CoveredNovelImpl>? = null,
+    @SerializedName("recentlyUpdateOriginal")
+    val recentlyUpdateOriginal: List<CoveredNovelImpl>? = null,
+    @SerializedName("recentlyUpdateTranslatedR18")
+    val recentlyUpdateTranslatedR18: List<CoveredNovelImpl>? = null,
+    @SerializedName("recentlyUpdateOriginalR18")
+    val recentlyUpdateOriginalR18: List<CoveredNovelImpl>? = null,
+    @SerializedName("recommendation")
+    val recommendation: List<CoveredNovelImpl>? = null,
+    @SerializedName("weeklyUpdates")
+    val weeklyUpdates: List<WeeklyUpdateDaySnapshot>? = null,
+    // Nullable keeps Gson snapshots written before this field was introduced readable.
+    @SerializedName("weeklyPopular")
+    val weeklyPopular: List<WeeklyPopularNovel>? = null
+) {
+    fun toHomeData(): HomeData {
+        val parsedWeekly = weeklyUpdates.orEmpty().mapNotNull { daySnapshot ->
+            val dateStr = daySnapshot.dateString ?: return@mapNotNull null
+            val date = runCatching { LocalDate.parse(dateStr) }.getOrNull() ?: return@mapNotNull null
+            WeeklyUpdateDay(date, daySnapshot.novels.orEmpty())
+        }
+        return HomeData(
+            recentlyUpdateTranslated = recentlyUpdateTranslated.orEmpty(),
+            recentlyUpdateOriginal = recentlyUpdateOriginal.orEmpty(),
+            recentlyUpdateTranslatedR18 = recentlyUpdateTranslatedR18.orEmpty(),
+            recentlyUpdateOriginalR18 = recentlyUpdateOriginalR18.orEmpty(),
+            recommendation = recommendation.orEmpty(),
+            weeklyUpdates = parsedWeekly,
+            weeklyPopular = weeklyPopular.orEmpty()
+        )
+    }
+}
+
+internal data class WeeklyUpdateDaySnapshot(
+    @SerializedName("dateString")
+    val dateString: String? = null,
+    @SerializedName("novels")
+    val novels: List<CoveredNovelImpl>? = null
+)

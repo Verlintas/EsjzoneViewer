@@ -23,7 +23,7 @@
 
 # Gson reads generic List<T> fields from persisted download manifests and
 # chapter files. Keep signatures used to recover those element types.
--keepattributes Signature
+-keepattributes Signature,*Annotation*
 
 # Persisted JSON field names must remain stable across app updates.
 -keepclassmembers,allowoptimization class com.breakyuna.esjzone.network.PersistentCookieJar$StoredCookie {
@@ -41,6 +41,30 @@
 -keepclassmembers,allowoptimization class com.breakyuna.esjzone.offline.DownloadedComponent {
     <fields>;
 }
+-keepclassmembers,allowoptimization class com.breakyuna.esjzone.network.features.HomeDataSnapshot {
+    <fields>;
+}
+-keep,allowoptimization class com.breakyuna.esjzone.network.features.HomeDataSnapshot
+-keepclassmembers,allowoptimization class com.breakyuna.esjzone.network.features.WeeklyUpdateDaySnapshot {
+    <fields>;
+}
+-keep,allowoptimization class com.breakyuna.esjzone.network.features.WeeklyUpdateDaySnapshot
+-keepclassmembers,allowoptimization class com.breakyuna.esjzone.network.features.HistorySnapshot {
+    <fields>;
+}
+-keep,allowoptimization class com.breakyuna.esjzone.network.features.HistorySnapshot
+-keepclassmembers,allowoptimization class com.breakyuna.esjzone.network.features.HistoryNovelSnapshot {
+    <fields>;
+}
+-keep,allowoptimization class com.breakyuna.esjzone.network.features.HistoryNovelSnapshot
+-keepclassmembers,allowoptimization class com.breakyuna.esjzone.novellibrary.novel.CoveredNovelImpl {
+    <fields>;
+}
+-keep,allowoptimization class com.breakyuna.esjzone.novellibrary.novel.CoveredNovelImpl
+-keepclassmembers,allowoptimization class com.breakyuna.esjzone.novellibrary.data.WeeklyPopularNovel {
+    <fields>;
+}
+-keep,allowoptimization class com.breakyuna.esjzone.novellibrary.data.WeeklyPopularNovel
 
 # Navigation 3 persists NavKey values through kotlinx.serialization. Keep
 # route names, companions, and generated serializers for restore after process

@@ -1,5 +1,6 @@
 package com.breakyuna.esjzone.novellibrary.novel
 
+import com.google.gson.annotations.SerializedName
 import java.io.Serializable
 
 interface Novel : Serializable {
@@ -58,18 +59,31 @@ data class CategoryNovel(
 ) : Novel
 
 data class CoveredNovelImpl(
-    override val coverUrl: String,
-    override val name: String,
-    override val url: String,
-    override val views: Int,
-    override val likes: Int,
-    override val isAdult: Boolean,
+    @SerializedName("coverUrl")
+    override val coverUrl: String = "",
+    @SerializedName("name")
+    override val name: String = "",
+    @SerializedName("url")
+    override val url: String = "",
+    @SerializedName("views")
+    override val views: Int = 0,
+    @SerializedName("likes")
+    override val likes: Int = 0,
+    @SerializedName("isAdult")
+    override val isAdult: Boolean = false,
+    @SerializedName("latestTitle")
     override val latestTitle: String? = null,
+    @SerializedName("latestUrl")
     override val latestUrl: String? = null,
+    @SerializedName("author")
     override val author: String? = null,
+    @SerializedName("authorUrl")
     override val authorUrl: String? = null,
+    @SerializedName("words")
     override val words: Int? = null,
+    @SerializedName("articleCount")
     override val articleCount: Int? = null,
+    @SerializedName("discussionCount")
     override val discussionCount: Int? = null
 ) : CoveredNovel {
 

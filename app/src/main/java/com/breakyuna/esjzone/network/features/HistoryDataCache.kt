@@ -6,6 +6,7 @@ import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.novellibrary.novel.HistoryNovel
 import com.breakyuna.esjzone.util.AppLogger
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -87,31 +88,12 @@ object HistoryDataCache {
         if (!file.isFile) return null
         return try {
             val snapshot = gson.fromJson(file.readText(StandardCharsets.UTF_8), HistorySnapshot::class.java)
-            snapshot?.histories?.map { it.toHistoryNovel() }
+            snapshot?.histories.orEmpty().map { it.toHistoryNovel() }
         } catch (e: Exception) {
             AppLogger.w("HistoryDataCache", "Failed to read history snapshot", e)
+            runCatching { file.delete() }
             null
         }
-    }
-
-    private data class HistorySnapshot(
-        val histories: List<HistoryNovelSnapshot> = emptyList()
-    )
-
-    private data class HistoryNovelSnapshot(
-        val name: String,
-        val url: String,
-        val vid: String,
-        val chapterName: String,
-        val chapterUrl: String,
-        val chapterIsHistory: Boolean
-    ) {
-        fun toHistoryNovel(): HistoryNovel = HistoryNovel(
-            name = name,
-            url = url,
-            vid = vid,
-            chapter = Chapter(chapterName, chapterUrl, chapterIsHistory)
-        )
     }
 
     private fun toSnapshot(history: HistoryNovel): HistoryNovelSnapshot = HistoryNovelSnapshot(
@@ -121,5 +103,32 @@ object HistoryDataCache {
         chapterName = history.chapter.name,
         chapterUrl = history.chapter.url,
         chapterIsHistory = history.chapter.isHistory
+    )
+}
+
+internal data class HistorySnapshot(
+    @SerializedName("histories")
+    val histories: List<HistoryNovelSnapshot>? = emptyList()
+)
+
+internal data class HistoryNovelSnapshot(
+    @SerializedName("name")
+    val name: String = "",
+    @SerializedName("url")
+    val url: String = "",
+    @SerializedName("vid")
+    val vid: String = "",
+    @SerializedName("chapterName")
+    val chapterName: String = "",
+    @SerializedName("chapterUrl")
+    val chapterUrl: String = "",
+    @SerializedName("chapterIsHistory")
+    val chapterIsHistory: Boolean = false
+) {
+    fun toHistoryNovel(): HistoryNovel = HistoryNovel(
+        name = name,
+        url = url,
+        vid = vid,
+        chapter = Chapter(chapterName, chapterUrl, chapterIsHistory)
     )
 }

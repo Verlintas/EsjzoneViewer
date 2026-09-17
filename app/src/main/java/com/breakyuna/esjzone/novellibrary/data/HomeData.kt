@@ -1,6 +1,7 @@
 package com.breakyuna.esjzone.novellibrary.data
 
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
+import com.google.gson.annotations.SerializedName
 import java.io.Serializable
 
 class HomeData(
@@ -16,15 +17,26 @@ class HomeData(
 )
 
 data class WeeklyPopularNovel(
-    val rank: Int,
-    val weeklyViews: Int,
-    val descriptionPreview: String,
-    val type: String,
-    override val coverUrl: String,
-    override val name: String,
-    override val url: String,
-    override val views: Int,
-    override val likes: Int,
-    override val isAdult: Boolean,
-    override val author: String?
+    @SerializedName("rank")
+    val rank: Int = 0,
+    @SerializedName("weeklyViews")
+    val weeklyViews: Int = 0,
+    @SerializedName("descriptionPreview")
+    val descriptionPreview: String = "",
+    @SerializedName("type")
+    val type: String = "",
+    @SerializedName("coverUrl")
+    override val coverUrl: String = "",
+    @SerializedName("name")
+    override val name: String = "",
+    @SerializedName("url")
+    override val url: String = "",
+    @SerializedName("views")
+    override val views: Int = 0,
+    @SerializedName("likes")
+    override val likes: Int = 0,
+    @SerializedName("isAdult")
+    override val isAdult: Boolean = false,
+    @SerializedName("author")
+    override val author: String? = null
 ) : CoveredNovel, Serializable
