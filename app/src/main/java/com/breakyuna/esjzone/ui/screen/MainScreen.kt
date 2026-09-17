@@ -32,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.network.Authorization
+import com.breakyuna.esjzone.network.hasCredentials
 import com.breakyuna.esjzone.network.LocalAuthorization
 import com.breakyuna.esjzone.network.features.AuthorizationCheckResult
 import com.breakyuna.esjzone.network.features.checkAuthorization
