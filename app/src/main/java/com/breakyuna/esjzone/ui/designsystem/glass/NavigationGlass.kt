@@ -37,6 +37,7 @@ fun AppNavigationGlassSurface(
     modifier: Modifier = Modifier,
     vertical: Boolean = false,
     selectedFraction: Float = 0.125f,
+    itemCount: Int = 4,
     shape: RoundedCornerShape = RoundedCornerShape(percent = 50),
     content: @Composable BoxScope.() -> Unit
 ) {
