@@ -25,10 +25,11 @@ import kotlin.math.roundToInt
 /** Shared with the actual tab layout so the lens cannot drift when its geometry changes. */
 internal object NavigationGlassMetrics {
     val horizontalPadding = 4.dp
-    val bottomHeight = 68.dp
-    val bottomVerticalPadding = 6.dp
-    val bottomItemHeight = 56.dp
-    val bottomItemMaxWidth = 72.dp
+    val bottomHeight = 60.dp
+    val bottomCornerRadius = 22.dp
+    val bottomVerticalPadding = 4.dp
+    val bottomItemHeight = 52.dp
+    val bottomItemMaxWidth = 76.dp
     val railWidth = 58.dp
     val railItemSize = 48.dp
     val railVerticalPadding = 8.dp
@@ -51,7 +52,9 @@ internal fun NavigationSelectionLens(
     require(itemCount > 0)
     val colors = MaterialTheme.colorScheme
     val dark = colors.surface.luminance() < 0.5f
-    val shape = remember { RoundedCornerShape(percent = 50) }
+    val shape = remember(vertical) {
+        if (vertical) RoundedCornerShape(percent = 50) else RoundedCornerShape(18.dp)
+    }
     // A slower follower stretches the moving lens, then settles back to its resting shape.
     // Both springs retain their current values on rapid retargeting and honor duration scale 0.
     val tail = animateFloatAsState(
@@ -64,32 +67,14 @@ internal fun NavigationSelectionLens(
         modifier = modifier,
         content = {
             val pillFill = if (dark) {
-                Color.White.copy(alpha = 0.12f)
+                Color.White.copy(alpha = 0.10f)
             } else {
-                Color.White.copy(alpha = 0.30f)
+                Color.White.copy(alpha = 0.22f)
             }
-            val pillBorder = Brush.verticalGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = if (dark) 0.25f else 0.60f),
-                    Color.White.copy(alpha = if (dark) 0.05f else 0.12f)
-                )
-            )
             Box(
                 modifier = Modifier
-                    .shadow(
-                        elevation = if (dark) 2.dp else 4.dp,
-                        shape = shape,
-                        clip = false,
-                        ambientColor = Color.Black.copy(alpha = if (dark) 0.10f else 0.04f),
-                        spotColor = Color.Black.copy(alpha = if (dark) 0.20f else 0.08f)
-                    )
                     .clip(shape)
                     .background(pillFill)
-                    .border(
-                        width = 0.8.dp,
-                        brush = pillBorder,
-                        shape = shape
-                    )
             )
         }
     ) { measurables, constraints ->

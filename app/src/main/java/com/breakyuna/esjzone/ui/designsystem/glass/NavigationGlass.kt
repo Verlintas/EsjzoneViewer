@@ -38,7 +38,7 @@ fun AppNavigationGlassSurface(
     vertical: Boolean = false,
     selectedFraction: Float = 0.125f,
     itemCount: Int = 4,
-    shape: RoundedCornerShape = RoundedCornerShape(percent = 50),
+    shape: RoundedCornerShape = if (vertical) RoundedCornerShape(percent = 50) else RoundedCornerShape(NavigationGlassMetrics.bottomCornerRadius),
     content: @Composable BoxScope.() -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -120,12 +120,11 @@ internal fun Modifier.navigationCrystalBevel(
     dark: Boolean,
     vertical: Boolean,
     lightPosition: State<Float>,
-    shape: RoundedCornerShape = RoundedCornerShape(percent = 50),
+    shape: RoundedCornerShape = if (vertical) RoundedCornerShape(percent = 50) else RoundedCornerShape(NavigationGlassMetrics.bottomCornerRadius),
     borderWidth: Dp = 1.dp
 ): Modifier = drawWithCache {
     val strokeWidth = borderWidth.toPx()
     val halfStroke = strokeWidth / 2f
-    val hairline = 0.75.dp.toPx()
     val rtl = layoutDirection == LayoutDirection.Rtl
     val lightStart = Offset(if (rtl) size.width else 0f, 0f)
     val lightEnd = Offset(if (rtl) 0f else size.width, size.height)
@@ -139,44 +138,14 @@ internal fun Modifier.navigationCrystalBevel(
         endY = size.height
     )
 
-    // Horizontal liquid caustic refraction beam across the lower curve (82% of height)
-    val causticHeight = 4.5.dp.toPx()
-    val causticY = size.height * 0.82f
-    val causticBrush = Brush.verticalGradient(
-        0f to Color.Transparent,
-        0.30f to Color.White.copy(alpha = if (dark) 0.35f else 0.55f),
-        0.50f to Color.White.copy(alpha = if (dark) 0.55f else 0.80f),
-        0.70f to Color.White.copy(alpha = if (dark) 0.35f else 0.55f),
-        1f to Color.Transparent,
-        startY = causticY - causticHeight / 2f,
-        endY = causticY + causticHeight / 2f
-    )
-
-    // Subtle optical shadow shelf right beneath the caustic refraction band
-    val causticShadowBrush = Brush.verticalGradient(
-        0f to Color.Black.copy(alpha = if (dark) 0.18f else 0.08f),
-        1f to Color.Transparent,
-        startY = causticY + causticHeight / 2f,
-        endY = causticY + causticHeight / 2f + 2.dp.toPx()
-    )
-
     // Sleek single-stroke gradient simulating light hitting the top bevel and glowing rim
     val outerBorderBrush = Brush.linearGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.65f else 0.90f),
-        0.30f to Color.White.copy(alpha = if (dark) 0.28f else 0.48f),
-        0.70f to Color.White.copy(alpha = if (dark) 0.12f else 0.22f),
-        1f to if (dark) Color.Black.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.30f),
+        0f to Color.White.copy(alpha = if (dark) 0.65f else 0.85f),
+        0.30f to Color.White.copy(alpha = if (dark) 0.25f else 0.45f),
+        0.70f to Color.White.copy(alpha = if (dark) 0.12f else 0.20f),
+        1f to if (dark) Color.Black.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.25f),
         start = if (vertical) lightStart else Offset(0f, 0f),
         end = if (vertical) lightEnd else Offset(0f, size.height)
-    )
-
-    // Soft top inner reflection rim
-    val innerGlowBrush = Brush.verticalGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.25f else 0.40f),
-        0.35f to Color.Transparent,
-        1f to Color.Transparent,
-        startY = 0f,
-        endY = size.height
     )
 
     // A reflected strip light that travels along the rim when the tab changes
@@ -190,8 +159,8 @@ internal fun Modifier.navigationCrystalBevel(
     )
     val glintCompression = strokeWidth * 2.5f / glintRadius
 
-    // Determine corner radius: full half-circle capsule (percent = 50)
-    val cornerRadiusPx = size.minDimension / 2f
+    // Determine corner radius matching the exact dock shape
+    val cornerRadiusPx = if (vertical) size.minDimension / 2f else NavigationGlassMetrics.bottomCornerRadius.toPx().coerceAtMost(size.minDimension / 2f)
 
     onDrawBehind {
         if (size.minDimension <= strokeWidth * 2f) return@onDrawBehind
@@ -204,29 +173,7 @@ internal fun Modifier.navigationCrystalBevel(
             cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
         )
 
-        // 2. Horizontal Liquid Caustic Refraction Beam & Optical Shelf (in horizontal mode)
-        if (!vertical) {
-            val causticInsetX = cornerRadiusPx * 0.40f
-            val causticWidth = (size.width - causticInsetX * 2f).coerceAtLeast(0f)
-            if (causticWidth > 0f) {
-                // Bright caustic refraction streak
-                drawRoundRect(
-                    brush = causticBrush,
-                    topLeft = Offset(causticInsetX, causticY - causticHeight / 2f),
-                    size = Size(causticWidth, causticHeight),
-                    cornerRadius = CornerRadius(causticHeight / 2f, causticHeight / 2f)
-                )
-                // Optical shadow shelf directly below the caustic ridge
-                drawRoundRect(
-                    brush = causticShadowBrush,
-                    topLeft = Offset(causticInsetX, causticY + causticHeight / 2f),
-                    size = Size(causticWidth, 2.5.dp.toPx()),
-                    cornerRadius = CornerRadius(1.25.dp.toPx(), 1.25.dp.toPx())
-                )
-            }
-        }
-
-        // 3. Single refined outer border
+        // 2. Single refined outer border
         val outerRimSize = Size(size.width - strokeWidth, size.height - strokeWidth)
         val outerCornerRadius = (cornerRadiusPx - halfStroke).coerceAtLeast(0f)
         drawRoundRect(
@@ -237,21 +184,7 @@ internal fun Modifier.navigationCrystalBevel(
             style = Stroke(strokeWidth)
         )
 
-        // 4. Delicate top inner hairline
-        val innerInset = strokeWidth + 0.5.dp.toPx()
-        val innerRimSize = Size(size.width - innerInset * 2f, size.height - innerInset * 2f)
-        if (innerRimSize.minDimension > 0f) {
-            val innerCornerRadius = (cornerRadiusPx - innerInset).coerceAtLeast(0f)
-            drawRoundRect(
-                brush = innerGlowBrush,
-                topLeft = Offset(innerInset, innerInset),
-                size = innerRimSize,
-                cornerRadius = CornerRadius(innerCornerRadius, innerCornerRadius),
-                style = Stroke(hairline)
-            )
-        }
-
-        // 5. Dynamic traveling glint
+        // 3. Dynamic traveling glint
         val progress = lightPosition.value.coerceIn(0f, 1f)
         val glintCenter = if (vertical) {
             Offset(if (rtl) size.width else 0f, size.height * progress)

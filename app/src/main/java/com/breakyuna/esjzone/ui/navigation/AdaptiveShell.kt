@@ -453,7 +453,7 @@ private fun AppNavigationBar(
     glassScene: AppGlassScene,
     modifier: Modifier = Modifier
 ) {
-    val navShape = RoundedCornerShape(percent = 50)
+    val navShape = RoundedCornerShape(NavigationGlassMetrics.bottomCornerRadius)
     AppNavigationGlassSurface(
         scene = glassScene,
         selectedFraction = ((tabs.indexOf(selected).coerceAtLeast(0)) + 0.5f) / tabs.size,
@@ -588,7 +588,7 @@ private fun FloatingNavHorizontalItem(
     modifier: Modifier = Modifier
 ) {
     val colors = navigationItemColors(selected)
-    val pillShape = RoundedCornerShape(percent = 50)
+    val pillShape = RoundedCornerShape(18.dp)
     Box(
         modifier = modifier.fillMaxHeight(),
         contentAlignment = Alignment.Center
@@ -612,9 +612,9 @@ private fun FloatingNavHorizontalItem(
             Column(
                 modifier = Modifier
                     .navigationContentHalo(colors.halo)
-                    .padding(horizontal = 4.dp, vertical = 3.dp),
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(1.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Icon(
                     imageVector = if (selected) selectedIcon else unselectedIcon,
