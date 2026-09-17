@@ -26,7 +26,7 @@ import kotlin.math.roundToInt
 internal object NavigationGlassMetrics {
     val horizontalPadding = 4.dp
     val bottomHeight = 60.dp
-    val bottomCornerRadius = 28.dp
+    val bottomCornerRadius = 30.dp
     val bottomVerticalPadding = 4.dp
     val bottomItemHeight = 52.dp
     val bottomItemMaxWidth = 76.dp
@@ -52,8 +52,8 @@ internal fun NavigationSelectionLens(
     require(itemCount > 0)
     val colors = MaterialTheme.colorScheme
     val dark = colors.surface.luminance() < 0.5f
-    val shape = remember(vertical) {
-        if (vertical) RoundedCornerShape(percent = 50) else RoundedCornerShape(24.dp)
+    val shape = remember {
+        RoundedCornerShape(percent = 50)
     }
     // A slower follower stretches the moving lens, then settles back to its resting shape.
     // Both springs retain their current values on rapid retargeting and honor duration scale 0.
