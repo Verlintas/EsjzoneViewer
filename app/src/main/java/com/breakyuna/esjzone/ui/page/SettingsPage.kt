@@ -221,7 +221,8 @@ object SettingsPage : AppDestination {
                                                         val reordered = editableNavigationOrder.toMutableList()
                                                         java.util.Collections.swap(reordered, currentIndex, targetIndex)
                                                         editableNavigationOrder = reordered
-                                                        dragOffsetX = 0f
+                                                        val indexDelta = targetIndex - currentIndex
+                                                        dragOffsetX -= indexDelta * size.width.toFloat()
                                                     }
                                                 }
                                             )

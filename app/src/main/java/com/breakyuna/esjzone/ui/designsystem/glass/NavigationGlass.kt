@@ -18,14 +18,9 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.glass.SurfaceProfile
@@ -60,25 +55,25 @@ fun AppNavigationGlassSurface(
             tint = if (dark) colors.surfaceContainer else colors.surfaceContainerLow,
             // Transparent glass with light tint to allow background refraction to show through
             alpha = 1f,
-            tintAlpha = if (dark) 0.14f else 0.20f,
+            tintAlpha = if (dark) 0.12f else 0.16f,
             fallbackAlpha = 0.96f,
             blurRadius = 8.dp,
             depth = 0.20f,
             refractionStrength = 1.0f,
-            refractionDisplacement = 30.dp,
+            refractionDisplacement = 48.dp,
             refractionHeightFraction = 0.50f,
-            refractionFoldStrength = 0.60f,
-            edgeSoftness = 1.0.dp,
-            specularIntensity = if (dark) 0.78f else 0.88f,
-            ambientResponse = if (dark) 0.38f else 0.35f,
-            specularExponent = 26f,
+            refractionFoldStrength = 0f,
+            edgeSoftness = 0.5.dp,
+            specularIntensity = 0f,
+            ambientResponse = 0f,
+            specularExponent = 24f,
             fresnelExponent = 2.4f,
-            surfaceProfile = SurfaceProfile.Circle,
+            surfaceProfile = SurfaceProfile.Lip,
             lightPosition = Alignment.TopStart,
-            chromaticAberrationStrength = 0.06f,
+            chromaticAberrationStrength = 0.08f,
             contrast = 0.04f,
-            whitePoint = 0.10f,
-            chromaMultiplier = 1.04f,
+            whitePoint = 0f,
+            chromaMultiplier = 1.05f,
             contentNormalBlend = 0.06f,
             borderAlpha = 0f,
             borderWidth = 0.dp,
@@ -119,7 +114,7 @@ fun AppNavigationGlassSurface(
     }
 }
 
-/** Cached geometry/brushes render a clean, high-end liquid glass border with dynamic specular highlight. */
+/** Cached geometry/brushes render a clean translucent liquid glass body sheen without edge self-illumination. */
 internal fun Modifier.navigationCrystalBevel(
     dark: Boolean,
     vertical: Boolean,
@@ -127,85 +122,24 @@ internal fun Modifier.navigationCrystalBevel(
     shape: RoundedCornerShape = RoundedCornerShape(percent = 50),
     borderWidth: Dp = 1.dp
 ): Modifier = drawWithCache {
-    val strokeWidth = borderWidth.toPx()
-    val halfStroke = strokeWidth / 2f
-    val rtl = layoutDirection == LayoutDirection.Rtl
-    val lightStart = Offset(if (rtl) size.width else 0f, 0f)
-    val lightEnd = Offset(if (rtl) 0f else size.width, size.height)
+    val cornerRadiusPx = size.minDimension / 2f
 
-    // Ambient volumetric sheen: luminous white lift across the glass surface
+    // Ambient volumetric sheen: gentle translucent lift across the glass body without bright edge outline
     val bodySheenBrush = Brush.verticalGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.14f else 0.22f),
-        0.50f to Color.White.copy(alpha = if (dark) 0.06f else 0.10f),
-        1f to Color.White.copy(alpha = if (dark) 0.02f else 0.04f),
+        0f to Color.White.copy(alpha = if (dark) 0.06f else 0.10f),
+        0.50f to Color.White.copy(alpha = if (dark) 0.02f else 0.04f),
+        1f to Color.Transparent,
         startY = 0f,
         endY = size.height
     )
 
-    // Sleek border gradient: bright white highlight wrapping gracefully around rounded corner curves
-    val lightAngleStart = if (vertical) lightStart else Offset(0f, 0f)
-    val lightAngleEnd = if (vertical) lightEnd else Offset(size.width * 0.70f, size.height)
-    val outerBorderBrush = Brush.linearGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.85f else 0.98f),
-        0.20f to Color.White.copy(alpha = if (dark) 0.55f else 0.80f),
-        0.50f to Color.White.copy(alpha = if (dark) 0.35f else 0.50f),
-        0.80f to Color.White.copy(alpha = if (dark) 0.38f else 0.55f),
-        1f to if (dark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.32f),
-        start = lightAngleStart,
-        end = lightAngleEnd
-    )
-
-    // Determine corner radius: 50% of height for a continuous, seamless capsule without angular junctions
-    val cornerRadiusPx = size.minDimension / 2f
-
-    // A reflected strip light that travels along the rim when the tab changes
-    val glintRadius = (size.minDimension * 0.80f).coerceAtLeast(1f)
-    val glintBrush = Brush.radialGradient(
-        0f to Color.White.copy(alpha = if (dark) 0.50f else 0.68f),
-        0.40f to Color.White.copy(alpha = if (dark) 0.24f else 0.30f),
-        1f to Color.Transparent,
-        center = Offset.Zero,
-        radius = glintRadius
-    )
-    val glintCompression = strokeWidth * 2.5f / glintRadius
-
     onDrawBehind {
-        if (size.minDimension <= strokeWidth * 2f) return@onDrawBehind
-
-        // 1. Ambient Volumetric Luminous Sheen (lifts the body brightness above background)
+        // Ambient volumetric translucent sheen across the glass body
         drawRoundRect(
             brush = bodySheenBrush,
             topLeft = Offset.Zero,
             size = size,
             cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
         )
-
-        // 2. Single refined outer border with angled highlight wrapping around the curves
-        val outerRimSize = Size(size.width - strokeWidth, size.height - strokeWidth)
-        val outerCornerRadius = (cornerRadiusPx - halfStroke).coerceAtLeast(0f)
-        drawRoundRect(
-            brush = outerBorderBrush,
-            topLeft = Offset(halfStroke, halfStroke),
-            size = outerRimSize,
-            cornerRadius = CornerRadius(outerCornerRadius, outerCornerRadius),
-            style = Stroke(strokeWidth)
-        )
-
-        // 3. Dynamic traveling glint
-        val progress = lightPosition.value.coerceIn(0f, 1f)
-        val glintCenter = if (vertical) {
-            Offset(if (rtl) size.width else 0f, size.height * progress)
-        } else {
-            Offset(size.width * (if (rtl) 1f - progress else progress), 0f)
-        }
-        translate(left = glintCenter.x, top = glintCenter.y) {
-            scale(
-                scaleX = if (vertical) glintCompression else 1f,
-                scaleY = if (vertical) 1f else glintCompression,
-                pivot = Offset.Zero
-            ) {
-                drawCircle(brush = glintBrush, radius = glintRadius, center = Offset.Zero)
-            }
-        }
     }
 }
