@@ -904,6 +904,7 @@ private fun HomeActions(
             label = stringResource(R.string.guestbook),
             icon = Icons.Filled.RateReview,
             modifier = Modifier.weight(1f),
+            iconTint = Color(0xFFC67D0A),
             onClick = onGuestbook
         )
         HomeShortcut(

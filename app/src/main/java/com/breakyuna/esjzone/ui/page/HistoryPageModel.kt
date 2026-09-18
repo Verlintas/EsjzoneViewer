@@ -44,7 +44,11 @@ class HistoryPageModel(
         loadJob?.cancel()
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             val visibleData = mutableState.value as? State.Result
-            mutableState.value = visibleData?.copy(isSyncing = true, lastSyncFailure = null) ?: State.Loading
+            mutableState.value = visibleData?.copy(
+                isSyncing = true,
+                isSyncSuccess = false,
+                lastSyncFailure = null
+            ) ?: State.Loading
             try {
                 val histories = PresentationAccess.client.getHistories(
                     authorization,
@@ -59,6 +63,16 @@ class HistoryPageModel(
                     lastSyncFailure = null
                 )
             } catch (e: CancellationException) {
+                val current = mutableState.value
+                if (current is State.Result) {
+                    mutableState.value = current.copy(
+                        isSyncing = false,
+                        isSyncSuccess = false,
+                        lastSyncFailure = LoadFailureKind.NETWORK
+                    )
+                } else if (current is State.Loading) {
+                    mutableState.value = State.Error(LoadFailureKind.NETWORK)
+                }
                 throw e
             } catch (e: Exception) {
                 if (visibleData == null) {
@@ -70,13 +84,15 @@ class HistoryPageModel(
                         lastSyncFailure = e.loadFailureKind()
                     )
                 }
-                loadStarted = false
                 AppLogger.e("HistoryPageModel", "Failed to load cloud histories", e)
+            } finally {
+                loadStarted = false
             }
         }
     }
 
     fun reload() {
+        loadJob?.cancel()
         loadStarted = false
         getNovels(forceRefresh = true)
     }

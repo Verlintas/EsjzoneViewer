@@ -233,9 +233,10 @@ internal fun CommunitySyncStatusIndicator(
     @StringRes idleRes: Int = R.string.community_sync_idle
 ) {
     val result = state as? CommunityState.Result
+    val empty = state as? CommunityState.Empty
     val syncing = state is CommunityState.Loading || result?.isSyncing == true
     val failed = state is CommunityState.Error || result?.syncFailure != null
-    val isSuccess = !syncing && !failed && (result?.isSyncSuccess == true || state is CommunityState.Empty)
+    val isSuccess = !syncing && !failed && (result?.isSyncSuccess == true || empty?.isSyncSuccess == true)
     CommunitySyncStatusIndicator(
         syncing = syncing,
         isSyncSuccess = isSuccess,
@@ -261,11 +262,11 @@ private fun CommentSectionHeader(title: String, modifier: Modifier = Modifier) {
 
 internal sealed class CommunityState<out T> {
     data object Loading : CommunityState<Nothing>()
-    data object Empty : CommunityState<Nothing>()
+    data class Empty(val isSyncSuccess: Boolean = false) : CommunityState<Nothing>()
     data class Error(val failure: LoadFailureKind) : CommunityState<Nothing>()
     data class Result<T>(
         val data: T,
-        val isSyncSuccess: Boolean = true,
+        val isSyncSuccess: Boolean = false,
         val isSyncing: Boolean = false,
         val syncFailure: LoadFailureKind? = null
     ) : CommunityState<T>()
@@ -1101,7 +1102,7 @@ internal class CommentPageModel(
                     isSyncing = true
                 )
             } else if (currentResult != null) {
-                mutableState.value = currentResult.copy(isSyncing = true, syncFailure = null)
+                mutableState.value = currentResult.copy(isSyncing = true, isSyncSuccess = false, syncFailure = null)
             } else {
                 mutableState.value = CommunityState.Loading
             }
@@ -1114,7 +1115,7 @@ internal class CommentPageModel(
                 )
                 ensureActive()
                 mutableState.value = if (comments.isEmpty()) {
-                    CommunityState.Empty
+                    CommunityState.Empty(isSyncSuccess = true)
                 } else {
                     CommunityState.Result(
                         data = comments,
@@ -1123,6 +1124,16 @@ internal class CommentPageModel(
                     )
                 }
             } catch (error: CancellationException) {
+                val existing = mutableState.value as? CommunityState.Result
+                if (existing != null) {
+                    mutableState.value = existing.copy(
+                        isSyncing = false,
+                        isSyncSuccess = false,
+                        syncFailure = LoadFailureKind.NETWORK
+                    )
+                } else {
+                    mutableState.value = CommunityState.Error(LoadFailureKind.NETWORK)
+                }
                 throw error
             } catch (error: Exception) {
                 AppLogger.e("CommentPageModel", "Failed to load comments", error)
@@ -1136,6 +1147,7 @@ internal class CommentPageModel(
                 } else {
                     mutableState.value = CommunityState.Error(error.loadFailureKind())
                 }
+            } finally {
                 loadStarted = false
             }
         }
@@ -1164,7 +1176,7 @@ internal class CommentPageModel(
                     replyToken = replyToken
                 )
                 ensureActive()
-                mutableState.value = CommunityState.Result(submission.comments)
+                mutableState.value = CommunityState.Result(submission.comments, isSyncSuccess = true)
                 lastCreatedCommentId.value = submission.createdComment.id
                 draft.value = ""
                 this@CommentPageModel.replyToken.value = null
@@ -1173,7 +1185,7 @@ internal class CommentPageModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: CommentSubmissionNotVerifiedException) {
-                mutableState.value = CommunityState.Result(error.comments)
+                mutableState.value = CommunityState.Result(error.comments, isSyncSuccess = false)
                 submitError.value = CommentSubmitError.NOT_VERIFIED
                 AppLogger.w("CommentPageModel", "Comment write completed but was not verified")
             } catch (error: ForumReplyBusinessException) {
@@ -1219,5 +1231,5 @@ internal sealed class CommentSubmitError {
     }
 }
 
-private fun <T> List<T>.toCommunityState(): CommunityState<List<T>> =
-    if (isEmpty()) CommunityState.Empty else CommunityState.Result(this)
+private fun <T> List<T>.toCommunityState(isSyncSuccess: Boolean = false): CommunityState<List<T>> =
+    if (isEmpty()) CommunityState.Empty(isSyncSuccess = isSyncSuccess) else CommunityState.Result(this, isSyncSuccess = isSyncSuccess)

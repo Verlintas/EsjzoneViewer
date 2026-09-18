@@ -123,7 +123,7 @@ object EsjzoneClient {
         maxAgeMillis: Long,
         forceRefresh: Boolean = false,
         pageKind: PageKind = PageKind.GENERIC,
-        allowStaleOnError: Boolean = true
+        allowStaleOnError: Boolean = !forceRefresh
     ): String {
         val cacheKey = pageCacheKey(authorization, url)
         val requestEpoch = cacheEpoch.get()

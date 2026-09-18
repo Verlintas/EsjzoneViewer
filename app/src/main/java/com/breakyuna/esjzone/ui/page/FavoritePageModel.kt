@@ -130,6 +130,7 @@ class FavoritePageModel(private val authorization: Authorization) :
                     State.Failed(result.loadFailure)
                 }
             } catch (e: CancellationException) {
+                mutableState.value = State.Failed(LoadFailureKind.NETWORK)
                 throw e
             } catch (error: Exception) {
                 mutableState.value = State.Failed(error.loadFailureKind())

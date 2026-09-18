@@ -91,7 +91,8 @@ fun EsjzoneClient.getAllFavorites(
             pageUrl,
             PageCacheTtl.ACCOUNT_LIST,
             forceRefresh = forceRefresh,
-            pageKind = PageKind.ACCOUNT
+            pageKind = PageKind.ACCOUNT,
+            allowStaleOnError = false
         )
         val document = Jsoup.parse(body, pageUrl)
         requireFavoritePage(document, body)

@@ -357,14 +357,16 @@ class ForumPostPage(private val topic: ForumTopic) : AppDestination {
 
         val postResult = state as? CommunityState.Result
         val commentsResult = commentsState as? CommunityState.Result
+        val postEmpty = state as? CommunityState.Empty
+        val commentsEmpty = commentsState as? CommunityState.Empty
 
         val syncRunning = state is CommunityState.Loading || commentsState is CommunityState.Loading ||
             postResult?.isSyncing == true || commentsResult?.isSyncing == true
         val syncFailed = state is CommunityState.Error || commentsState is CommunityState.Error ||
             postResult?.syncFailure != null || commentsResult?.syncFailure != null
         val syncSuccess = !syncRunning && !syncFailed &&
-            (postResult?.isSyncSuccess == true || state is CommunityState.Empty) &&
-            (commentsResult?.isSyncSuccess == true || commentsState is CommunityState.Empty)
+            (postResult?.isSyncSuccess == true || postEmpty?.isSyncSuccess == true) &&
+            (commentsResult?.isSyncSuccess == true || commentsEmpty?.isSyncSuccess == true)
 
         val runningRes = if (isWaterCooler) R.string.water_cooler_sync_running else R.string.community_sync_running
         val successRes = if (isWaterCooler) R.string.water_cooler_sync_success else R.string.community_sync_success
@@ -924,17 +926,19 @@ private class ForumPageModel(
         loadStarted = true
         mutableState.value = CommunityState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            mutableState.value = try {
-                PresentationAccess.client.getForumCategories(
+            try {
+                mutableState.value = PresentationAccess.client.getForumCategories(
                     authorization,
                     forceRefresh = forceRefresh
-                ).toCommunityState()
+                ).toCommunityState(isSyncSuccess = true)
             } catch (error: CancellationException) {
+                mutableState.value = CommunityState.Error(LoadFailureKind.NETWORK)
                 throw error
             } catch (error: Exception) {
                 AppLogger.e("ForumPageModel", "Failed to load forum categories", error)
+                mutableState.value = CommunityState.Error(error.loadFailureKind())
+            } finally {
                 loadStarted = false
-                CommunityState.Error(error.loadFailureKind())
             }
         }
     }
@@ -953,13 +957,14 @@ private class ForumCategoryPageModel(
         loadStarted = true
         mutableState.value = CommunityState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            mutableState.value = try {
-                PresentationAccess.client.getForumThreads(
+            try {
+                mutableState.value = PresentationAccess.client.getForumThreads(
                     authorization,
                     category,
                     forceRefresh = forceRefresh
-                ).toCommunityState()
+                ).toCommunityState(isSyncSuccess = true)
             } catch (error: CancellationException) {
+                mutableState.value = CommunityState.Error(LoadFailureKind.NETWORK)
                 throw error
             } catch (error: Exception) {
                 AppLogger.e(
@@ -967,8 +972,9 @@ private class ForumCategoryPageModel(
                     "Failed to load forum category ${category.id}",
                     error
                 )
+                mutableState.value = CommunityState.Error(error.loadFailureKind())
+            } finally {
                 loadStarted = false
-                CommunityState.Error(error.loadFailureKind())
             }
         }
     }
@@ -992,9 +998,13 @@ private class ForumBoardPageModel(
         loadStarted = true
         mutableState.value = CommunityState.Loading
         viewModelScope.launch(Dispatchers.IO) {
-            mutableState.value = try {
-                CommunityState.Result(PresentationAccess.client.getForumBoard(authorization, thread))
+            try {
+                mutableState.value = CommunityState.Result(
+                    PresentationAccess.client.getForumBoard(authorization, thread),
+                    isSyncSuccess = true
+                )
             } catch (error: CancellationException) {
+                mutableState.value = CommunityState.Error(LoadFailureKind.NETWORK)
                 throw error
             } catch (error: Exception) {
                 AppLogger.e(
@@ -1002,8 +1012,9 @@ private class ForumBoardPageModel(
                     "Failed to load forum board ${thread.id}",
                     error
                 )
+                mutableState.value = CommunityState.Error(error.loadFailureKind())
+            } finally {
                 loadStarted = false
-                CommunityState.Error(error.loadFailureKind())
             }
         }
     }
@@ -1041,7 +1052,7 @@ private class ForumPostPageModel(
                     isSyncing = true
                 )
             } else if (currentResult != null) {
-                mutableState.value = currentResult.copy(isSyncing = true, syncFailure = null)
+                mutableState.value = currentResult.copy(isSyncing = true, isSyncSuccess = false, syncFailure = null)
             } else {
                 mutableState.value = CommunityState.Loading
             }
@@ -1059,6 +1070,16 @@ private class ForumPostPageModel(
                     isSyncing = false
                 )
             } catch (error: CancellationException) {
+                val existing = mutableState.value as? CommunityState.Result
+                if (existing != null) {
+                    mutableState.value = existing.copy(
+                        isSyncing = false,
+                        isSyncSuccess = false,
+                        syncFailure = LoadFailureKind.NETWORK
+                    )
+                } else {
+                    mutableState.value = CommunityState.Error(LoadFailureKind.NETWORK)
+                }
                 throw error
             } catch (error: Exception) {
                 AppLogger.e(
@@ -1076,11 +1097,12 @@ private class ForumPostPageModel(
                 } else {
                     mutableState.value = CommunityState.Error(error.loadFailureKind())
                 }
+            } finally {
                 loadStarted = false
             }
         }
     }
 }
 
-private fun <T> List<T>.toCommunityState(): CommunityState<List<T>> =
-    if (isEmpty()) CommunityState.Empty else CommunityState.Result(this)
+private fun <T> List<T>.toCommunityState(isSyncSuccess: Boolean = false): CommunityState<List<T>> =
+    if (isEmpty()) CommunityState.Empty(isSyncSuccess = isSyncSuccess) else CommunityState.Result(this, isSyncSuccess = isSyncSuccess)

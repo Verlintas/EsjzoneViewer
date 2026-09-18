@@ -48,12 +48,13 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
@@ -424,46 +425,59 @@ private fun TabStackDisplay(
     }
 }
 
+private val BottomBarHeight = 60.dp
+
 @Composable
 private fun AppNavigationBar(
     selected: AppTabId,
     onSelected: (AppTabId) -> Unit,
     tabs: List<AppTabId>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    windowInsets: WindowInsets = NavigationBarDefaults.windowInsets
 ) {
-    NavigationBar(
+    Surface(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        contentColor = MaterialTheme.colorScheme.onSurface
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = NavigationBarDefaults.Elevation
     ) {
-        tabs.forEach { tab ->
-            val isSelected = selected == tab
-            NavigationBarItem(
-                selected = isSelected,
-                onClick = { onSelected(tab) },
-                icon = {
-                    Icon(
-                        imageVector = if (isSelected) tab.filledIcon else tab.outlinedIcon,
-                        contentDescription = tabLabel(tab)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(windowInsets)
+                .height(BottomBarHeight)
+                .selectableGroup(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tabs.forEach { tab ->
+                val isSelected = selected == tab
+                NavigationBarItem(
+                    selected = isSelected,
+                    onClick = { onSelected(tab) },
+                    icon = {
+                        Icon(
+                            imageVector = if (isSelected) tab.filledIcon else tab.outlinedIcon,
+                            contentDescription = tabLabel(tab)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = tabLabel(tab),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1
+                        )
+                    },
+                    alwaysShowLabel = true,
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                },
-                label = {
-                    Text(
-                        text = tabLabel(tab),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        maxLines = 1
-                    )
-                },
-                alwaysShowLabel = true,
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            )
+            }
         }
     }
 }

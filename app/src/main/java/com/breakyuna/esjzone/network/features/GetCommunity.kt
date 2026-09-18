@@ -97,7 +97,8 @@ fun EsjzoneClient.getPageComments(
             targetUrl,
             PageCacheTtl.COMMUNITY,
             forceRefresh = forceRefresh,
-            pageKind = PageKind.COMMUNITY
+            pageKind = PageKind.COMMUNITY,
+            allowStaleOnError = !forceRefresh
         ),
         targetUrl
     )
@@ -337,7 +338,8 @@ fun EsjzoneClient.getForumCategories(
             "${EsjzoneUrls.Forum}/",
             PageCacheTtl.COMMUNITY,
             forceRefresh = forceRefresh,
-            pageKind = PageKind.FORUM
+            pageKind = PageKind.FORUM,
+            allowStaleOnError = !forceRefresh
         ),
         "${EsjzoneUrls.Forum}/"
     )
@@ -392,7 +394,8 @@ fun EsjzoneClient.getForumThreads(
             targetUrl,
             PageCacheTtl.COMMUNITY,
             forceRefresh = forceRefresh,
-            pageKind = PageKind.COMMUNITY
+            pageKind = PageKind.COMMUNITY,
+            allowStaleOnError = !forceRefresh
         ),
         targetUrl
     )
@@ -457,7 +460,8 @@ fun EsjzoneClient.getForumBoard(
             targetUrl,
             PageCacheTtl.COMMUNITY,
             pageKind = PageKind.COMMUNITY,
-            forceRefresh = true
+            forceRefresh = true,
+            allowStaleOnError = false
         ),
         targetUrl
     )
@@ -567,7 +571,8 @@ fun EsjzoneClient.getForumPost(
             targetUrl,
             PageCacheTtl.COMMUNITY,
             forceRefresh = forceRefresh,
-            pageKind = PageKind.COMMUNITY
+            pageKind = PageKind.COMMUNITY,
+            allowStaleOnError = !forceRefresh
         ),
         targetUrl
     )

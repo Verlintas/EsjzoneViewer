@@ -23,7 +23,8 @@ fun EsjzoneClient.getHistories(
         EsjzoneUrls.My.View,
         PageCacheTtl.ACCOUNT_LIST,
         forceRefresh = forceRefresh,
-        pageKind = PageKind.ACCOUNT
+        pageKind = PageKind.ACCOUNT,
+        allowStaleOnError = !forceRefresh
     )
 
     val document = Jsoup.parse(responseBody)
