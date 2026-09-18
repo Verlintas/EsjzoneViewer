@@ -160,7 +160,7 @@ URL：/forum/{novelId}/{postId}.html
 保存策略：
 
 1. 保留正文容器的 innerHTML。
-2. 允许 p、br、img 等原始排版节点。
+2. 允许 p、br、img 以及 section/div/article/blockquote 等嵌套容器排版节点；解析时递归提取独立段落块以避免换行坍缩。
 3. 图片 URL 用 img[src] 提取，并保留 alt/class。
 4. 评论区不并入正文，只取 .forum-content.mt-3。
 

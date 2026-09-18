@@ -34,10 +34,63 @@ import org.jsoup.nodes.TextNode
 import java.io.Serializable
 
 
+private val BLOCK_TAG_NAMES = setOf(
+    "p", "div", "section", "article", "blockquote", "main", "aside",
+    "header", "footer", "h1", "h2", "h3", "h4", "h5", "h6",
+    "ul", "ol", "li", "pre", "hr", "table", "tr", "details"
+)
+
+private fun Node.isBlockElement(): Boolean =
+    this is Element && normalName() in BLOCK_TAG_NAMES
+
+private fun Element.hasBlockChildren(): Boolean =
+    childNodes().any { it.isBlockElement() }
+
+private fun Element.isSignificantParagraph(): Boolean =
+    text().isNotBlank() || selectFirst("img, br") != null
+
+internal fun extractParagraphElements(container: Element): List<Element> = buildList {
+    fun collect(element: Element) {
+        if (!element.hasBlockChildren()) {
+            add(element)
+            return
+        }
+
+        var currentAnon: Element? = null
+        fun flushAnon() {
+            val anon = currentAnon ?: return
+            if (anon.isSignificantParagraph()) {
+                add(anon)
+            }
+            currentAnon = null
+        }
+
+        for (child in element.childNodes()) {
+            if (child.isBlockElement()) {
+                flushAnon()
+                collect(child as Element)
+            } else {
+                if (child is TextNode && child.text().isBlank()) {
+                    currentAnon?.appendChild(child.clone())
+                } else {
+                    val anon = currentAnon ?: Element("p").apply {
+                        setBaseUri(element.baseUri())
+                    }.also { currentAnon = it }
+                    anon.appendChild(child.clone())
+                }
+            }
+        }
+        flushAnon()
+    }
+
+    collect(container)
+}
+
+
 fun analyseComponents(element: Element): List<Component> {
     val components = mutableListOf<Component>()
 
-    for (paragraph in element.children()) {
+    for (paragraph in extractParagraphElements(element)) {
         components.addAll(analyseParagraph(paragraph))
     }
 
@@ -46,6 +99,10 @@ fun analyseComponents(element: Element): List<Component> {
 
 
 internal fun analyseParagraph(paragraph: Element): List<Component> {
+    if (paragraph.hasBlockChildren()) {
+        return analyseComponents(paragraph)
+    }
+
     if (paragraph.tagName() == "img") {
         val imageUrl = resolveImageUrl(paragraph)
         return if (imageUrl.isNotBlank()) listOf(ImageComponent(imageUrl)) else emptyList()

@@ -67,6 +67,44 @@ class ParagraphTest {
         assertTrue(components.first() is ImageComponent)
         assertEquals("https://example.com/direct.jpg", (components.first() as ImageComponent).url)
     }
+
+    @Test
+    fun sectionWithNestedParagraphs_extractsAllParagraphsSeparately() {
+        val element = Jsoup.parse(
+            "<div><section><p>段落一</p><p>段落二</p><p>段落三</p></section></div>"
+        ).testResolve()
+        val components = analyseComponents(element)
+        assertEquals(3, components.size)
+        assertTrue(components.all { it is TextComponent })
+        assertEquals("段落一", (components[0] as TextComponent).text)
+        assertEquals("段落二", (components[1] as TextComponent).text)
+        assertEquals("段落三", (components[2] as TextComponent).text)
+    }
+
+    @Test
+    fun nestedContainersAndLooseText_preservesAllParagraphsInOrder() {
+        val element = Jsoup.parse(
+            "<div><p><br></p><section><p>前文</p><div><p>嵌套内容</p></div><p>后文</p></section></div>"
+        ).testResolve()
+        val components = analyseComponents(element)
+        assertEquals(4, components.size)
+        assertEquals("\n", (components[0] as TextComponent).text)
+        assertEquals("前文", (components[1] as TextComponent).text)
+        assertEquals("嵌套内容", (components[2] as TextComponent).text)
+        assertEquals("后文", (components[3] as TextComponent).text)
+    }
+
+    @Test
+    fun looseTextAlongsideBlockElements_isPreserved() {
+        val element = Jsoup.parse(
+            "<div>提示信息<br>请注意<p>第一章</p><p>第二章</p></div>"
+        ).testResolve()
+        val components = analyseComponents(element)
+        assertEquals(3, components.size)
+        assertTrue((components[0] as TextComponent).text.contains("提示信息"))
+        assertEquals("第一章", (components[1] as TextComponent).text)
+        assertEquals("第二章", (components[2] as TextComponent).text)
+    }
 }
 
 private fun Document.testResolve(): Element {
