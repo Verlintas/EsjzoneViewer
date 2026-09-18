@@ -75,11 +75,11 @@ fun NovelTag(
         },
         enabled = onClick != null,
         colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-            containerColor = if (isAdultTag) adultColors.container
+            containerColor = if (isAdultTag) androidx.compose.ui.graphics.Color.Transparent
             else if (tag.selected) colors.containerAccent else colors.containerRaised,
-            labelColor = if (isAdultTag) adultColors.content else MaterialTheme.colorScheme.onSurface,
-            disabledContainerColor = if (isAdultTag) adultColors.container else androidx.compose.ui.graphics.Color.Unspecified,
-            disabledLabelColor = if (isAdultTag) adultColors.content else androidx.compose.ui.graphics.Color.Unspecified
+            labelColor = if (isAdultTag) adultColors.container else MaterialTheme.colorScheme.onSurface,
+            disabledContainerColor = if (isAdultTag) androidx.compose.ui.graphics.Color.Transparent else androidx.compose.ui.graphics.Color.Unspecified,
+            disabledLabelColor = if (isAdultTag) adultColors.container else androidx.compose.ui.graphics.Color.Unspecified
         ),
         border = if (isAdultTag) {
             androidx.compose.material3.AssistChipDefaults.assistChipBorder(

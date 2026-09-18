@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
@@ -491,7 +492,8 @@ class ChapterPage(
                 }
             }
         }
-        val bookChapterOrder = result?.chapterOrder.orEmpty()
+        var retainedChapterOrder by remember { mutableStateOf<List<Chapter>>(emptyList()) }
+        val currentLoadedOrder = result?.chapterOrder.orEmpty()
             .ifEmpty { chapterOrder }
             .ifEmpty {
                 if (novelId.isBlank()) {
@@ -500,6 +502,10 @@ class ChapterPage(
                     emptyList()
                 }
             }
+        if (currentLoadedOrder.isNotEmpty()) {
+            retainedChapterOrder = currentLoadedOrder
+        }
+        val bookChapterOrder = currentLoadedOrder.ifEmpty { retainedChapterOrder }
         val bookChapterIndices = remember(bookChapterOrder) {
             bookChapterOrder.mapIndexed { index, item -> chapterIdentity(item) to index }.toMap()
         }
@@ -684,7 +690,7 @@ class ChapterPage(
         val displayedBookProgress = if (isBookProgressDragging) {
             draggingBookProgress ?: progressPreview?.bookProgress ?: currentBookLocation?.bookProgress ?: 0f
         } else {
-            currentBookLocation?.bookProgress ?: 0f
+            pendingSeekLocation?.bookProgress ?: currentBookLocation?.bookProgress ?: 0f
         }
         val currentChapterName = currentReadingChapter.name
         var previousBootstrapFor by remember { mutableStateOf<String?>(null) }
@@ -832,6 +838,7 @@ class ChapterPage(
         }
 
         fun openTargetChapter(target: Chapter) {
+            requestedChapter.value = target
             pendingSeekLocation = null
             resumePending = false
             suppressPreviousBootstrapFor = chapterIdentity(target)
@@ -1143,7 +1150,6 @@ class ChapterPage(
                 progressPreview?.let { preview ->
                     ReaderProgressLens(
                         location = preview,
-                        origin = progressReturnLocation,
                         canReturn = progressReturnLocation != null,
                         onReturn = {
                             progressReturnLocation?.let { location ->
@@ -1193,61 +1199,58 @@ class ChapterPage(
                                     end = AppSpacing.lg
                                 )
                         ) {
-                            if (state is ChapterPageModel.State.Result) {
-                                val readerResult = state as ChapterPageModel.State.Result
-                                val navigationChapter = currentReadingChapter
-                                val navigationIndex = bookChapterOrder.indexOfFirst {
-                                    sameReaderChapter(it, navigationChapter)
-                                }
-                                val activePrevious = if (navigationIndex > 0) {
-                                    bookChapterOrder.getOrNull(navigationIndex - 1)
-                                } else {
-                                    readerResult.previous
-                                }
-                                val activeNext = if (navigationIndex >= 0) {
-                                    bookChapterOrder.getOrNull(navigationIndex + 1)
-                                } else {
-                                    null
-                                } ?: readerResult.next
+                            val readerResult = state as? ChapterPageModel.State.Result
+                            val navigationChapter = pendingSeekLocation?.chapter ?: currentReadingChapter
+                            val navigationIndex = bookChapterOrder.indexOfFirst {
+                                sameReaderChapter(it, navigationChapter)
+                            }
+                            val activePrevious = if (navigationIndex > 0) {
+                                bookChapterOrder.getOrNull(navigationIndex - 1)
+                            } else {
+                                readerResult?.previous
+                            }
+                            val activeNext = if (navigationIndex >= 0) {
+                                bookChapterOrder.getOrNull(navigationIndex + 1)
+                            } else {
+                                null
+                            } ?: readerResult?.next
 
-                                if (bookChapterOrder.isNotEmpty()) {
-                                    ReaderProgressRail(
-                                        progress = displayedBookProgress,
-                                        enabled = true,
-                                        previousEnabled = activePrevious != null,
-                                        nextEnabled = activeNext != null,
-                                        onPrevious = {
-                                            activePrevious?.let { previous ->
-                                                if (novelId == previous.novelId()) {
-                                                    historyState.value = previous
-                                                }
-                                                dismissProgressPreview()
-                                                openTargetChapter(previous)
+                            if (bookChapterOrder.isNotEmpty()) {
+                                ReaderProgressRail(
+                                    progress = displayedBookProgress,
+                                    enabled = true,
+                                    previousEnabled = activePrevious != null,
+                                    nextEnabled = activeNext != null,
+                                    onPrevious = {
+                                        activePrevious?.let { previous ->
+                                            if (novelId == previous.novelId()) {
+                                                historyState.value = previous
                                             }
-                                        },
-                                        onNext = {
-                                            activeNext?.let { next ->
-                                                if (novelId == next.novelId()) {
-                                                    historyState.value = next
-                                                }
-                                                dismissProgressPreview()
-                                                openTargetChapter(next)
+                                            dismissProgressPreview()
+                                            openTargetChapter(previous)
+                                        }
+                                    },
+                                    onNext = {
+                                        activeNext?.let { next ->
+                                            if (novelId == next.novelId()) {
+                                                historyState.value = next
                                             }
-                                        },
-                                        onDragStart = ::beginBookProgressPreview,
-                                        onDrag = ::updateBookProgressPreview,
-                                        onDragFinished = ::finishBookProgressPreview,
-                                        onDragCancelled = ::cancelBookProgressPreview
-                                    )
-                                } else {
-                                    Text(
-                                        text = stringResource(R.string.reader_progress_unavailable),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(vertical = 12.dp)
-                                    )
-                                }
-
+                                            dismissProgressPreview()
+                                            openTargetChapter(next)
+                                        }
+                                    },
+                                    onDragStart = ::beginBookProgressPreview,
+                                    onDrag = ::updateBookProgressPreview,
+                                    onDragFinished = ::finishBookProgressPreview,
+                                    onDragCancelled = ::cancelBookProgressPreview
+                                )
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.reader_progress_unavailable),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 12.dp)
+                                )
                             }
 
                             val commentChapter = currentReadingChapter
@@ -1679,91 +1682,64 @@ private fun ReaderStatusBar(
 @Composable
 private fun ReaderProgressLens(
     location: ReaderBookLocation,
-    origin: ReaderBookLocation?,
     canReturn: Boolean,
     onReturn: () -> Unit
 ) {
     Surface(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = AppSpacing.xxxl),
-        shape = AppShapes.prominent,
-        color = Color.Black,
-        contentColor = Color.White
+            .wrapContentWidth()
+            .widthIn(min = 200.dp, max = 320.dp)
+            .padding(horizontal = AppSpacing.lg),
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xEE222222),
+        contentColor = Color.White,
+        shadowElevation = 6.dp
     ) {
-        CompositionLocalProvider(
-            LocalContentColor provides Color.White
+        Row(
+            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-            Row(
-                modifier = Modifier.padding(
-                    start = AppSpacing.lg,
-                    top = AppSpacing.md,
-                    end = AppSpacing.sm
-                ),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .padding(end = 12.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = location.chapter.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = stringResource(
-                            id = R.string.reader_progress_chapter_count,
-                            location.chapterIndex + 1,
-                            location.totalChapters
-                        ),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = stringResource(
-                            id = R.string.reader_preview_percent,
-                            (location.chapterProgress * 100f).roundToInt()
-                        ),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    origin?.let { captured ->
-                        Text(
-                            text = stringResource(
-                                R.string.reader_preview_origin,
-                                stringResource(
-                                    R.string.reader_progress_chapter_count,
-                                    captured.chapterIndex + 1,
-                                    captured.totalChapters
-                                )
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.72f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                Text(
+                    text = location.chapter.name,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                val progressText = if (location.totalChapters > 0) {
+                    "${location.chapterIndex + 1} / ${location.totalChapters}"
+                } else {
+                    "${location.chapterIndex + 1}"
                 }
-                if (canReturn) {
-                    TextButton(onClick = onReturn) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            text = stringResource(R.string.reader_preview_return),
-                            modifier = Modifier.padding(start = AppSpacing.xs),
-                            maxLines = 1
-                        )
-                    }
-                }
+                Text(
+                    text = progressText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.72f),
+                    maxLines = 1
+                )
             }
-            Text(
-                text = stringResource(R.string.reader_preview_dismiss_hint),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.68f),
-                modifier = Modifier.padding(start = AppSpacing.lg, bottom = AppSpacing.md)
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(32.dp)
+                    .background(Color.White.copy(alpha = 0.15f))
             )
+            IconButton(
+                onClick = onReturn,
+                enabled = canReturn,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Undo,
+                    contentDescription = stringResource(R.string.reader_preview_return),
+                    tint = if (canReturn) Color.White else Color.White.copy(alpha = 0.38f)
+                )
             }
         }
     }

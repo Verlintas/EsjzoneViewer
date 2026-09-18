@@ -65,6 +65,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.ui.platform.LocalFocusManager
@@ -657,10 +658,13 @@ private fun ShelfCard(
                 title = entry.title,
                 modifier = Modifier.fillMaxSize().clip(shape)
             )
-            if (entry.hasUpdate) Surface(
-                modifier = Modifier.align(Alignment.TopEnd).padding(AppSpacing.xs),
-                shape = CircleShape, color = MaterialTheme.colorScheme.onSurface
-            ) { Box(Modifier.size(10.dp)) }
+            if (entry.hasUpdate) {
+                BookshelfUpdateDot(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(AppSpacing.xs)
+                )
+            }
             if (editing) {
                 Surface(
                     modifier = Modifier.padding(AppSpacing.sm),
@@ -704,6 +708,31 @@ private fun ShelfCard(
 }
 
 @Composable
+private fun BookshelfUpdateDot(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(14.dp)
+                .background(Color(0xFF4ADE80).copy(alpha = 0.35f), CircleShape)
+        )
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(Color(0xFF22C55E).copy(alpha = 0.7f), CircleShape)
+        )
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .background(Color(0xFF4ADE80), CircleShape)
+                .border(0.75.dp, Color.White.copy(alpha = 0.9f), CircleShape)
+        )
+    }
+}
+
+@Composable
 private fun ShelfListItem(entry: BookshelfEntry, enabled: Boolean, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(vertical = AppSpacing.xs),
@@ -711,7 +740,13 @@ private fun ShelfListItem(entry: BookshelfEntry, enabled: Boolean, onClick: () -
     ) {
         Box(Modifier.size(width = 100.dp, height = 140.dp)) {
             AppNovelCover(entry.coverUrl, entry.title, Modifier.fillMaxSize().clip(AppShapes.compact))
-            if (entry.hasUpdate) Surface(Modifier.align(Alignment.TopEnd).padding(AppSpacing.xs), CircleShape, color = MaterialTheme.colorScheme.onSurface) { Box(Modifier.size(10.dp)) }
+            if (entry.hasUpdate) {
+                BookshelfUpdateDot(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(AppSpacing.xs)
+                )
+            }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
             Text(entry.title, style = AppTypography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)

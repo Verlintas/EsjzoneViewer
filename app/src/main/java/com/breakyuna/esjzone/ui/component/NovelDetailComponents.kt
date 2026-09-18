@@ -1,7 +1,9 @@
 package com.breakyuna.esjzone.ui.component
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -351,8 +353,9 @@ fun NovelDetailTags(
                 tag.contains("限制")
             AppTag(
                 text = tag,
-                color = if (isAdultTag) adultColors.content else MaterialTheme.colorScheme.onSecondaryContainer,
-                containerColor = if (isAdultTag) adultColors.container else MaterialTheme.colorScheme.secondaryContainer,
+                color = if (isAdultTag) adultColors.container else MaterialTheme.colorScheme.onSecondaryContainer,
+                containerColor = if (isAdultTag) Color.Transparent else MaterialTheme.colorScheme.secondaryContainer,
+                border = if (isAdultTag) BorderStroke(1.dp, adultColors.outline) else null,
                 modifier = Modifier
                     .padding(vertical = 2.dp)
                     .then(

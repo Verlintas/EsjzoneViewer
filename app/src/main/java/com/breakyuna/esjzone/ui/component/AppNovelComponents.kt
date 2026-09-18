@@ -1,5 +1,6 @@
 package com.breakyuna.esjzone.ui.component
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,6 +65,7 @@ fun AppTag(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.onSecondaryContainer,
     containerColor: Color = MaterialTheme.colorScheme.secondaryContainer,
+    border: BorderStroke? = null,
     onClick: (() -> Unit)? = null
 ) {
     Surface(
@@ -75,7 +77,8 @@ fun AppTag(
             } else Modifier
         ),
         shape = AppShapes.pill,
-        color = containerColor
+        color = containerColor,
+        border = border
     ) {
         Text(
             text = text,
@@ -125,7 +128,8 @@ fun AppNovelCover(
                     .align(Alignment.TopEnd)
                     .padding(AppSpacing.xs),
                 shape = RoundedCornerShape(4.dp),
-                color = adultColors.container
+                color = Color.Transparent,
+                border = BorderStroke(1.dp, adultColors.container)
             ) {
                 Text(
                     text = stringResource(R.string.adult_badge),
@@ -134,7 +138,7 @@ fun AppNovelCover(
                         lineHeight = 12.sp,
                         fontWeight = FontWeight.Bold
                     ),
-                    color = adultColors.content,
+                    color = adultColors.container,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                 )
             }
