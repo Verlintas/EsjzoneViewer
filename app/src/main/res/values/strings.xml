@@ -369,7 +369,7 @@
     <string name="home_weekly_popular_badge">TOP %1$d</string>
     <string name="home_weekly_popular_author">作者：%1$s</string>
     <string name="home_weekly_popular_type">类型：%1$s</string>
-    <string name="home_weekly_popular_heat">● 上周热度　%1$s</string>
+    <string name="home_weekly_popular_heat">上周热度　%1$s</string>
     <string name="home_weekly_popular_no_description">暂无作品简介</string>
     <string name="comments">评论</string>
     <string name="comments_empty">还没有评论</string>

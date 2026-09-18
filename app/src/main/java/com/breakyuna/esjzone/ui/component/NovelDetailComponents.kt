@@ -43,6 +43,7 @@ import com.breakyuna.esjzone.novellibrary.novel.DetailedNovel
 import com.breakyuna.esjzone.ui.designsystem.AppLayout
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
+import com.breakyuna.esjzone.ui.designsystem.appAdultColors
 
 /** A low-chrome detail toolbar that leaves the title to the editorial hero. */
 @Composable
@@ -336,6 +337,7 @@ fun NovelDetailTags(
 ) {
     val visibleTags = tags.map(String::trim).filter(String::isNotBlank).distinct()
     if (visibleTags.isEmpty()) return
+    val adultColors = appAdultColors()
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -343,8 +345,14 @@ fun NovelDetailTags(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         visibleTags.forEach { tag ->
+            val isAdultTag = tag.contains("R18", ignoreCase = true) ||
+                tag.contains("18+") ||
+                tag.contains("成人") ||
+                tag.contains("限制")
             AppTag(
                 text = tag,
+                color = if (isAdultTag) adultColors.content else MaterialTheme.colorScheme.onSecondaryContainer,
+                containerColor = if (isAdultTag) adultColors.container else MaterialTheme.colorScheme.secondaryContainer,
                 modifier = Modifier
                     .padding(vertical = 2.dp)
                     .then(

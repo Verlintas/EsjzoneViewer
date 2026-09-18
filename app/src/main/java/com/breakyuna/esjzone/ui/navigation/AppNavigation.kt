@@ -434,8 +434,8 @@ class AppNavigator internal constructor(
         val old = backStack[index] as AppNavKey.Reader
         if (old.route == route) return
         registry[readerToken(route)] = destination
-        backStack[index] = AppNavKey.Reader(route)
-        cleanupKey(old)
+        // Do not mutate backStack in-place during continuous reading sessions.
+        // Mutating a NavBackStack key triggers a Navigation 3 transition and resets the active entry's ViewModelStore.
     }
 }
 

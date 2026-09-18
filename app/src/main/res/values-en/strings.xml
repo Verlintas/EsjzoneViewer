@@ -369,7 +369,7 @@
     <string name="home_weekly_popular_badge">TOP %1$d</string>
     <string name="home_weekly_popular_author">Author: %1$s</string>
     <string name="home_weekly_popular_type">Type: %1$s</string>
-    <string name="home_weekly_popular_heat">● Last week  %1$s</string>
+    <string name="home_weekly_popular_heat">Last week  %1$s</string>
     <string name="home_weekly_popular_no_description">No description available</string>
     <string name="comments">Comments</string>
     <string name="comments_empty">No comments yet</string>

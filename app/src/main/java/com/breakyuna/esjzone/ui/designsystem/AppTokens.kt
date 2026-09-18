@@ -165,20 +165,11 @@ data class AppAdultColors(
 
 @Composable
 fun appAdultColors(): AppAdultColors {
-    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    return if (dark) {
-        AppAdultColors(
-            content = Color(0xFFFF8A80),
-            container = Color(0xFF5B1A1A),
-            outline = Color(0xFFFF8A80)
-        )
-    } else {
-        AppAdultColors(
-            content = Color(0xFFC62828),
-            container = Color(0xFFFFEBEE),
-            outline = Color(0xFFE53935)
-        )
-    }
+    return AppAdultColors(
+        content = Color.White,
+        container = Color(0xFFE53935),
+        outline = Color(0xFFE53935)
+    )
 }
 
 /** Stable identifiers for lazy content. Use with `key` and `contentType`. */

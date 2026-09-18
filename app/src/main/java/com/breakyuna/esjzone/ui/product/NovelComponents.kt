@@ -80,7 +80,16 @@ fun NovelTag(
             labelColor = if (isAdultTag) adultColors.content else MaterialTheme.colorScheme.onSurface,
             disabledContainerColor = if (isAdultTag) adultColors.container else androidx.compose.ui.graphics.Color.Unspecified,
             disabledLabelColor = if (isAdultTag) adultColors.content else androidx.compose.ui.graphics.Color.Unspecified
-        )
+        ),
+        border = if (isAdultTag) {
+            androidx.compose.material3.AssistChipDefaults.assistChipBorder(
+                enabled = onClick != null,
+                borderColor = adultColors.outline,
+                disabledBorderColor = adultColors.outline
+            )
+        } else {
+            androidx.compose.material3.AssistChipDefaults.assistChipBorder(enabled = onClick != null)
+        }
     )
 }
 

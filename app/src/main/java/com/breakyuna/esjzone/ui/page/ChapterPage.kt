@@ -308,10 +308,16 @@ class ChapterPage(
                     PresentationAccess.database.localReadingActivityDao()
                         .getLatestForNovel(novelId)
                 }
-                resolvedResumeProgress = saved?.takeIf { activity ->
-                    EsjzoneUrls.canonicalPageKey(activity.chapterUrl) ==
-                        EsjzoneUrls.canonicalPageKey(chapter.url)
-                }?.chapterProgress
+                if (saved != null) {
+                    val savedKey = EsjzoneUrls.canonicalPageKey(saved.chapterUrl)
+                    val initialKey = EsjzoneUrls.canonicalPageKey(chapter.url)
+                    if (savedKey.isNotBlank() && savedKey != initialKey) {
+                        val target = Chapter(saved.chapterName, saved.chapterUrl, true)
+                        requestedChapter.value = target
+                        chapterPageModel.openChapter(target)
+                    }
+                    resolvedResumeProgress = saved.chapterProgress
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -507,13 +513,6 @@ class ChapterPage(
         val currentReadingChapter = currentBookLocation?.chapter
             ?: activeChapter?.chapter
             ?: requestedChapter.value
-        LaunchedEffect(novelId, currentReadingChapter.url) {
-            navigator?.updateReaderRoute(
-                novelId = novelId.ifBlank { currentReadingChapter.novelId() },
-                chapterIdentity = currentReadingChapter.url,
-                destination = this@ChapterPage
-            )
-        }
         val visibleReaderChapterKeys by remember(result, scrollState) {
             derivedStateOf {
                 val loadedKeys = result?.chapters

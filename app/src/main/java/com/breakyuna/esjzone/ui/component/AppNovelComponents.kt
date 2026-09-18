@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,8 +41,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
@@ -117,14 +120,24 @@ fun AppNovelCover(
         )
         if (isAdult) {
             val adultColors = appAdultColors()
-            AppTag(
-                text = stringResource(R.string.adult_badge),
-                color = adultColors.content,
-                containerColor = adultColors.container.copy(alpha = 0.94f),
+            Surface(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(AppSpacing.sm)
-            )
+                    .align(Alignment.TopEnd)
+                    .padding(AppSpacing.xs),
+                shape = RoundedCornerShape(4.dp),
+                color = adultColors.container
+            ) {
+                Text(
+                    text = stringResource(R.string.adult_badge),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = adultColors.content,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
         }
     }
 }

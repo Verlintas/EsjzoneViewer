@@ -275,13 +275,13 @@ private fun NovelListResult(
                     adultOnly = adultOnly,
                     onAdultOnlyChange = onAdultOnlyChange,
                     onFilterChanged = onFilterChanged,
-                    modifier = Modifier.padding(top = AppSpacing.xs)
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = AppSpacing.xs)
                 )
             }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 12.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = AppSpacing.sm, end = 16.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(if (gridView) AppSpacing.lg else 10.dp)
             ) {
             if (visibleItems.isEmpty()) {
