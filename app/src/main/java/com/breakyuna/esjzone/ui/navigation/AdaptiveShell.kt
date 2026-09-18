@@ -329,11 +329,7 @@ private fun TabStacksDisplay(
                     animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
                     label = "${tabId.name}TabAlpha"
                 )
-                val zIndex = when {
-                    active -> 1f
-                    alpha > 0f -> 0f
-                    else -> -1f
-                }
+                val zIndex = if (active) 1f else 0f
                 TabStackDisplay(
                     tabId = tabId,
                     suppressionState = suppressionState,
@@ -425,7 +421,7 @@ private fun TabStackDisplay(
     }
 }
 
-private val BottomBarHeight = 60.dp
+private val BottomBarHeight = 52.dp
 
 @Composable
 private fun AppNavigationBar(

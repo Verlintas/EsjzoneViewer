@@ -25,11 +25,10 @@ import com.breakyuna.esjzone.util.AppLogger
 
 data class ReaderChapter(
     val chapter: Chapter,
-    /** Legacy data is retained only for download/export compatibility. */
-    val detail: DetailedChapter,
     /** Reader presentation consumes the stable domain AST, not HTML components. */
-    val document: com.breakyuna.esjzone.domain.reader.ReaderChapterDocument =
-        detail.toReaderDocument(chapter),
+    val document: com.breakyuna.esjzone.domain.reader.ReaderChapterDocument,
+    val fallbackPrevious: Chapter? = null,
+    val fallbackNext: Chapter? = null,
     val isOffline: Boolean = false
 )
 
@@ -178,7 +177,9 @@ class ChapterPageModel(
                     val loadedOffline = offlineChapterKeys.remove(chapterKey(chapter))
                     loadedChapters += ReaderChapter(
                         chapter = chapter,
-                        detail = detail,
+                        document = detail.toReaderDocument(chapter),
+                        fallbackPrevious = detail.previous,
+                        fallbackNext = detail.next,
                         isOffline = loadedOffline
                     )
                 }
@@ -187,9 +188,9 @@ class ChapterPageModel(
 
             val hasCanonicalOrder = synchronized(lock) { orderResolved }
             if (hasCanonicalOrder || novelId.isBlank()) {
-                prefetchNext(chapter, detail)
+                prefetchNext(chapter, detail.next)
             } else {
-                requestChapterOrder(currentSession, chapter, detail)
+                requestChapterOrder(currentSession, chapter, detail.next)
             }
         }
     }
@@ -212,7 +213,7 @@ class ChapterPageModel(
         synchronized(lock) {
             if (loadingNext || loadedChapters.isEmpty()) return
             val last = loadedChapters.last()
-            val candidate = adjacentChapter(last.chapter, 1, last.detail) ?: return
+            val candidate = adjacentChapter(last.chapter, 1, last.fallbackNext) ?: return
             if (chapterKey(candidate) == failedAppendChapterKey &&
                 System.currentTimeMillis() - failedAppendAtMillis < APPEND_RETRY_COOLDOWN_MILLIS) return
             if (loadedChapters.any { sameChapter(it.chapter, candidate) }) return
@@ -235,7 +236,9 @@ class ChapterPageModel(
                             val loadedOffline = offlineChapterKeys.remove(chapterKey(chapterToLoad))
                             loadedChapters += ReaderChapter(
                                 chapter = chapterToLoad,
-                                detail = detail,
+                                document = detail.toReaderDocument(chapterToLoad),
+                                fallbackPrevious = detail.previous,
+                                fallbackNext = detail.next,
                                 isOffline = loadedOffline
                             )
                             failedAppendChapterKey = null
@@ -244,7 +247,7 @@ class ChapterPageModel(
                         }
                     }
                     publish(session)
-                    prefetchNext(chapterToLoad, detail)
+                    prefetchNext(chapterToLoad, detail.next)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -289,7 +292,7 @@ class ChapterPageModel(
         synchronized(lock) {
             if (loadingPrevious || loadedChapters.isEmpty()) return
             val first = loadedChapters.first()
-            val candidate = adjacentChapter(first.chapter, -1, first.detail) ?: return
+            val candidate = adjacentChapter(first.chapter, -1, first.fallbackPrevious) ?: return
             if (chapterKey(candidate) == failedPrependChapterKey) return
             if (loadedChapters.any { sameChapter(it.chapter, candidate) }) return
             previousChapter = candidate
@@ -313,7 +316,9 @@ class ChapterPageModel(
                                 0,
                                 ReaderChapter(
                                     chapter = chapterToLoad,
-                                    detail = detail,
+                                    document = detail.toReaderDocument(chapterToLoad),
+                                    fallbackPrevious = detail.previous,
+                                    fallbackNext = detail.next,
                                     isOffline = loadedOffline
                                 )
                             )
@@ -322,7 +327,7 @@ class ChapterPageModel(
                         }
                     }
                     publish(session)
-                    prefetchPrevious(chapterToLoad, detail)
+                    prefetchPrevious(chapterToLoad, detail.previous)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -351,7 +356,7 @@ class ChapterPageModel(
     private fun requestChapterOrder(
         currentSession: Long,
         chapter: Chapter?,
-        detail: DetailedChapter?
+        fallbackNext: Chapter?
     ) {
         var requestId = 0L
         synchronized(lock) {
@@ -364,8 +369,8 @@ class ChapterPageModel(
                     ensureChapterOrder()
                     if (!isCurrentSession(currentSession)) return@launch
                     publish(currentSession)
-                    if (chapter != null && detail != null) {
-                        prefetchNext(chapter, detail)
+                    if (chapter != null && fallbackNext != null) {
+                        prefetchNext(chapter, fallbackNext)
                     }
                     val pendingLoads = synchronized(lock) {
                         val requested = pendingNextRequest
@@ -475,12 +480,12 @@ class ChapterPageModel(
         }
     }
 
-    private fun prefetchNext(chapter: Chapter, detail: DetailedChapter) {
-        adjacentChapter(chapter, 1, detail)?.let(::prefetch)
+    private fun prefetchNext(chapter: Chapter, fallbackNext: Chapter?) {
+        adjacentChapter(chapter, 1, fallbackNext)?.let(::prefetch)
     }
 
-    private fun prefetchPrevious(chapter: Chapter, detail: DetailedChapter) {
-        adjacentChapter(chapter, -1, detail)?.let(::prefetch)
+    private fun prefetchPrevious(chapter: Chapter, fallbackPrevious: Chapter?) {
+        adjacentChapter(chapter, -1, fallbackPrevious)?.let(::prefetch)
     }
 
     private fun prefetch(chapter: Chapter) {
@@ -555,7 +560,7 @@ class ChapterPageModel(
     private fun adjacentChapter(
         chapter: Chapter,
         offset: Int,
-        fallback: DetailedChapter?
+        fallback: Chapter?
     ): Chapter? {
         val (adjacent, currentInCanonicalOrder) = synchronized(lock) {
             val index = orderedChapters.indexOfFirst { sameChapter(it, chapter) }
@@ -569,7 +574,7 @@ class ChapterPageModel(
         // the canonical TOC, keep its boundary authoritative and do not follow
         // unrelated site navigation links.
         if (currentInCanonicalOrder) return null
-        return if (offset > 0) fallback?.next else fallback?.previous
+        return fallback
     }
 
     private fun publish(currentSession: Long? = null) {
@@ -584,8 +589,8 @@ class ChapterPageModel(
             // after another append/prepend has already published it.
             mutableState.value = State.Result(
                 chapters = snapshot,
-                previous = first?.let { adjacentChapter(it.chapter, -1, it.detail) },
-                next = last?.let { adjacentChapter(it.chapter, 1, it.detail) },
+                previous = first?.let { adjacentChapter(it.chapter, -1, it.fallbackPrevious) },
+                next = last?.let { adjacentChapter(it.chapter, 1, it.fallbackNext) },
                 isLoadingNext = loadingNext,
                 isLoadingPrevious = loadingPrevious,
                 chapterOrder = orderedChapters.toList(),

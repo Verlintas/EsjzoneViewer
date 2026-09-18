@@ -450,20 +450,22 @@ private fun NovelDetailContent(
         }.distinctBy { it.url }
     }
     val latestChapter = orderedChapters.lastOrNull()
-    val onChapterOpen: (Chapter) -> Unit = { chapter ->
-        historyState.value = chapter
-        hasHistory.value = true
-        navigator?.pushIfNotCurrent(
-            ChapterPage(
-                novelId = detailed.id(),
-                chapter = chapter,
-                history = history,
-                chapterOrder = orderedChapters,
-                novelName = detailed.name,
-                novelUrl = detailed.url,
-                novelCoverUrl = detailed.coverUrl
+    val onChapterOpen: (Chapter) -> Unit = remember(detailed, history, orderedChapters, navigator) {
+        { chapter: Chapter ->
+            historyState.value = chapter
+            hasHistory.value = true
+            navigator?.pushIfNotCurrent(
+                ChapterPage(
+                    novelId = detailed.id(),
+                    chapter = chapter,
+                    history = history,
+                    chapterOrder = orderedChapters,
+                    novelName = detailed.name,
+                    novelUrl = detailed.url,
+                    novelCoverUrl = detailed.coverUrl
+                )
             )
-        )
+        }
     }
 
     val horizontalPadding = when (metrics.sizeClass) {
@@ -929,7 +931,9 @@ private fun RebuiltDetailTopBar(
 
 @Composable
 private fun RebuiltNovelTags(tags: List<String>, onTagClick: (String) -> Unit) {
-    val visibleTags = tags.map(String::trim).filter(String::isNotBlank).distinct()
+    val visibleTags = remember(tags) {
+        tags.map(String::trim).filter(String::isNotBlank).distinct()
+    }
     if (visibleTags.isEmpty()) return
     Row(
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -1111,12 +1115,7 @@ private fun NovelDownloadActions(
     }
 
     LaunchedEffect(novel.url, requestedWorkId) {
-        while (isActive) {
-            val status = runCatching {
-                withContext(Dispatchers.IO) {
-                    NovelDownloadManager.status(context, novel.url)
-                }
-            }.getOrNull()
+        NovelDownloadManager.statusFlow(context, novel.url).collect { status ->
             downloadStatus = status
             status?.progress?.let { progress = it }
             val waitingForEnqueue = requestedWorkId != null &&
@@ -1139,8 +1138,6 @@ private fun NovelDownloadActions(
                 requestedWorkId = null
                 downloading = false
             }
-            if (!downloading && requestedWorkId == null) break
-            delay(750)
         }
     }
 

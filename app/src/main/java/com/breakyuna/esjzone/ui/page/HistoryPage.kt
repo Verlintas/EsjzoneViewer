@@ -57,6 +57,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -704,7 +705,7 @@ class LocalHistoryPageModel(private val authorization: Authorization) : AppState
     private val requestedCovers = mutableSetOf<String>()
     private val coverFailureTimes = mutableMapOf<String, Long>()
     private val coverPermits = Semaphore(2)
-    private val resolvedCovers = mutableStateOf<Map<String, String>>(emptyMap())
+    val resolvedCovers = mutableStateMapOf<String, String>()
 
     fun observe() {
         if (observeStarted) return
@@ -736,7 +737,7 @@ class LocalHistoryPageModel(private val authorization: Authorization) : AppState
     fun coverUrlFor(activity: LocalReadingActivity): String {
         val stored = EsjzoneUrls.coverOrEmpty(activity.novelCoverUrl)
         if (stored.isNotBlank()) return stored
-        return resolvedCovers.value[coverKey(coverLookupUrl(activity))].orEmpty()
+        return resolvedCovers[coverKey(coverLookupUrl(activity))].orEmpty()
     }
 
     fun loadCover(activity: LocalReadingActivity) {
@@ -757,7 +758,9 @@ class LocalHistoryPageModel(private val authorization: Authorization) : AppState
                     ).coverUrl)
                 }
                 if (cover.isNotBlank()) {
-                    resolvedCovers.value = resolvedCovers.value + (key to cover)
+                    withContext(Dispatchers.Main) {
+                        resolvedCovers[key] = cover
+                    }
                     runCatching { PresentationAccess.database.localReadingActivityDao().updateCover(activity.activityId, cover) }
                 } else synchronized(coverLock) {
                     requestedCovers.remove(key)

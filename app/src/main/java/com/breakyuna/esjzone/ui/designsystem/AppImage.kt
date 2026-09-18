@@ -15,8 +15,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.breakyuna.esjzone.app.PresentationAccess
+import androidx.compose.ui.res.painterResource
+import com.breakyuna.esjzone.R
+import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import me.saket.telephoto.zoomable.DoubleClickToZoomListener
 import me.saket.telephoto.zoomable.EnabledZoomGestures
 import me.saket.telephoto.zoomable.ZoomableImageState
@@ -27,12 +31,9 @@ import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
 /**
  * Image loading seam; feature code must not depend on a concrete image-loader API.
  *
- * The loading and error slots are deliberately part of the facade. This keeps
- * image state predictable in cards and makes an offline/failure state visible
- * without every feature importing Coil. `model` may be a URL, URI, resource id,
- * or another model supported by the configured image loader. The loader is
- * application-scoped and owned by [com.breakyuna.esjzone.app.AppContainer];
- * callers must not create a feature-local ImageLoader.
+ * For standard cards, lists, covers and avatars, [AsyncImage] is used to benefit
+ * from layout prefetching and avoid subcomposition overhead during list scrolling.
+ * Callers that supply custom dynamic slot composables will use [SubcomposeAsyncImage].
  */
 @Composable
 fun AppImage(
@@ -41,19 +42,40 @@ fun AppImage(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
     alignment: Alignment = Alignment.Center,
-    loading: @Composable () -> Unit = { AppImageLoading() },
-    error: @Composable () -> Unit = { AppImageError() }
+    loading: (@Composable () -> Unit)? = null,
+    error: (@Composable () -> Unit)? = null
 ) {
-    SubcomposeAsyncImage(
-        model = model,
-        imageLoader = PresentationAccess.imageLoader,
-        contentDescription = contentDescription,
-        modifier = modifier,
-        contentScale = contentScale,
-        alignment = alignment,
-        loading = { loading() },
-        error = { error() }
-    )
+    if (loading != null || error != null) {
+        SubcomposeAsyncImage(
+            model = model,
+            imageLoader = PresentationAccess.imageLoader,
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = contentScale,
+            alignment = alignment,
+            loading = { loading?.invoke() ?: AppImageLoading() },
+            error = { error?.invoke() ?: AppImageError() }
+        )
+    } else {
+        val context = LocalContext.current
+        val imageRequest = remember(model, context) {
+            if (model is ImageRequest) model
+            else ImageRequest.Builder(context)
+                .data(model)
+                .crossfade(true)
+                .build()
+        }
+        AsyncImage(
+            model = imageRequest,
+            imageLoader = PresentationAccess.imageLoader,
+            contentDescription = contentDescription,
+            placeholder = painterResource(R.drawable.missing_cover),
+            error = painterResource(R.drawable.missing_cover),
+            modifier = modifier,
+            contentScale = contentScale,
+            alignment = alignment
+        )
+    }
 }
 
 /** Shared cover-image entry point for cards, shelves, detail heroes and downloads. */
@@ -63,8 +85,8 @@ fun AppCoverImage(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
-    loading: @Composable () -> Unit = { AppImageLoading() },
-    error: @Composable () -> Unit = { AppImageError() }
+    loading: (@Composable () -> Unit)? = null,
+    error: (@Composable () -> Unit)? = null
 ) {
     AppImage(
         model = model,
@@ -87,8 +109,8 @@ fun AppAvatarImage(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
-    loading: @Composable () -> Unit = { AppImageLoading() },
-    error: @Composable () -> Unit = { AppImageError() }
+    loading: (@Composable () -> Unit)? = null,
+    error: (@Composable () -> Unit)? = null
 ) {
     AppImage(
         model = model,
@@ -110,8 +132,8 @@ fun AppReaderImage(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.FillWidth,
-    loading: @Composable () -> Unit = { AppImageLoading() },
-    error: @Composable () -> Unit = { AppImageError() }
+    loading: (@Composable () -> Unit)? = null,
+    error: (@Composable () -> Unit)? = null
 ) {
     AppImage(
         model = model,

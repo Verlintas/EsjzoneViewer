@@ -1,11 +1,13 @@
 package com.breakyuna.esjzone.novellibrary.novel
 
+import androidx.compose.runtime.Immutable
 import com.breakyuna.esjzone.novellibrary.component.Component
 import com.breakyuna.esjzone.novellibrary.component.TextComponent
 import com.breakyuna.esjzone.novellibrary.component.analyseComponents
 import org.jsoup.nodes.Element
 import java.io.Serializable
 
+@Immutable
 data class NovelDescription(
     val components: List<Component>
 ) : Serializable

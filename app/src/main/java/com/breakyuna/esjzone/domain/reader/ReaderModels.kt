@@ -1,11 +1,15 @@
 package com.breakyuna.esjzone.domain.reader
 
+import androidx.compose.runtime.Immutable
+
 /** Stable identity for a chapter. The domain layer never depends on Compose or navigation. */
+@Immutable
 data class ReaderChapterRef(
     val name: String,
     val url: String
 )
 
+@Immutable
 sealed interface ReaderTextStyle {
     data object Bold : ReaderTextStyle
     data object Italic : ReaderTextStyle
@@ -17,27 +21,33 @@ sealed interface ReaderTextStyle {
 }
 
 /** Ruby is kept as data instead of an inline Compose implementation. */
+@Immutable
 data class ReaderRuby(
     val base: String,
     val reading: String
 )
 
 /** The renderer can map this AST to any UI toolkit without reparsing HTML. */
+@Immutable
 sealed interface ReaderBlock {
     /** One source paragraph; its spans must flow inline instead of becoming rows. */
+    @Immutable
     data class Paragraph(val parts: List<Text>) : ReaderBlock
 
+    @Immutable
     data class Text(
         val value: String,
         val styles: Set<ReaderTextStyle> = emptySet(),
         val ruby: ReaderRuby? = null
     ) : ReaderBlock
 
+    @Immutable
     data class Image(val url: String) : ReaderBlock
 
     data object LineBreak : ReaderBlock
 }
 
+@Immutable
 data class ReaderChapterDocument(
     val chapter: ReaderChapterRef,
     val blocks: List<ReaderBlock>,
@@ -47,6 +57,7 @@ data class ReaderChapterDocument(
     val sourceUrl: String? = null
 )
 
+@Immutable
 data class ReadingProgress(
     val activityId: String,
     val novelId: String,
@@ -63,6 +74,7 @@ data class ReadingProgress(
     val novelCoverUrl: String = ""
 )
 
+@Immutable
 data class ReaderBookmark(
     val chapterUrl: String,
     val novelId: String,
@@ -71,6 +83,7 @@ data class ReaderBookmark(
     val createdAt: Long
 )
 
+@Immutable
 data class ReaderSettingsState(
     val background: String = "SYSTEM",
     val font: String = "SYSTEM",

@@ -38,6 +38,15 @@ class NovelDetailLoader(private val authorization: Authorization) : AppStateView
         jobs[key] = viewModelScope.launch {
             val thisJob = coroutineContext[Job]
             try {
+                if (!retry) {
+                    val cached = withContext(Dispatchers.IO) {
+                        runCatching { PresentationAccess.downloads.readDetailedNovel(novel.url) }.getOrNull()
+                    }
+                    if (cached != null) {
+                        details[key] = cached
+                        return@launch
+                    }
+                }
                 val detail = detailPermits.withPermit {
                     withContext(Dispatchers.IO) {
                         PresentationAccess.client.getNovelDetail(authorization, novel)

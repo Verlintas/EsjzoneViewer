@@ -141,6 +141,25 @@ internal object PageResponsePolicy {
     }
 
     private fun looksLikeBlockPage(lowerBody: String): Boolean {
+        val hasSuspiciousMarker = lowerBody.contains("challenge-stage") ||
+            lowerBody.contains("challenge-form") ||
+            lowerBody.contains("cf-turnstile") ||
+            lowerBody.contains("challenge-error") ||
+            lowerBody.contains("cf-error-") ||
+            lowerBody.contains("just a moment") ||
+            lowerBody.contains("attention required") ||
+            lowerBody.contains("access denied") ||
+            lowerBody.contains("403 forbidden") ||
+            lowerBody.contains("cf-chl-") ||
+            lowerBody.contains("turnstile") ||
+            lowerBody.contains("captcha") ||
+            lowerBody.contains("security check") ||
+            lowerBody.contains("rate limited") ||
+            lowerBody.contains("temporarily blocked")
+        if (!hasSuspiciousMarker && hasEsjStructureMarker(lowerBody)) {
+            return false
+        }
+
         val document = Jsoup.parse(lowerBody)
         // Active challenge elements rendered by Cloudflare Turnstile/Managed Challenges.
         val hasChallengeElement = document.select(

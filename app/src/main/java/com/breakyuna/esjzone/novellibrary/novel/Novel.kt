@@ -88,23 +88,7 @@ data class CoveredNovelImpl(
     override val articleCount: Int? = null,
     @SerializedName("discussionCount")
     override val discussionCount: Int? = null
-) : CoveredNovel {
-
-    override fun equals(other: Any?): Boolean {
-        if (other == null)
-            return false
-        if (this === other)
-            return true
-        if (other !is Novel)
-            return false
-        return other.url.contentEquals(this.url)
-    }
-
-    override fun hashCode(): Int {
-        return url.hashCode()
-    }
-
-}
+) : CoveredNovel
 
 private val FORUM_URL_REGEX = "/forum/[0-9]+/([0-9]+)/".toRegex()
 

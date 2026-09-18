@@ -74,6 +74,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -406,6 +407,17 @@ class ChapterPage(
         }
         val readerTextTransform: (String) -> String = remember(readerSettings.script) {
             { text -> ReaderScriptConverter.convert(text, readerSettings.script) }
+        }
+        LaunchedEffect(readerSettings.script, result?.chapters) {
+            val script = readerSettings.script
+            val chapters = result?.chapters.orEmpty()
+            if (script != com.breakyuna.esjzone.ui.reader.ReaderScript.ORIGINAL && chapters.isNotEmpty()) {
+                withContext(Dispatchers.Default) {
+                    chapters.forEach { readerChapter ->
+                        ReaderScriptConverter.preload(readerChapter.document, script)
+                    }
+                }
+            }
         }
         var retainedActiveChapterKey by rememberSaveable {
             mutableStateOf(chapterIdentity(chapter))
@@ -2264,60 +2276,60 @@ private fun ReaderSettingsSheet(
             ReaderSettingSlider(
                 label = stringResource(id = R.string.reader_font_size),
                 value = settings.fontSizeSp,
-                valueLabel = "${settings.fontSizeSp.roundToInt()}sp",
+                valueLabel = { "${it.roundToInt()}sp" },
                 valueRange = 14f..30f,
                 steps = 15,
-                onValueChange = { value ->
+                onValueChangeFinished = { value ->
                     onSettingsChange(settings.copy(fontSizeSp = value))
                 }
             )
             ReaderSettingSlider(
                 label = stringResource(id = R.string.reader_letter_spacing),
                 value = settings.letterSpacingSp,
-                valueLabel = "${(settings.letterSpacingSp * 10f).roundToInt() / 10f}sp",
+                valueLabel = { "${(it * 10f).roundToInt() / 10f}sp" },
                 valueRange = 0f..2f,
                 steps = 19,
-                onValueChange = { value ->
+                onValueChangeFinished = { value ->
                     onSettingsChange(settings.copy(letterSpacingSp = value))
                 }
             )
             ReaderSettingSlider(
                 label = stringResource(id = R.string.reader_line_spacing),
                 value = settings.lineSpacingSp,
-                valueLabel = "${settings.lineSpacingSp.roundToInt()}sp",
+                valueLabel = { "${it.roundToInt()}sp" },
                 valueRange = 4f..24f,
                 steps = 19,
-                onValueChange = { value ->
+                onValueChangeFinished = { value ->
                     onSettingsChange(settings.copy(lineSpacingSp = value))
                 }
             )
             ReaderSettingSlider(
                 label = stringResource(id = R.string.reader_paragraph_spacing),
                 value = settings.paragraphSpacingDp,
-                valueLabel = "${settings.paragraphSpacingDp.roundToInt()}dp",
+                valueLabel = { "${it.roundToInt()}dp" },
                 valueRange = 0f..32f,
                 steps = 15,
-                onValueChange = { value ->
+                onValueChangeFinished = { value ->
                     onSettingsChange(settings.copy(paragraphSpacingDp = value))
                 }
             )
             ReaderSettingSlider(
                 label = stringResource(id = R.string.reader_page_spacing),
                 value = settings.pageSpacingDp,
-                valueLabel = "${settings.pageSpacingDp.roundToInt()}dp",
+                valueLabel = { "${it.roundToInt()}dp" },
                 valueRange = 16f..80f,
                 steps = 15,
-                onValueChange = { value ->
+                onValueChangeFinished = { value ->
                     onSettingsChange(settings.copy(pageSpacingDp = value))
                 }
             )
             ReaderSettingSlider(
                 label = stringResource(id = R.string.reader_horizontal_padding),
                 value = settings.horizontalPaddingDp,
-                valueLabel = "${settings.horizontalPaddingDp.roundToInt()}dp",
+                valueLabel = { "${it.roundToInt()}dp" },
                 valueRange = 12f..48f,
                 steps = 8,
-                onValueChange = { value ->
+                onValueChangeFinished = { value ->
                     onSettingsChange(settings.copy(horizontalPaddingDp = value))
                 }
             )
@@ -2352,11 +2364,12 @@ private fun <T> ReaderSettingChoices(
 private fun ReaderSettingSlider(
     label: String,
     value: Float,
-    valueLabel: String,
+    valueLabel: (Float) -> String,
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
-    onValueChange: (Float) -> Unit
+    onValueChangeFinished: (Float) -> Unit
 ) {
+    var sliderPosition by remember(value) { mutableFloatStateOf(value) }
     Column(modifier = Modifier.padding(top = AppSpacing.md)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2368,14 +2381,15 @@ private fun ReaderSettingSlider(
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = valueLabel,
+                text = valueLabel(sliderPosition),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary
             )
         }
         Slider(
-            value = value,
-            onValueChange = onValueChange,
+            value = sliderPosition,
+            onValueChange = { sliderPosition = it },
+            onValueChangeFinished = { onValueChangeFinished(sliderPosition) },
             valueRange = valueRange,
             steps = steps,
             modifier = Modifier.fillMaxWidth()

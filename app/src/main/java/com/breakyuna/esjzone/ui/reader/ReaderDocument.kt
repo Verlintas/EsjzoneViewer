@@ -48,7 +48,7 @@ fun DetailedChapter.toReaderDocument(chapter: Chapter): ReaderChapterDocument =
         blocks = content.flatMap(Component::toReaderBlocks),
         previous = previous?.let { ReaderChapterRef(it.name, it.url) },
         next = next?.let { ReaderChapterRef(it.name, it.url) },
-        contentHtml = contentHtml,
+        contentHtml = null,
         sourceUrl = sourceUrl
     )
 
@@ -137,9 +137,10 @@ internal fun ReaderBlock.Text.toAnnotatedReaderText(
 
     val key = "reader-ruby-${value.hashCode()}-${rubyValue.reading.hashCode()}"
     val effectiveStyle = baseStyle.merge(span)
+    val displayedReading = textTransform(rubyValue.reading)
     val measureKey = RubyMeasureKey(
         text = displayed,
-        reading = rubyValue.reading,
+        reading = displayedReading,
         fontSizeSp = effectiveStyle.fontSize.value,
         fontWeight = effectiveStyle.fontWeight,
         fontStyle = effectiveStyle.fontStyle,
@@ -155,7 +156,7 @@ internal fun ReaderBlock.Text.toAnnotatedReaderText(
         rubyMeasureCache[measureKey]
     } ?: run {
         val baseWidth = textMeasurer.measure(displayed, effectiveStyle).size.width
-        val rubyWidth = textMeasurer.measure(textTransform(rubyValue.reading), rubyStyle).size.width
+        val rubyWidth = textMeasurer.measure(displayedReading, rubyStyle).size.width
         val measuredWidth = with(density) { maxOf(baseWidth, rubyWidth).toDp().toSp() }
         val w = if (measuredWidth.value < 1f) 1.sp else measuredWidth
         val h = (baseStyle.lineHeight.value * 1.45f).coerceAtLeast(18f).sp

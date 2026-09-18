@@ -2,6 +2,7 @@ package com.breakyuna.esjzone.ui.reader
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 
@@ -72,6 +73,7 @@ enum class ReaderPageAnimation {
     COVER
 }
 
+@Immutable
 data class ReaderSettings(
     val background: ReaderBackground = ReaderBackground.SYSTEM,
     val font: ReaderFont = ReaderFont.SYSTEM,

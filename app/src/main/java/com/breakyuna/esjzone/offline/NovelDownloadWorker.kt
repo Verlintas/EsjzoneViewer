@@ -34,6 +34,8 @@ import com.breakyuna.esjzone.util.AppLogger
 import java.security.MessageDigest
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 data class BackgroundDownloadStatus(
     val id: String,
@@ -116,6 +118,32 @@ object NovelDownloadManager {
                 null
             }
         )
+    }
+
+    fun statusFlow(context: Context, novelUrl: String): Flow<BackgroundDownloadStatus?> {
+        return WorkManager.getInstance(context.applicationContext)
+            .getWorkInfosForUniqueWorkFlow(uniqueWorkName(novelUrl))
+            .map { infos ->
+                val info = infos.lastOrNull { !it.state.isFinished }
+                    ?: infos.lastOrNull()
+                    ?: return@map null
+                val total = info.progress.getInt(NovelDownloadWorker.KEY_TOTAL, 0)
+                val completed = info.progress.getInt(NovelDownloadWorker.KEY_COMPLETED, 0)
+                val chapterName = info.progress.getString(NovelDownloadWorker.KEY_CHAPTER).orEmpty()
+                BackgroundDownloadStatus(
+                    id = info.id.toString(),
+                    running = info.state == WorkInfo.State.ENQUEUED ||
+                        info.state == WorkInfo.State.BLOCKED ||
+                        info.state == WorkInfo.State.RUNNING,
+                    finished = info.state.isFinished,
+                    succeeded = info.state == WorkInfo.State.SUCCEEDED,
+                    progress = if (total > 0) {
+                        DownloadProgress(completed, total, chapterName)
+                    } else {
+                        null
+                    }
+                )
+            }
     }
 
     /**

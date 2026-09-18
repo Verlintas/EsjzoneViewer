@@ -27,10 +27,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -41,6 +42,14 @@ data class BookshelfSyncResult(
     val success: Boolean,
     val added: Int = 0,
     val loadFailure: LoadFailureKind? = null
+)
+
+private data class MetadataSupplementItem(
+    val bookKey: String,
+    val title: String,
+    val author: String,
+    val coverUrl: String,
+    val isAdult: Boolean
 )
 
 /**
@@ -275,6 +284,7 @@ object BookshelfRepository {
     fun scheduleMetadataSupplement(authorization: Authorization) {
         if (!authorization.hasCredentials()) return
         workerScope.launch {
+            delay(2_500L)
             val dao = requireDao()
             val scope = scopeFor(authorization)
             val now = System.currentTimeMillis()
@@ -292,40 +302,55 @@ object BookshelfRepository {
 
             candidates.chunked(METADATA_BATCH_SIZE).forEachIndexed { batchIndex, batch ->
                 coroutineScope {
-                    batch.map { row ->
-                    launch {
-                        metadataSemaphore.withPermit {
-                            try {
-                                val detail = EsjzoneClient.getNovelDetail(
-                                    authorization,
-                                    FavoriteNovel(
-                                        row.title,
-                                        row.url
+                    val batchResults = batch.map { row ->
+                        async {
+                            metadataSemaphore.withPermit {
+                                try {
+                                    val detail = EsjzoneClient.getNovelDetail(
+                                        authorization,
+                                        FavoriteNovel(
+                                            row.title,
+                                            row.url
+                                        )
                                     )
-                                )
-                                // supplementMetadata only fills blank fields,
-                                // so a late response cannot replace a newer
-                                // local/detail-page value.
+                                    // supplementMetadata only fills blank fields,
+                                    // so a late response cannot replace a newer
+                                    // local/detail-page value.
+                                    MetadataSupplementItem(
+                                        bookKey = row.bookKey,
+                                        title = detail.name,
+                                        author = detail.author,
+                                        coverUrl = EsjzoneUrls.coverOrEmpty(detail.coverUrl),
+                                        isAdult = detail.isAdult
+                                    )
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (error: Exception) {
+                                    AppLogger.w(
+                                        "BookshelfRepository",
+                                        "Metadata supplement unavailable for ${row.bookKey}",
+                                        error
+                                    )
+                                    null
+                                }
+                            }
+                        }
+                    }.awaitAll().filterNotNull()
+
+                    if (batchResults.isNotEmpty()) {
+                        requireDatabase().withTransaction {
+                            for (item in batchResults) {
                                 dao.supplementMetadata(
                                     scope = scope,
-                                    bookKey = row.bookKey,
-                                    title = detail.name,
-                                    author = detail.author,
-                                    coverUrl = EsjzoneUrls.coverOrEmpty(detail.coverUrl),
-                                    isAdult = detail.isAdult
-                                )
-                            } catch (error: CancellationException) {
-                                throw error
-                            } catch (error: Exception) {
-                                AppLogger.w(
-                                    "BookshelfRepository",
-                                    "Metadata supplement unavailable for ${row.bookKey}",
-                                    error
+                                    bookKey = item.bookKey,
+                                    title = item.title,
+                                    author = item.author,
+                                    coverUrl = item.coverUrl,
+                                    isAdult = item.isAdult
                                 )
                             }
                         }
                     }
-                    }.joinAll()
                 }
                 if (batchIndex < candidates.lastIndex / METADATA_BATCH_SIZE) {
                     delay(METADATA_BATCH_COOLDOWN_MILLIS)

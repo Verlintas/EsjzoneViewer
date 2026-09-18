@@ -7,6 +7,7 @@ import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovelImpl
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
+import org.jsoup.nodes.TextNode
 
 private val cardNumberRegex = Regex("(?<![0-9])[0-9][0-9,\\u00a0 ]*(?![0-9])")
 
@@ -182,7 +183,12 @@ private fun directSiblingCount(
             if (candidate is Element && candidate !== statsBlock && candidate.isStatIcon()) {
                 return@repeat
             }
-            parseOptionalCardCount(candidate.toString())?.let { return it }
+            val text = when (candidate) {
+                is TextNode -> candidate.text()
+                is Element -> candidate.text()
+                else -> candidate.outerHtml()
+            }
+            parseOptionalCardCount(text)?.let { return it }
             sibling = direction(candidate)
         }
         return null

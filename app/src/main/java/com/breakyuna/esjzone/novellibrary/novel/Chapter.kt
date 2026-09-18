@@ -16,21 +16,6 @@ data class Chapter(
     fun novelId(): String {
         return URL_REGEX.find(this.url)?.groupValues?.getOrNull(1).orEmpty()
     }
-
-    override fun equals(other: Any?): Boolean {
-        if (other == null)
-            return false
-        if (this === other)
-            return true
-        if (other !is Chapter)
-            return false
-        return this.url == other.url || this.url === other.url || this.url.contentEquals(other.url)
-    }
-
-    override fun hashCode(): Int {
-        return url.hashCode()
-    }
-
 }
 
 @Immutable

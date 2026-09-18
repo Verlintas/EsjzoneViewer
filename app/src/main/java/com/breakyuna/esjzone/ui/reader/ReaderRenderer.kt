@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -87,47 +88,29 @@ fun ReaderBlocks(
         lineHeight = settings.lineHeightSp.sp,
         letterSpacing = settings.letterSpacingSp.sp
     )
+
     SelectionContainer {
         Column(modifier = Modifier.fillMaxWidth()) {
             blocks.forEach { block ->
                 when (block) {
-                    is ReaderBlock.Paragraph -> {
-                        val inlineContent = linkedMapOf<String, InlineTextContent>()
-                        val paragraph = buildAnnotatedString {
-                            block.parts.forEach { part ->
-                                val (text, inlines) = part.toAnnotatedReaderText(
-                                    baseStyle = textStyle,
-                                    textMeasurer = textMeasurer,
-                                    density = density,
-                                    textTransform = textTransform
-                                )
-                                append(text)
-                                inlineContent.putAll(inlines)
-                            }
-                        }
-                        Text(
-                            text = paragraph,
-                            inlineContent = inlineContent,
-                            style = textStyle,
-                            color = contentColor,
-                            modifier = Modifier.padding(bottom = settings.paragraphSpacingDp.dp)
-                        )
-                    }
-                    is ReaderBlock.Text -> {
-                        val (text, inlineContent) = block.toAnnotatedReaderText(
-                            baseStyle = textStyle,
-                            textMeasurer = textMeasurer,
-                            density = density,
-                            textTransform = textTransform
-                        )
-                        Text(
-                            text = text,
-                            inlineContent = inlineContent,
-                            style = textStyle,
-                            color = contentColor,
-                            modifier = Modifier.padding(bottom = settings.paragraphSpacingDp.dp)
-                        )
-                    }
+                    is ReaderBlock.Paragraph -> ReaderParagraphBlock(
+                        block = block,
+                        textStyle = textStyle,
+                        textMeasurer = textMeasurer,
+                        density = density,
+                        textTransform = textTransform,
+                        contentColor = contentColor,
+                        paragraphSpacingDp = settings.paragraphSpacingDp
+                    )
+                    is ReaderBlock.Text -> ReaderTextBlock(
+                        block = block,
+                        textStyle = textStyle,
+                        textMeasurer = textMeasurer,
+                        density = density,
+                        textTransform = textTransform,
+                        contentColor = contentColor,
+                        paragraphSpacingDp = settings.paragraphSpacingDp
+                    )
                     is ReaderBlock.Image -> ReaderImage(
                         url = block.url,
                         contentDescription = stringResource(R.string.reader_open_image),
@@ -140,6 +123,68 @@ fun ReaderBlocks(
             }
         }
     }
+}
+
+@Composable
+private fun ReaderParagraphBlock(
+    block: ReaderBlock.Paragraph,
+    textStyle: TextStyle,
+    textMeasurer: TextMeasurer,
+    density: Density,
+    textTransform: (String) -> String,
+    contentColor: Color,
+    paragraphSpacingDp: Float
+) {
+    val (paragraph, inlineContent) = remember(block, textStyle, textTransform, density) {
+        val inlines = linkedMapOf<String, InlineTextContent>()
+        val annotated = buildAnnotatedString {
+            block.parts.forEach { part ->
+                val (text, partInlines) = part.toAnnotatedReaderText(
+                    baseStyle = textStyle,
+                    textMeasurer = textMeasurer,
+                    density = density,
+                    textTransform = textTransform
+                )
+                append(text)
+                inlines.putAll(partInlines)
+            }
+        }
+        annotated to inlines
+    }
+    Text(
+        text = paragraph,
+        inlineContent = inlineContent,
+        style = textStyle,
+        color = contentColor,
+        modifier = Modifier.padding(bottom = paragraphSpacingDp.dp)
+    )
+}
+
+@Composable
+private fun ReaderTextBlock(
+    block: ReaderBlock.Text,
+    textStyle: TextStyle,
+    textMeasurer: TextMeasurer,
+    density: Density,
+    textTransform: (String) -> String,
+    contentColor: Color,
+    paragraphSpacingDp: Float
+) {
+    val (text, inlineContent) = remember(block, textStyle, textTransform, density) {
+        block.toAnnotatedReaderText(
+            baseStyle = textStyle,
+            textMeasurer = textMeasurer,
+            density = density,
+            textTransform = textTransform
+        )
+    }
+    Text(
+        text = text,
+        inlineContent = inlineContent,
+        style = textStyle,
+        color = contentColor,
+        modifier = Modifier.padding(bottom = paragraphSpacingDp.dp)
+    )
 }
 
 @Composable

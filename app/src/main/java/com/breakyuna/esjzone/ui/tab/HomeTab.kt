@@ -3,6 +3,7 @@
 package com.breakyuna.esjzone.ui.tab
 
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.repeatOnLifecycle
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -658,28 +659,31 @@ private fun LazyListScope.weeklyPopularCarousel(
             initialPage = initialPage,
             pageCount = { pageCount }
         )
-        LaunchedEffect(pagerState, visible.size) {
-            while (true) {
-                val manualScrollStarted = withTimeoutOrNull(HOME_WEEKLY_POPULAR_AUTO_PLAY_MS) {
-                    snapshotFlow { pagerState.isScrollInProgress }
-                        .filter { it }
-                        .first()
-                } != null
-                if (manualScrollStarted) {
-                    if (pagerState.isScrollInProgress) {
+        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+        LaunchedEffect(pagerState, visible.size, lifecycleOwner) {
+            lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                while (true) {
+                    val manualScrollStarted = withTimeoutOrNull(HOME_WEEKLY_POPULAR_AUTO_PLAY_MS) {
                         snapshotFlow { pagerState.isScrollInProgress }
-                            .filter { !it }
+                            .filter { it }
                             .first()
+                    } != null
+                    if (manualScrollStarted) {
+                        if (pagerState.isScrollInProgress) {
+                            snapshotFlow { pagerState.isScrollInProgress }
+                                .filter { !it }
+                                .first()
+                        }
+                        continue
                     }
-                    continue
-                }
-                try {
-                    pagerState.animateScrollToPage(
-                        page = pagerState.currentPage + 1,
-                        animationSpec = tween(HOME_WEEKLY_POPULAR_ANIMATION_MS)
-                    )
-                } catch (_: CancellationException) {
-                    currentCoroutineContext().ensureActive()
+                    try {
+                        pagerState.animateScrollToPage(
+                            page = pagerState.currentPage + 1,
+                            animationSpec = tween(HOME_WEEKLY_POPULAR_ANIMATION_MS)
+                        )
+                    } catch (_: CancellationException) {
+                        currentCoroutineContext().ensureActive()
+                    }
                 }
             }
         }
@@ -1018,12 +1022,32 @@ private fun LazyListScope.homeCollection(
             )
         }
     } else {
-        item(key = "home-grid-$title", contentType = "home-grid") {
-            HomeNovelGrid(
-                novels = visible,
-                onNovelClick = { novel -> navigator?.pushIfNotCurrent(NovelPage(novel)) },
-                modifier = Modifier.semantics { contentDescription = title }
-            )
+        val rows = visible.chunked(HOME_GRID_COLUMNS)
+        items(
+            count = rows.size,
+            key = { rowIndex -> "home-grid-$title-row-$rowIndex" },
+            contentType = { "home-grid-row" }
+        ) { rowIndex ->
+            val row = rows[rowIndex]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = if (rowIndex < rows.size - 1) AppSpacing.lg else AppSpacing.zero)
+                    .semantics { contentDescription = "$title row $rowIndex" },
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md / 2)
+            ) {
+                row.forEach { novel ->
+                    HomeGridNovelTile(
+                        novel = novel,
+                        showLatestTitle = false,
+                        onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                repeat(HOME_GRID_COLUMNS - row.size) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
         }
     }
 }

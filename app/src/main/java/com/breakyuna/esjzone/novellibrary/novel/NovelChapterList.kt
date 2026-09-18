@@ -1,5 +1,6 @@
 package com.breakyuna.esjzone.novellibrary.novel
 
+import androidx.compose.runtime.Immutable
 import com.breakyuna.esjzone.novellibrary.component.ChapterItem
 import com.breakyuna.esjzone.novellibrary.component.ChapterListItem
 import com.breakyuna.esjzone.novellibrary.component.Item
@@ -7,19 +8,19 @@ import com.breakyuna.esjzone.novellibrary.component.analyseItems
 import org.jsoup.nodes.Element
 import java.io.Serializable
 
+@Immutable
 data class NovelChapterList(
     val items: List<Item>
 ) : Serializable {
 
     /** Chapters in the order shown by the detail page's canonical table of contents. */
-    val orderedChapters: List<Chapter>
-        get() = items.flatMap { item ->
-            when (item) {
-                is ChapterItem -> listOf(item.chapter)
-                is ChapterListItem -> item.chapters
-                else -> emptyList()
-            }
+    val orderedChapters: List<Chapter> = items.flatMap { item ->
+        when (item) {
+            is ChapterItem -> listOf(item.chapter)
+            is ChapterListItem -> item.chapters
+            else -> emptyList()
         }
+    }
 
     val hasHistory: Boolean
     val toRead: Chapter?

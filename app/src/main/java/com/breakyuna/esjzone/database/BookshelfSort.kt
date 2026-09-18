@@ -6,7 +6,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 import java.util.Locale
 
 /** Pure ordering rules for the local-first bookshelf. */
@@ -47,12 +46,13 @@ object BookshelfSort {
             }
         }
 
-        // Resolve each row once before sorting. URL normalization therefore
-        // remains O(n), rather than being repeated inside O(n log n) compares.
+        // Resolve each row once before sorting. URL normalization and date
+        // parsing therefore remain O(n), rather than being repeated inside O(n log n) compares.
         return entries.map { entry ->
             RankedEntry(
                 entry = entry,
-                readAt = readingAt(entry, latestByNovelId, latestByBookKey, keyForUrl)
+                readAt = readingAt(entry, latestByNovelId, latestByBookKey, keyForUrl),
+                updatedAt = updatedAt(entry)
             )
         }.sortedWith(
             Comparator { left, right ->
@@ -62,7 +62,7 @@ object BookshelfSort {
                         ?: right.entry.addedAt.compareTo(left.entry.addedAt)
                     Order.RECENT_ADDED -> right.entry.addedAt.compareTo(left.entry.addedAt)
                     Order.RECENT_UPDATED -> compareNullableDescending(
-                        updatedAt(left.entry), updatedAt(right.entry)
+                        left.updatedAt, right.updatedAt
                     ).takeIf { it != 0 }
                         ?: right.entry.addedAt.compareTo(left.entry.addedAt)
                 }
@@ -73,7 +73,8 @@ object BookshelfSort {
 
     private data class RankedEntry(
         val entry: BookshelfEntry,
-        val readAt: Long?
+        val readAt: Long?,
+        val updatedAt: Long?
     )
 
     private fun compareNullableDescending(left: Long?, right: Long?): Int = when {
@@ -98,36 +99,25 @@ object BookshelfSort {
             .replace('年', '-')
             .replace('月', '-')
             .replace("日", "")
+            .replace('/', '-')
             .trim()
+        if (normalized.isBlank()) return null
         val zone = ZoneId.systemDefault()
-        DATE_TIME_FORMATTERS.forEach { formatter ->
-            try {
-                return LocalDateTime.parse(normalized, formatter).atZone(zone).toInstant().toEpochMilli()
-            } catch (_: DateTimeParseException) {
-                // Try the next observed format.
+        return try {
+            if (normalized.contains(':')) {
+                val formatter = if (normalized.count { it == ':' } >= 2) DT_WITH_SECONDS else DT_WITHOUT_SECONDS
+                LocalDateTime.parse(normalized, formatter).atZone(zone).toInstant().toEpochMilli()
+            } else {
+                LocalDate.parse(normalized, DATE_ONLY).atStartOfDay(zone).toInstant().toEpochMilli()
             }
+        } catch (_: Exception) {
+            null
         }
-        DATE_FORMATTERS.forEach { formatter ->
-            try {
-                return LocalDate.parse(normalized, formatter).atStartOfDay(zone).toInstant().toEpochMilli()
-            } catch (_: DateTimeParseException) {
-                // Try the next observed format.
-            }
-        }
-        return null
     }
 
-    private val DATE_TIME_FORMATTERS = listOf(
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT),
-        DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss", Locale.ROOT),
-        DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm", Locale.ROOT)
-    )
-
-    private val DATE_FORMATTERS = listOf(
-        DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ROOT),
-        DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT)
-    )
+    private val DT_WITH_SECONDS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+    private val DT_WITHOUT_SECONDS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT)
+    private val DATE_ONLY = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.ROOT)
 
     private fun readingAt(
         entry: BookshelfEntry,

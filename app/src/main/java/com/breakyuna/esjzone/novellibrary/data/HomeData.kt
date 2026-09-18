@@ -1,10 +1,12 @@
 package com.breakyuna.esjzone.novellibrary.data
 
+import androidx.compose.runtime.Immutable
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
 import com.google.gson.annotations.SerializedName
 import java.io.Serializable
 
-class HomeData(
+@Immutable
+data class HomeData(
     val recentlyUpdateTranslated: List<CoveredNovel>,
     val recentlyUpdateOriginal: List<CoveredNovel>,
     val recentlyUpdateTranslatedR18: List<CoveredNovel>,
@@ -16,6 +18,7 @@ class HomeData(
     val weeklyPopular: List<WeeklyPopularNovel> = emptyList()
 )
 
+@Immutable
 data class WeeklyPopularNovel(
     @SerializedName("rank")
     val rank: Int = 0,

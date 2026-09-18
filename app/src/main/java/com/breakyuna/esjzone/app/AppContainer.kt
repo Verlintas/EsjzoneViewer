@@ -68,7 +68,7 @@ class AppContainer(context: Context) {
         }
         .diskCache {
             DiskCache.Builder()
-                .directory(appContext.filesDir.resolve("image_cache").toOkioPath())
+                .directory(appContext.cacheDir.resolve("image_cache").toOkioPath())
                 .maxSizePercent(0.05)
                 .build()
         }
@@ -93,9 +93,16 @@ class AppContainer(context: Context) {
             val clientJob = launch { EsjzoneClient.initialize(appContext) }
             val downloadJob = launch { NovelDownloadStore.initialize(appContext) }
             val homeCacheJob = launch { HomeDataCache.initialize(appContext) }
+            val legacyCacheCleanupJob = launch {
+                val legacyCacheDir = appContext.filesDir.resolve("image_cache")
+                if (legacyCacheDir.exists()) {
+                    runCatching { legacyCacheDir.deleteRecursively() }
+                }
+            }
             clientJob.join()
             downloadJob.join()
             homeCacheJob.join()
+            legacyCacheCleanupJob.join()
         }
     }
 }

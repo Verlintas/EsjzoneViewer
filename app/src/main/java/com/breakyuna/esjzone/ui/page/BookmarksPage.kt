@@ -310,7 +310,7 @@ private class BookmarksPageModel : AppStateViewModel<BookmarksPageModel.State>(S
 
     fun coverUrlFor(bookmark: LocalBookmark): String {
         val cleanId = BookmarkCoverStore.cleanNovelId(bookmark.novelId, bookmark.chapterUrl)
-        return resolvedCovers[cleanId] ?: BookmarkCoverStore.getCoverUri(cleanId, bookmark.chapterUrl).orEmpty()
+        return resolvedCovers[cleanId].orEmpty()
     }
 
     fun retry() {
