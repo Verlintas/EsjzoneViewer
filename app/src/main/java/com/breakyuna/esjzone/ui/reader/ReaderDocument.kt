@@ -128,17 +128,18 @@ internal fun ReaderBlock.Text.toAnnotatedReaderText(
     val span = styles.fold(SpanStyle()) { current, style ->
         current.merge(style.toSpanStyle())
     }
-    if (ruby == null) {
+    val rubyValue = ruby
+    if (rubyValue == null) {
         return buildAnnotatedString {
             withStyle(span) { append(displayed) }
         } to emptyMap()
     }
 
-    val key = "reader-ruby-${value.hashCode()}-${ruby.reading.hashCode()}"
+    val key = "reader-ruby-${value.hashCode()}-${rubyValue.reading.hashCode()}"
     val effectiveStyle = baseStyle.merge(span)
     val measureKey = RubyMeasureKey(
         text = displayed,
-        reading = ruby.reading,
+        reading = rubyValue.reading,
         fontSizeSp = effectiveStyle.fontSize.value,
         fontWeight = effectiveStyle.fontWeight,
         fontStyle = effectiveStyle.fontStyle,
@@ -154,7 +155,7 @@ internal fun ReaderBlock.Text.toAnnotatedReaderText(
         rubyMeasureCache[measureKey]
     } ?: run {
         val baseWidth = textMeasurer.measure(displayed, effectiveStyle).size.width
-        val rubyWidth = textMeasurer.measure(textTransform(ruby.reading), rubyStyle).size.width
+        val rubyWidth = textMeasurer.measure(textTransform(rubyValue.reading), rubyStyle).size.width
         val measuredWidth = with(density) { maxOf(baseWidth, rubyWidth).toDp().toSp() }
         val w = if (measuredWidth.value < 1f) 1.sp else measuredWidth
         val h = (baseStyle.lineHeight.value * 1.45f).coerceAtLeast(18f).sp
@@ -173,7 +174,7 @@ internal fun ReaderBlock.Text.toAnnotatedReaderText(
         children = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = textTransform(ruby.reading),
+                    text = textTransform(rubyValue.reading),
                     style = rubyStyle,
                     maxLines = 1
                 )
