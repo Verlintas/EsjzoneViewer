@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -67,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -810,14 +812,25 @@ private fun WeeklyPopularCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = stringResource(
-                        R.string.home_weekly_popular_heat,
-                        formatWeeklyHeat(novel.weeklyViews)
-                    ),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Spacer(Modifier.height(4.dp))
+                Card(
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(162, 25, 23),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.home_weekly_popular_heat,
+                            formatWeeklyHeat(novel.weeklyViews)
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
             }
         }
     }
@@ -880,9 +893,26 @@ private fun HomeActions(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
     ) {
-        HomeShortcut(stringResource(R.string.forum), Icons.Filled.Forum, Modifier.weight(1f), onForum)
-        HomeShortcut(stringResource(R.string.guestbook), Icons.Filled.RateReview, Modifier.weight(1f), onGuestbook)
-        HomeShortcut(stringResource(R.string.home_water_cooler), Icons.Filled.WaterDrop, Modifier.weight(1f), onWaterCooler)
+        HomeShortcut(
+            label = stringResource(R.string.forum),
+            icon = Icons.Filled.Forum,
+            modifier = Modifier.weight(1f),
+            iconTint = Color(162, 25, 23),
+            onClick = onForum
+        )
+        HomeShortcut(
+            label = stringResource(R.string.guestbook),
+            icon = Icons.Filled.RateReview,
+            modifier = Modifier.weight(1f),
+            onClick = onGuestbook
+        )
+        HomeShortcut(
+            label = stringResource(R.string.home_water_cooler),
+            icon = Icons.Filled.WaterDrop,
+            modifier = Modifier.weight(1f),
+            iconTint = Color(0xFF0288D1),
+            onClick = onWaterCooler
+        )
     }
 }
 
@@ -891,6 +921,7 @@ private fun HomeShortcut(
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector?,
     modifier: Modifier,
+    iconTint: Color = LocalContentColor.current,
     onClick: () -> Unit
 ) {
     Card(
@@ -905,7 +936,14 @@ private fun HomeShortcut(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
             Spacer(Modifier.width(AppSpacing.sm))
             Text(label, style = MaterialTheme.typography.titleSmall)
         }

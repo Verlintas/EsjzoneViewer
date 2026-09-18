@@ -141,8 +141,6 @@ object FavoritePage : AppDestination {
         var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
         var pendingDelete by remember { mutableStateOf<List<BookshelfEntry>>(emptyList()) }
         var showDeleteDialog by remember { mutableStateOf(false) }
-        var lastSyncFailed by rememberSaveable { mutableStateOf(false) }
-        var lastSyncSuccess by rememberSaveable { mutableStateOf(false) }
         var showSyncStatusMenu by remember { mutableStateOf(false) }
         var showSortMenu by remember { mutableStateOf(false) }
         val suppressFloatingNav = LocalFloatingNavSuppression.current
@@ -170,8 +168,8 @@ object FavoritePage : AppDestination {
         val visibleKeys = remember(shown) { shown.mapTo(LinkedHashSet()) { it.bookKey } }
         val syncing = syncState is FavoritePageModel.State.Syncing
         val deleting = deleteState is FavoritePageModel.DeleteState.Deleting
-        val isSyncSuccess = !syncing && (syncState is FavoritePageModel.State.Completed || (lastSyncSuccess && syncState !is FavoritePageModel.State.Failed))
-        val isSyncFailed = syncState is FavoritePageModel.State.Failed || (lastSyncFailed && syncState !is FavoritePageModel.State.Completed)
+        val isSyncSuccess = !syncing && syncState is FavoritePageModel.State.Completed
+        val isSyncFailed = syncState is FavoritePageModel.State.Failed
         val syncAddedMessage = stringResource(R.string.bookshelf_sync_added)
         val syncDoneMessage = stringResource(R.string.bookshelf_sync_done)
         val networkErrorMessage = stringResource(R.string.load_network_error)
@@ -206,16 +204,12 @@ object FavoritePage : AppDestination {
         LaunchedEffect(syncState) {
             when (val state = syncState) {
                 is FavoritePageModel.State.Completed -> {
-                    lastSyncFailed = false
-                    lastSyncSuccess = true
                     snackbar.showSnackbar(
                         if (state.result.added > 0) syncAddedMessage.format(state.result.added)
                         else syncDoneMessage
                     )
                 }
                 is FavoritePageModel.State.Failed -> {
-                    lastSyncFailed = true
-                    lastSyncSuccess = false
                     snackbar.showSnackbar(
                         when (state.failure) {
                             LoadFailureKind.NETWORK -> networkErrorMessage

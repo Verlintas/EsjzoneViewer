@@ -213,6 +213,8 @@
     <string name="history_cloud_sync_running">Syncing cloud history</string>
     <string name="history_cloud_sync_success">Cloud history synced</string>
     <string name="history_cloud_sync_failed">Cloud history sync failed</string>
+    <string name="history_cloud_sync_idle">Showing local history</string>
+    <string name="history_cloud_sync_offline">Offline, cloud not synced</string>
     <string name="history_local_delete">Delete local record</string>
     <string name="history_local_position">Chapter %1$d/%2$d · %3$d%%</string>
     <string name="history_local_percent">%1$d%% of chapter</string>
@@ -498,14 +500,17 @@
     <string name="guestbook_sync_success">Message board synced</string>
     <string name="guestbook_sync_failed">Message board sync failed</string>
     <string name="guestbook_sync_detail">Latest messages synchronized</string>
+    <string name="guestbook_sync_idle">Showing offline messages</string>
     <string name="water_cooler_sync_running">Syncing water cooler</string>
     <string name="water_cooler_sync_success">Water cooler synced</string>
     <string name="water_cooler_sync_failed">Water cooler sync failed</string>
     <string name="water_cooler_sync_detail">Latest replies synchronized</string>
+    <string name="water_cooler_sync_idle">Showing offline discussion</string>
     <string name="community_sync_running">Syncing post</string>
     <string name="community_sync_success">Post synced</string>
     <string name="community_sync_failed">Post sync failed</string>
     <string name="community_sync_detail">Latest post and replies synchronized</string>
+    <string name="community_sync_idle">Showing offline content</string>
     <string name="community_sync_refresh">Refresh community content</string>
     <string name="bookshelf_entry_latest">Latest: %s</string>
     <string name="bookshelf_entry_updated_at">Updated: %s</string>

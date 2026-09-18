@@ -164,13 +164,20 @@ internal fun CommunitySyncStatusIndicator(
     @StringRes runningRes: Int,
     @StringRes successRes: Int,
     @StringRes failedRes: Int,
-    @StringRes detailRes: Int
+    @StringRes detailRes: Int,
+    @StringRes idleRes: Int = R.string.community_sync_idle
 ) {
     val statusLabelRes = when {
         syncing -> runningRes
         isSyncFailed -> failedRes
         isSyncSuccess -> successRes
-        else -> runningRes
+        else -> idleRes
+    }
+    val statusDetailRes = when {
+        syncing -> runningRes
+        isSyncFailed -> failedRes
+        isSyncSuccess -> detailRes
+        else -> idleRes
     }
     Box {
         Box(
@@ -205,7 +212,7 @@ internal fun CommunitySyncStatusIndicator(
                     )
                 }
                 Text(
-                    text = stringResource(if (isSyncFailed) failedRes else detailRes),
+                    text = stringResource(statusDetailRes),
                     style = AppTypography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -222,11 +229,13 @@ internal fun CommunitySyncStatusIndicator(
     @StringRes runningRes: Int,
     @StringRes successRes: Int,
     @StringRes failedRes: Int,
-    @StringRes detailRes: Int
+    @StringRes detailRes: Int,
+    @StringRes idleRes: Int = R.string.community_sync_idle
 ) {
-    val syncing = state is CommunityState.Loading
-    val failed = state is CommunityState.Error
-    val isSuccess = !syncing && !failed && (state is CommunityState.Result || state is CommunityState.Empty)
+    val result = state as? CommunityState.Result
+    val syncing = state is CommunityState.Loading || result?.isSyncing == true
+    val failed = state is CommunityState.Error || result?.syncFailure != null
+    val isSuccess = !syncing && !failed && (result?.isSyncSuccess == true || state is CommunityState.Empty)
     CommunitySyncStatusIndicator(
         syncing = syncing,
         isSyncSuccess = isSuccess,
@@ -236,7 +245,8 @@ internal fun CommunitySyncStatusIndicator(
         runningRes = runningRes,
         successRes = successRes,
         failedRes = failedRes,
-        detailRes = detailRes
+        detailRes = detailRes,
+        idleRes = idleRes
     )
 }
 
@@ -253,7 +263,12 @@ internal sealed class CommunityState<out T> {
     data object Loading : CommunityState<Nothing>()
     data object Empty : CommunityState<Nothing>()
     data class Error(val failure: LoadFailureKind) : CommunityState<Nothing>()
-    data class Result<T>(val data: T) : CommunityState<T>()
+    data class Result<T>(
+        val data: T,
+        val isSyncSuccess: Boolean = true,
+        val isSyncing: Boolean = false,
+        val syncFailure: LoadFailureKind? = null
+    ) : CommunityState<T>()
 }
 
 @Composable
@@ -1067,21 +1082,60 @@ internal class CommentPageModel(
         if (!forceRefresh && loadStarted) return
         loadStarted = true
         loadJob?.cancel()
-        mutableState.value = CommunityState.Loading
         loadJob = viewModelScope.launch(Dispatchers.IO) {
+            val currentResult = mutableState.value as? CommunityState.Result
+            val cachedComments = if (!forceRefresh && currentResult == null) {
+                runCatching {
+                    PresentationAccess.client.getPageComments(
+                        authorization,
+                        pageUrl,
+                        forceRefresh = false
+                    )
+                }.getOrNull()
+            } else null
+
+            if (cachedComments != null && cachedComments.isNotEmpty()) {
+                mutableState.value = CommunityState.Result(
+                    data = cachedComments,
+                    isSyncSuccess = false,
+                    isSyncing = true
+                )
+            } else if (currentResult != null) {
+                mutableState.value = currentResult.copy(isSyncing = true, syncFailure = null)
+            } else {
+                mutableState.value = CommunityState.Loading
+            }
+
             try {
                 val comments = PresentationAccess.client.getPageComments(
                     authorization,
                     pageUrl,
-                    forceRefresh = forceRefresh
+                    forceRefresh = true
                 )
                 ensureActive()
-                mutableState.value = comments.toCommunityState()
+                mutableState.value = if (comments.isEmpty()) {
+                    CommunityState.Empty
+                } else {
+                    CommunityState.Result(
+                        data = comments,
+                        isSyncSuccess = true,
+                        isSyncing = false
+                    )
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 AppLogger.e("CommentPageModel", "Failed to load comments", error)
-                mutableState.value = CommunityState.Error(error.loadFailureKind())
+                val existing = mutableState.value as? CommunityState.Result
+                if (existing != null) {
+                    mutableState.value = existing.copy(
+                        isSyncing = false,
+                        isSyncSuccess = false,
+                        syncFailure = error.loadFailureKind()
+                    )
+                } else {
+                    mutableState.value = CommunityState.Error(error.loadFailureKind())
+                }
                 loadStarted = false
             }
         }

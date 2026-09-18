@@ -317,12 +317,19 @@ private fun HistoryCloudSyncStatusIndicator(
     onExpandedChange: (Boolean) -> Unit
 ) {
     val syncing = state.isSyncing()
-    val failed = state is HistoryPageModel.State.Error
-    val isSuccess = !syncing && !failed && state is HistoryPageModel.State.Result
+    val result = state as? HistoryPageModel.State.Result
+    val failed = state is HistoryPageModel.State.Error || result?.lastSyncFailure != null
+    val isSuccess = !syncing && !failed && result?.isSyncSuccess == true
     val statusRes = when {
         syncing -> R.string.history_cloud_sync_running
         failed -> R.string.history_cloud_sync_failed
-        else -> R.string.history_cloud_sync_success
+        isSuccess -> R.string.history_cloud_sync_success
+        else -> R.string.history_cloud_sync_idle
+    }
+    val detailRes = when {
+        failed -> R.string.history_cloud_sync_failed
+        isSuccess -> R.string.history_cloud_separate
+        else -> R.string.history_cloud_sync_offline
     }
     Box {
         Box(
@@ -352,7 +359,7 @@ private fun HistoryCloudSyncStatusIndicator(
                     )
                 }
                 Text(
-                    text = stringResource(R.string.history_cloud_separate),
+                    text = stringResource(detailRes),
                     style = AppTypography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

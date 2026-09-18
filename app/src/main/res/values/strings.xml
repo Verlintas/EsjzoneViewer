@@ -213,6 +213,8 @@
     <string name="history_cloud_sync_running">云端历史同步中</string>
     <string name="history_cloud_sync_success">云端历史已同步</string>
     <string name="history_cloud_sync_failed">云端历史同步失败</string>
+    <string name="history_cloud_sync_idle">显示本地记录</string>
+    <string name="history_cloud_sync_offline">离线状态，未同步云端</string>
     <string name="history_local_delete">删除本地记录</string>
     <string name="history_local_position">第 %1$d/%2$d 章 · %3$d%%</string>
     <string name="history_local_percent">本章 %1$d%%</string>
@@ -498,14 +500,17 @@
     <string name="guestbook_sync_success">留言板已同步</string>
     <string name="guestbook_sync_failed">留言板同步失败</string>
     <string name="guestbook_sync_detail">已获取最新留言内容</string>
+    <string name="guestbook_sync_idle">显示离线留言</string>
     <string name="water_cooler_sync_running">灌水楼同步中</string>
     <string name="water_cooler_sync_success">灌水楼已同步</string>
     <string name="water_cooler_sync_failed">灌水楼同步失败</string>
     <string name="water_cooler_sync_detail">已获取最新讨论回复</string>
+    <string name="water_cooler_sync_idle">显示离线讨论</string>
     <string name="community_sync_running">帖子同步中</string>
     <string name="community_sync_success">帖子已同步</string>
     <string name="community_sync_failed">帖子同步失败</string>
     <string name="community_sync_detail">已获取最新帖子与回复</string>
+    <string name="community_sync_idle">显示离线内容</string>
     <string name="community_sync_refresh">刷新社区内容</string>
     <string name="bookshelf_entry_latest">最新：%s</string>
     <string name="bookshelf_entry_updated_at">更新日期：%s</string>

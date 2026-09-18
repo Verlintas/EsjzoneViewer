@@ -95,6 +95,8 @@ import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
 import com.breakyuna.esjzone.util.AppLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 
 object ForumPage : AppDestination {
@@ -353,16 +355,22 @@ class ForumPostPage(private val topic: ForumTopic) : AppDestination {
                 topic.id == EsjzoneUrls.WATER_COOLER_TOPIC_ID
         }
 
-        val syncRunning = state is CommunityState.Loading || commentsState is CommunityState.Loading
-        val syncFailed = state is CommunityState.Error || commentsState is CommunityState.Error
+        val postResult = state as? CommunityState.Result
+        val commentsResult = commentsState as? CommunityState.Result
+
+        val syncRunning = state is CommunityState.Loading || commentsState is CommunityState.Loading ||
+            postResult?.isSyncing == true || commentsResult?.isSyncing == true
+        val syncFailed = state is CommunityState.Error || commentsState is CommunityState.Error ||
+            postResult?.syncFailure != null || commentsResult?.syncFailure != null
         val syncSuccess = !syncRunning && !syncFailed &&
-            (state is CommunityState.Result || state is CommunityState.Empty) &&
-            (commentsState is CommunityState.Result || commentsState is CommunityState.Empty)
+            (postResult?.isSyncSuccess == true || state is CommunityState.Empty) &&
+            (commentsResult?.isSyncSuccess == true || commentsState is CommunityState.Empty)
 
         val runningRes = if (isWaterCooler) R.string.water_cooler_sync_running else R.string.community_sync_running
         val successRes = if (isWaterCooler) R.string.water_cooler_sync_success else R.string.community_sync_success
         val failedRes = if (isWaterCooler) R.string.water_cooler_sync_failed else R.string.community_sync_failed
         val detailRes = if (isWaterCooler) R.string.water_cooler_sync_detail else R.string.community_sync_detail
+        val idleRes = if (isWaterCooler) R.string.water_cooler_sync_idle else R.string.community_sync_idle
 
         val displayTitle = (state as? CommunityState.Result)?.data?.title?.takeIf { it.isNotBlank() }
             ?: topic.title.takeIf { it.isNotBlank() }
@@ -391,7 +399,8 @@ class ForumPostPage(private val topic: ForumTopic) : AppDestination {
                         runningRes = runningRes,
                         successRes = successRes,
                         failedRes = failedRes,
-                        detailRes = detailRes
+                        detailRes = detailRes,
+                        idleRes = idleRes
                     )
                 }
             )
@@ -477,11 +486,12 @@ object GuestbookPage : AppDestination {
                     runningRes = R.string.guestbook_sync_running,
                     successRes = R.string.guestbook_sync_success,
                     failedRes = R.string.guestbook_sync_failed,
-                    detailRes = R.string.guestbook_sync_detail
+                    detailRes = R.string.guestbook_sync_detail,
+                    idleRes = R.string.guestbook_sync_idle
                 )
             },
             onRefresh = { model.load(forceRefresh = true) },
-            refreshing = state is CommunityState.Loading
+            refreshing = state is CommunityState.Loading || (state as? CommunityState.Result)?.isSyncing == true
         )
     }
 }
@@ -1003,6 +1013,7 @@ private class ForumPostPageModel(
     private val authorization: Authorization,
     private val topic: ForumTopic
 ) : AppStateViewModel<CommunityState<ForumPost>>(CommunityState.Loading) {
+    private var loadJob: Job? = null
     private var loadStarted = false
 
     fun retry() = load(forceRefresh = true)
@@ -1010,15 +1021,42 @@ private class ForumPostPageModel(
     fun load(forceRefresh: Boolean = false) {
         if (!forceRefresh && loadStarted) return
         loadStarted = true
-        mutableState.value = CommunityState.Loading
-        viewModelScope.launch(Dispatchers.IO) {
-            mutableState.value = try {
-                CommunityState.Result(
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
+            val currentResult = mutableState.value as? CommunityState.Result
+            val cachedPost = if (!forceRefresh && currentResult == null) {
+                runCatching {
                     PresentationAccess.client.getForumPost(
                         authorization,
                         topic,
-                        forceRefresh = forceRefresh
+                        forceRefresh = false
                     )
+                }.getOrNull()
+            } else null
+
+            if (cachedPost != null) {
+                mutableState.value = CommunityState.Result(
+                    data = cachedPost,
+                    isSyncSuccess = false,
+                    isSyncing = true
+                )
+            } else if (currentResult != null) {
+                mutableState.value = currentResult.copy(isSyncing = true, syncFailure = null)
+            } else {
+                mutableState.value = CommunityState.Loading
+            }
+
+            try {
+                val freshPost = PresentationAccess.client.getForumPost(
+                    authorization,
+                    topic,
+                    forceRefresh = true
+                )
+                ensureActive()
+                mutableState.value = CommunityState.Result(
+                    data = freshPost,
+                    isSyncSuccess = true,
+                    isSyncing = false
                 )
             } catch (error: CancellationException) {
                 throw error
@@ -1028,8 +1066,17 @@ private class ForumPostPageModel(
                     "Failed to load forum topic ${topic.id}",
                     error
                 )
+                val existing = mutableState.value as? CommunityState.Result
+                if (existing != null) {
+                    mutableState.value = existing.copy(
+                        isSyncing = false,
+                        isSyncSuccess = false,
+                        syncFailure = error.loadFailureKind()
+                    )
+                } else {
+                    mutableState.value = CommunityState.Error(error.loadFailureKind())
+                }
                 loadStarted = false
-                CommunityState.Error(error.loadFailureKind())
             }
         }
     }

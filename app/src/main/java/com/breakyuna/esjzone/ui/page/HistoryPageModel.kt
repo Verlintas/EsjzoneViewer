@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 class HistoryPageModel(
     private val authorization: Authorization
 ) : AppStateViewModel<HistoryPageModel.State>(
-    HistoryDataCache.readSnapshot()?.let { State.Result(it) } ?: State.Loading
+    HistoryDataCache.readSnapshot()?.let { State.Result(it, isSyncSuccess = false) } ?: State.Loading
 ) {
 
     private var loadJob: Job? = null
@@ -32,7 +32,9 @@ class HistoryPageModel(
         data class Error(val failure: LoadFailureKind) : State()
         data class Result(
             val historyNovels: List<HistoryNovel>,
-            val isSyncing: Boolean = false
+            val isSyncing: Boolean = false,
+            val isSyncSuccess: Boolean = false,
+            val lastSyncFailure: LoadFailureKind? = null
         ) : State()
     }
 
@@ -42,7 +44,7 @@ class HistoryPageModel(
         loadJob?.cancel()
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             val visibleData = mutableState.value as? State.Result
-            mutableState.value = visibleData?.copy(isSyncing = true) ?: State.Loading
+            mutableState.value = visibleData?.copy(isSyncing = true, lastSyncFailure = null) ?: State.Loading
             try {
                 val histories = PresentationAccess.client.getHistories(
                     authorization,
@@ -50,14 +52,23 @@ class HistoryPageModel(
                 )
                 ensureActive()
                 HistoryDataCache.writeSnapshot(histories)
-                mutableState.value = State.Result(histories)
+                mutableState.value = State.Result(
+                    historyNovels = histories,
+                    isSyncing = false,
+                    isSyncSuccess = true,
+                    lastSyncFailure = null
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 if (visibleData == null) {
                     mutableState.value = State.Error(e.loadFailureKind())
                 } else {
-                    mutableState.value = visibleData.copy(isSyncing = false)
+                    mutableState.value = visibleData.copy(
+                        isSyncing = false,
+                        isSyncSuccess = false,
+                        lastSyncFailure = e.loadFailureKind()
+                    )
                 }
                 loadStarted = false
                 AppLogger.e("HistoryPageModel", "Failed to load cloud histories", e)
