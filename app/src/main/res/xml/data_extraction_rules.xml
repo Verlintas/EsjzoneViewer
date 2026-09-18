@@ -7,6 +7,8 @@
     <cloud-backup>
         <exclude domain="sharedpref" path="esj_session.xml" />
         <exclude domain="sharedpref" path="esj_session_secure.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_key_keyset__.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_value_keyset__.xml" />
         <exclude domain="database" path="general" />
         <exclude domain="database" path="general-wal" />
         <exclude domain="database" path="general-shm" />
@@ -18,6 +20,8 @@
     <device-transfer>
         <exclude domain="sharedpref" path="esj_session.xml" />
         <exclude domain="sharedpref" path="esj_session_secure.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_key_keyset__.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs_value_keyset__.xml" />
         <exclude domain="database" path="general" />
         <exclude domain="database" path="general-wal" />
         <exclude domain="database" path="general-shm" />

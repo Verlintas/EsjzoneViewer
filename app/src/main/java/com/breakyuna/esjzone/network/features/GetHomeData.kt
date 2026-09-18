@@ -42,9 +42,14 @@ suspend fun EsjzoneClient.getHomeData(
     val recentlyUpdateTranslatedR18Novels = mutableListOf<CoveredNovel>()
     val recentlyUpdateOriginalR18Novels = mutableListOf<CoveredNovel>()
     val recommendationNovels = mutableListOf<CoveredNovel>()
-    val weeklyUpdates = runCatching { getWeeklyUpdates(authorization, forceRefresh = forceRefresh) }
-        .onFailure { AppLogger.w("GetHomeData", "Error parsing weekly updates", it) }
-        .getOrDefault(emptyList())
+    val weeklyUpdates = try {
+        getWeeklyUpdates(authorization, forceRefresh = forceRefresh)
+    } catch (error: kotlinx.coroutines.CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        AppLogger.w("GetHomeData", "Error parsing weekly updates", error)
+        emptyList()
+    }
     val popularSeeds = selectWeeklyPopularSeeds(document)
     val weeklyPopular = if (popularSeeds.isEmpty()) {
         emptyList()
@@ -53,14 +58,17 @@ suspend fun EsjzoneClient.getHomeData(
         popularSeeds.map { seed ->
             async {
                 semaphore.withPermit {
-                    runCatching {
+                    try {
                         // Detail HTML is already covered by the six-hour page cache. Keep this
                         // cache-first even for pull-to-refresh so the carousel never creates ten forced
                         // refreshes in addition to the single home request.
                         enrichWeeklyPopular(authorization, seed)
-                    }.onFailure {
-                        AppLogger.w("GetHomeData", "Failed to enrich weekly popular item: ${seed.name}", it)
-                    }.getOrNull()
+                    } catch (error: kotlinx.coroutines.CancellationException) {
+                        throw error
+                    } catch (error: Exception) {
+                        AppLogger.w("GetHomeData", "Failed to enrich weekly popular item: ${seed.name}", error)
+                        null
+                    }
                 }
             }
         }.awaitAll().filterNotNull()

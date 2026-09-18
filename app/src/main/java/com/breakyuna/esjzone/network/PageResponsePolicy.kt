@@ -105,8 +105,9 @@ internal object PageResponsePolicy {
                     lower.contains("<aside") ||
                     lower.contains("收藏") || lower.contains("history") ||
                     lower.contains("view"))
-            PageKind.DETAIL -> lowerRequestedUrl.contains("/detail/") || lower.contains("/detail/") ||
-                lower.contains("id=\"integration\"") || lower.contains("book-detail")
+            PageKind.DETAIL -> lowerRequestedUrl.contains("/detail/") &&
+                (lower.contains("/detail/") || lower.contains("id=\"integration\"") ||
+                    lower.contains("book-detail"))
             PageKind.CHAPTER -> (lowerRequestedUrl.contains("/forum/") || lower.contains("/forum/")) &&
                 (lower.contains("<article") || lower.contains("<section") || lower.contains("<div") ||
                     lower.contains("comment") || lower.contains("chapter"))

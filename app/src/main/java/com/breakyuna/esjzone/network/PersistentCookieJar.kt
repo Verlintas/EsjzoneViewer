@@ -335,24 +335,40 @@ internal class PersistentCookieJar(context: Context) : CookieJar {
         const val VERIFIED_AT_PREFIX = "verified_at_"
         val SESSION_COOKIE_NAMES = setOf("ews_key", "ews_token")
 
-        private fun createSecurePreferences(context: Context): SharedPreferences? =
-            runCatching<SharedPreferences> {
-                val appContext: Context = context.applicationContext
-                val masterKey: MasterKey = MasterKey.Builder(appContext)
+        private fun createSecurePreferences(context: Context): SharedPreferences? {
+            val appContext = context.applicationContext
+            fun create(): SharedPreferences {
+                val masterKey = MasterKey.Builder(appContext)
                     .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
                     .build()
-                EncryptedSharedPreferences.create(
+                return EncryptedSharedPreferences.create(
                     appContext,
                     SECURE_PREFERENCES,
                     masterKey,
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                 )
-            }.onFailure { error: Throwable ->
-                Log.e(TAG, "Secure session storage is unavailable; session persistence disabled", error)
-            }.getOrNull()
+            }
+
+            return try {
+                create()
+            } catch (error: Exception) {
+                // Keyset files restored from another device cannot be decrypted by this
+                // device's Android Keystore. Remove the complete encrypted-preference set
+                // once, then recreate it instead of leaving every later launch logged out.
+                Log.w(TAG, "Resetting unreadable secure session storage", error)
+                appContext.deleteSharedPreferences(SECURE_PREFERENCES)
+                appContext.deleteSharedPreferences(KEY_KEYSET_PREFERENCES)
+                appContext.deleteSharedPreferences(VALUE_KEYSET_PREFERENCES)
+                runCatching { create() }.onFailure {
+                    Log.e(TAG, "Secure session storage is unavailable; session persistence disabled", it)
+                }.getOrNull()
+            }
+        }
 
         const val SECURE_PREFERENCES = "esj_session_secure"
+        const val KEY_KEYSET_PREFERENCES = "__androidx_security_crypto_encrypted_prefs_key_keyset__"
+        const val VALUE_KEYSET_PREFERENCES = "__androidx_security_crypto_encrypted_prefs_value_keyset__"
         const val TAG = "PersistentCookieJar"
     }
 }

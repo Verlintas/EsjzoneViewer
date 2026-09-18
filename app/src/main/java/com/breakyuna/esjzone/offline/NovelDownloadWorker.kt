@@ -153,7 +153,16 @@ class NovelDownloadWorker(
 
         return try {
             AppLogger.init(applicationContext)
-            setForeground(createForegroundInfo(name, null))
+            try {
+                setForeground(createForegroundInfo(name, null))
+            } catch (error: IllegalStateException) {
+                if (error::class.java.name != "android.app.ForegroundServiceStartNotAllowedException") {
+                    throw error
+                }
+                // Android 14+ can deny promotion after WorkManager starts us from
+                // the background. The work itself is still safe to continue.
+                AppLogger.w("NovelDownloadWorker", "Foreground promotion denied; continuing in background", error)
+            }
             val taskBaseUrl = if (domain.isBlank()) EsjzoneUrls.Base
             else EsjzoneUrls.baseForDomain(domain)
             EsjzoneClient.initialize(applicationContext)

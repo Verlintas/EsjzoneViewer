@@ -197,9 +197,11 @@ object EsjzoneClient {
             } catch (error: ExecutionException) {
                 val cause = error.cause
                 if (cause is CancellationException) {
-                    throw NetworkRequestException(
-                        url,
-                        java.io.IOException("Coalesced request was cancelled by initiator", cause)
+                    // The caller which created the shared request disappeared, but this
+                    // caller is still active. Become a fresh owner instead of surfacing a
+                    // false network failure to every remaining waiter.
+                    return fetchPageCoalesced(
+                        authorization, url, cacheKey, stalePage, requestEpoch, pageKind, allowStaleOnError
                     )
                 }
                 if (cause is Exception) throw cause

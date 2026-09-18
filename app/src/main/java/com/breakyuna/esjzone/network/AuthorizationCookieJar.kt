@@ -14,7 +14,6 @@ class AuthorizationCookieJar(
 
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
         if (!authorization.hasCredentials()) return emptyList()
-        if (!persistResponses) return legacyCookies(url)
         if (persistentJar != null) {
             // Once the persistent jar is available it is the source of truth.  Falling
             // back to stale legacy values here could resurrect a server-deleted session.

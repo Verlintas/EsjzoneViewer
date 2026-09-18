@@ -1,6 +1,7 @@
 package com.breakyuna.esjzone.offline
 
 import android.content.Context
+import android.os.StatFs
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneClient
 import com.breakyuna.esjzone.network.EsjzoneUrls
@@ -114,13 +115,32 @@ object NovelDownloadStore {
     private const val CHAPTER_MAX_ATTEMPTS = 2
     private const val PROGRESS_THROTTLE_MS = 150L
     private const val MANIFEST_CHECKPOINT_INTERVAL = 8
+    private const val MIN_FREE_SPACE_BYTES = 100L * 1024L * 1024L
 
     private val gson = Gson()
     private val ioLock = Any()
+    private val deletionGenerations = HashMap<String, Long>()
     /** Rebuilt on a cache miss; invalidated whenever any manifest changes. */
     private val chapterIndex = HashMap<String, ChapterMatch>()
     /** Rebuilt after a manifest write or deletion; bookshelf refreshes read this snapshot. */
     private var inventorySnapshot: List<DownloadedNovelSummary>? = null
+
+    private data class DownloadWriteGuard(val directoryPath: String, val generation: Long)
+
+    private fun newWriteGuard(directory: File): DownloadWriteGuard = synchronized(ioLock) {
+        DownloadWriteGuard(directory.absolutePath, deletionGenerations[directory.absolutePath] ?: 0L)
+    }
+
+    private fun ensureWriteAllowed(guard: DownloadWriteGuard?) {
+        if (guard == null) return
+        val current = synchronized(ioLock) { deletionGenerations[guard.directoryPath] ?: 0L }
+        if (current != guard.generation) throw CancellationException("Downloaded novel was removed by the user")
+    }
+
+    private fun requireFreeSpace(directory: File) {
+        val available = runCatching { StatFs(directory.absolutePath).availableBytes }.getOrDefault(Long.MAX_VALUE)
+        if (available < MIN_FREE_SPACE_BYTES) throw IOException("Insufficient storage space for download")
+    }
 
     @Volatile
     private var rootDirectory: File? = null
@@ -197,6 +217,7 @@ object NovelDownloadStore {
     fun delete(novelUrl: String): Boolean = synchronized(ioLock) {
         cancelActiveWork(novelUrl)
         val directory = directoryFor(novelUrl, create = false) ?: return@synchronized false
+        deletionGenerations[directory.absolutePath] = (deletionGenerations[directory.absolutePath] ?: 0L) + 1L
         chapterIndex.clear()
         inventorySnapshot = null
         directory.deleteRecursively()
@@ -210,6 +231,7 @@ object NovelDownloadStore {
             .count { url ->
                 cancelActiveWork(url)
                 val directory = directoryFor(url, create = false) ?: return@count false
+                deletionGenerations[directory.absolutePath] = (deletionGenerations[directory.absolutePath] ?: 0L) + 1L
                 directory.deleteRecursively()
             }
     }
@@ -345,6 +367,8 @@ object NovelDownloadStore {
 
         val directory = directoryFor(novel.url, create = true)
             ?: error("Novel download storage is unavailable")
+        requireFreeSpace(directory)
+        val writeGuard = newWriteGuard(directory)
         val previousManifest = synchronized(ioLock) { readManifest(directory) }
         val previousByUrl = previousManifest?.chapters
             .orEmpty()
@@ -372,7 +396,7 @@ object NovelDownloadStore {
             downloadedAt = previousManifest?.downloadedAt ?: 0L,
             complete = currentRecords.all { it.downloaded }
         )
-        synchronized(ioLock) { writeManifest(directory, currentManifest) }
+        synchronized(ioLock) { writeManifest(directory, currentManifest, writeGuard) }
 
         val totalCount = currentRecords.size
         val completedCounter = AtomicInteger(currentRecords.count { it.downloaded })
@@ -415,7 +439,8 @@ object NovelDownloadStore {
                                             authorization = authorization,
                                             record = record,
                                             directory = directory,
-                                            baseUrl = baseUrl
+                                            baseUrl = baseUrl,
+                                            writeGuard = writeGuard
                                         )
                                         success = true
                                     } catch (ce: CancellationException) {
@@ -440,7 +465,7 @@ object NovelDownloadStore {
                                                 downloadedAt = System.currentTimeMillis(),
                                                 complete = finished == totalCount
                                             )
-                                            writeManifest(directory, currentManifest)
+                                            writeManifest(directory, currentManifest, writeGuard)
                                         }
                                     }
                                     reportProgress(record.name)
@@ -467,7 +492,7 @@ object NovelDownloadStore {
                             downloadedAt = System.currentTimeMillis(),
                             complete = completedCounter.get() == totalCount
                         )
-                        writeManifest(directory, currentManifest)
+                        writeManifest(directory, currentManifest, writeGuard)
                     }
                 }
             }
@@ -491,7 +516,7 @@ object NovelDownloadStore {
                     downloadedAt = System.currentTimeMillis(),
                     complete = true
                 )
-                writeManifest(directory, currentManifest)
+                writeManifest(directory, currentManifest, writeGuard)
             }
         }
         return currentManifest
@@ -501,7 +526,8 @@ object NovelDownloadStore {
         authorization: Authorization,
         record: DownloadedChapterRecord,
         directory: File,
-        baseUrl: String?
+        baseUrl: String?,
+        writeGuard: DownloadWriteGuard
     ): DownloadedChapterContent {
         val detail = EsjzoneClient.getChapterDetail(
             authorization = authorization,
@@ -522,7 +548,7 @@ object NovelDownloadStore {
 
                     is ImageComponent -> {
                         val image = downloadImage(
-                            authorization, directory, component.url, detail.sourceUrl ?: baseUrl
+                        authorization, directory, component.url, detail.sourceUrl ?: baseUrl, writeGuard
                         ) ?: throw IOException("Unable to download chapter image: ${component.url}")
                         DownloadedComponent(
                             type = IMAGE_COMPONENT,
@@ -536,7 +562,7 @@ object NovelDownloadStore {
             contentHtml = detail.contentHtml,
             baseUrl = detail.sourceUrl ?: EsjzoneUrls.resolve(record.url, baseUrl ?: EsjzoneUrls.Base)
         )
-        writeJson(File(directory, record.fileName), storedChapter)
+        writeJson(File(directory, record.fileName), storedChapter, writeGuard)
         return storedChapter
     }
 
@@ -750,9 +776,13 @@ object NovelDownloadStore {
         return readJson(File(directory, MANIFEST_FILE), DownloadedNovelManifest::class.java)
     }
 
-    private fun writeManifest(directory: File, manifest: DownloadedNovelManifest) {
+    private fun writeManifest(
+        directory: File,
+        manifest: DownloadedNovelManifest,
+        writeGuard: DownloadWriteGuard? = null
+    ) {
         val previousInventory = inventorySnapshot
-        writeJson(File(directory, MANIFEST_FILE), manifest)
+        writeJson(File(directory, MANIFEST_FILE), manifest, writeGuard)
         chapterIndex.clear()
         if (previousInventory != null) {
             val count = manifest.chapters.count { record ->
@@ -775,7 +805,8 @@ object NovelDownloadStore {
         authorization: Authorization,
         novelDirectory: File,
         rawUrl: String,
-        baseUrl: String?
+        baseUrl: String?,
+        writeGuard: DownloadWriteGuard
     ): DownloadedImage? {
         if (rawUrl.isBlank()) return null
         return runCatching {
@@ -819,6 +850,7 @@ object NovelDownloadStore {
                             ?.takeIf { value -> value.startsWith("image/") }
                             ?: mediaTypeFromUrl(url)
                         val extension = extensionFor(mediaType, url)
+                        ensureWriteAllowed(writeGuard)
                         if (!imagesDirectory.isDirectory && !imagesDirectory.mkdirs()) {
                             error("Unable to create the chapter image directory")
                         }
@@ -842,7 +874,10 @@ object NovelDownloadStore {
                                         }
                                     }
                                 }
-                                moveReplacing(temporary, destination)
+                                synchronized(ioLock) {
+                                    ensureWriteAllowed(writeGuard)
+                                    moveReplacing(temporary, destination)
+                                }
                             } finally {
                                 if (temporary.isFile) temporary.delete()
                             }
@@ -856,6 +891,7 @@ object NovelDownloadStore {
             if (lastError != null) throw lastError
             error("Unable to download image from $url")
         }.onFailure { error ->
+            if (error is CancellationException) throw error
             AppLogger.w("NovelDownloadStore", "Unable to download a chapter image", error)
         }.getOrNull()
     }
@@ -872,14 +908,20 @@ object NovelDownloadStore {
             resolveLocalFile(directory, relative)?.let { it.isFile && it.length() > 0L } == true
         }
 
-    private fun writeJson(file: File, value: Any) {
+    private fun writeJson(file: File, value: Any, writeGuard: DownloadWriteGuard? = null) {
         val parent = file.parentFile ?: return
-        if (!parent.exists()) parent.mkdirs()
+        synchronized(ioLock) {
+            ensureWriteAllowed(writeGuard)
+            if (!parent.exists()) parent.mkdirs()
+        }
         val prefix = (file.nameWithoutExtension.take(16).ifBlank { "temp" } + "_").takeLast(20).padStart(3, '_')
         val temporary = File.createTempFile(prefix, ".tmp", parent)
         try {
             temporary.writeText(gson.toJson(value), StandardCharsets.UTF_8)
-            moveReplacing(temporary, file)
+            synchronized(ioLock) {
+                ensureWriteAllowed(writeGuard)
+                moveReplacing(temporary, file)
+            }
         } finally {
             if (temporary.exists()) {
                 temporary.delete()

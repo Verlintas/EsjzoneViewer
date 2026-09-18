@@ -64,6 +64,12 @@ interface BookshelfDao {
     suspend fun markRetry(scope: String, bookKey: String, version: Long, lastError: String?): Int
 
     @Query(
+        "UPDATE bookshelf SET sync_state = 'FAILED', retry_count = retry_count + 1, last_error = :lastError " +
+            "WHERE scope = :scope AND book_key = :bookKey AND operation_version = :version"
+    )
+    suspend fun markFailed(scope: String, bookKey: String, version: Long, lastError: String?): Int
+
+    @Query(
         "UPDATE bookshelf SET title = CASE WHEN title = '' THEN :title ELSE title END, " +
             "author = CASE WHEN author = '' THEN :author ELSE author END, " +
             "cover_url = CASE WHEN cover_url = '' THEN :coverUrl ELSE cover_url END, " +

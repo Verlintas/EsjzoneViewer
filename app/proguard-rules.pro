@@ -26,21 +26,11 @@
 -keepattributes Signature,*Annotation*
 
 # Persisted JSON field names must remain stable across app updates.
--keepclassmembers,allowoptimization class com.breakyuna.esjzone.network.PersistentCookieJar$StoredCookie {
-    <fields>;
-}
--keepclassmembers,allowoptimization class com.breakyuna.esjzone.offline.DownloadedNovelManifest {
-    <fields>;
-}
--keepclassmembers,allowoptimization class com.breakyuna.esjzone.offline.DownloadedChapterRecord {
-    <fields>;
-}
--keepclassmembers,allowoptimization class com.breakyuna.esjzone.offline.DownloadedChapterContent {
-    <fields>;
-}
--keepclassmembers,allowoptimization class com.breakyuna.esjzone.offline.DownloadedComponent {
-    <fields>;
-}
+-keep class com.breakyuna.esjzone.network.PersistentCookieJar$StoredCookie { *; }
+-keep class com.breakyuna.esjzone.offline.DownloadedNovelManifest { *; }
+-keep class com.breakyuna.esjzone.offline.DownloadedChapterRecord { *; }
+-keep class com.breakyuna.esjzone.offline.DownloadedChapterContent { *; }
+-keep class com.breakyuna.esjzone.offline.DownloadedComponent { *; }
 -keepclassmembers,allowoptimization class com.breakyuna.esjzone.network.features.HomeDataSnapshot {
     <fields>;
 }

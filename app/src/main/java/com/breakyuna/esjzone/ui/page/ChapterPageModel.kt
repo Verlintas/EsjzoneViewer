@@ -46,6 +46,7 @@ class ChapterPageModel(
     private companion object {
         /** Keep a small bidirectional reading window instead of the whole book in RAM. */
         const val MAX_LOADED_CHAPTERS = 9
+        const val APPEND_RETRY_COOLDOWN_MILLIS = 3_000L
         /** A consumed chapter must finish saving even after the reader entry is popped. */
         val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
@@ -85,6 +86,7 @@ class ChapterPageModel(
     private var pendingPreviousRequest = false
     private var initialLoadStarted = false
     private var failedAppendChapterKey: String? = null
+    private var failedAppendAtMillis = 0L
     private var failedPrependChapterKey: String? = null
     /** Latest completed reader layout anchor; null means no safe trim point. */
     private var windowAnchor: ReaderWindowAnchor? = null
@@ -211,7 +213,8 @@ class ChapterPageModel(
             if (loadingNext || loadedChapters.isEmpty()) return
             val last = loadedChapters.last()
             val candidate = adjacentChapter(last.chapter, 1, last.detail) ?: return
-            if (chapterKey(candidate) == failedAppendChapterKey) return
+            if (chapterKey(candidate) == failedAppendChapterKey &&
+                System.currentTimeMillis() - failedAppendAtMillis < APPEND_RETRY_COOLDOWN_MILLIS) return
             if (loadedChapters.any { sameChapter(it.chapter, candidate) }) return
             nextChapter = candidate
             loadingNext = true
@@ -236,6 +239,7 @@ class ChapterPageModel(
                                 isOffline = loadedOffline
                             )
                             failedAppendChapterKey = null
+                            failedAppendAtMillis = 0L
                             trimLoadedChaptersFromStart()
                         }
                     }
@@ -248,6 +252,7 @@ class ChapterPageModel(
                 synchronized(lock) {
                     if (isCurrentSessionLocked(session)) {
                         failedAppendChapterKey = chapterKey(chapterToLoad)
+                        failedAppendAtMillis = System.currentTimeMillis()
                     }
                 }
                 AppLogger.e(

@@ -34,6 +34,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -89,6 +91,28 @@ fun ReaderBlocks(
         Column(modifier = Modifier.fillMaxWidth()) {
             blocks.forEach { block ->
                 when (block) {
+                    is ReaderBlock.Paragraph -> {
+                        val inlineContent = linkedMapOf<String, InlineTextContent>()
+                        val paragraph = buildAnnotatedString {
+                            block.parts.forEach { part ->
+                                val (text, inlines) = part.toAnnotatedReaderText(
+                                    baseStyle = textStyle,
+                                    textMeasurer = textMeasurer,
+                                    density = density,
+                                    textTransform = textTransform
+                                )
+                                append(text)
+                                inlineContent.putAll(inlines)
+                            }
+                        }
+                        Text(
+                            text = paragraph,
+                            inlineContent = inlineContent,
+                            style = textStyle,
+                            color = contentColor,
+                            modifier = Modifier.padding(bottom = settings.paragraphSpacingDp.dp)
+                        )
+                    }
                     is ReaderBlock.Text -> {
                         val (text, inlineContent) = block.toAnnotatedReaderText(
                             baseStyle = textStyle,

@@ -110,6 +110,8 @@ private fun EsjzoneClient.checkAuthorizationOnce(
         val result = when {
             explicitLoginPage ->
                 AuthorizationProbe(AuthorizationCheckResult.UNAUTHORIZED)
+            hasLoginForm && !profileMarkerPresent ->
+                AuthorizationProbe(AuthorizationCheckResult.UNAUTHORIZED)
             responseCode == 401 ->
                 AuthorizationProbe(AuthorizationCheckResult.UNAUTHORIZED)
             responseCode == 403 &&

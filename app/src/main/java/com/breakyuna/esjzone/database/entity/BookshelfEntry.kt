@@ -41,4 +41,5 @@ object BookshelfSyncState {
     const val SYNCED = "SYNCED"
     const val PENDING_ADD = "PENDING_ADD"
     const val PENDING_REMOVE = "PENDING_REMOVE"
+    const val FAILED = "FAILED"
 }

@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
+import org.json.JSONArray
 
 internal data class ReleaseUpdate(val version: String, val pageUrl: String, val description: String)
 
@@ -91,7 +91,7 @@ internal object ReleaseUpdateChecker {
                     .retryOnConnectionFailure(false)
                     .build()
                 val request = Request.Builder()
-                    .url("https://api.github.com/repos/breakyuna/EsjzoneViewer/releases/latest")
+                    .url("https://api.github.com/repos/breakyuna/EsjzoneViewer/releases?per_page=20")
                     .header("Accept", "application/vnd.github+json")
                     .header("X-GitHub-Api-Version", "2022-11-28")
                     .header("User-Agent", "EsjzoneViewer/${BuildConfig.VERSION_NAME}")
@@ -102,13 +102,22 @@ internal object ReleaseUpdateChecker {
                         _status.value = ReleaseCheckState.Error
                         return@launch
                     }
-                    val release = JSONObject(response.body.readTextBounded())
-                    if (release.optBoolean("draft", true) || release.optBoolean("prerelease", true)) {
+                    val releases = JSONArray(response.body.readTextBounded())
+                    val betaChannel = BuildConfig.VERSION_NAME.contains("beta", ignoreCase = true)
+                    val release = (0 until releases.length())
+                        .asSequence()
+                        .map { releases.optJSONObject(it) }
+                        .filterNotNull()
+                        .firstOrNull { candidate ->
+                            !candidate.optBoolean("draft", false) &&
+                                (candidate.optBoolean("prerelease", false) == betaChannel)
+                        }
+                    if (release == null) {
                         _status.value = ReleaseCheckState.UpToDate
                         return@launch
                     }
                     val tag = release.optString("tag_name")
-                    if (!ReleaseVersion.isNewerStableRelease(tag, BuildConfig.VERSION_NAME)) {
+                    if (!ReleaseVersion.isNewerForInstalledChannel(tag, BuildConfig.VERSION_NAME)) {
                         _status.value = ReleaseCheckState.UpToDate
                         return@launch
                     }

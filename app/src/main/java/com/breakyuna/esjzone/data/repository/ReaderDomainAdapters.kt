@@ -86,16 +86,24 @@ private fun Component.toReaderBlocks(): List<ReaderBlock> = when (this) {
     is ImageComponent -> listOf(ReaderBlock.Image(url))
     is NewLineComponent -> listOf(ReaderBlock.LineBreak)
     is TextComponent -> {
-        val ruby = getStyles().filterIsInstance<FuriganaTextStyle>().firstOrNull()?.readingText()
-        listOf(
-            ReaderBlock.Text(
-                value = text,
-                styles = getStyles().mapNotNull(TextStyle::toReaderStyle).toSet(),
-                ruby = ruby?.let { ReaderRuby(base = text, reading = it.asPlainText()) }
-            )
-        ) + getExtras().flatMap(TextComponent::toReaderBlocks)
+        ReaderBlock.Paragraph(flattenReaderParts()).let(::listOf)
     }
     else -> emptyList()
+}
+
+private fun TextComponent.flattenReaderParts(): List<ReaderBlock.Text> = buildList {
+    fun appendPart(component: TextComponent) {
+        val ruby = component.getStyles().filterIsInstance<FuriganaTextStyle>().firstOrNull()?.readingText()
+        add(
+            ReaderBlock.Text(
+                value = component.text,
+                styles = component.getStyles().mapNotNull(TextStyle::toReaderStyle).toSet(),
+                ruby = ruby?.let { ReaderRuby(base = component.text, reading = it.asPlainText()) }
+            )
+        )
+        component.getExtras().forEach(::appendPart)
+    }
+    appendPart(this@flattenReaderParts)
 }
 
 private fun TextComponent.asPlainText(): String =

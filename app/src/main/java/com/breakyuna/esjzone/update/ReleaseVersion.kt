@@ -20,4 +20,15 @@ internal object ReleaseVersion {
         }
         return current.groupValues[4].isNotEmpty() || installed.contains("beta", ignoreCase = true)
     }
+
+    fun isNewerForInstalledChannel(tag: String, installed: String): Boolean {
+        val latest = pattern.matchEntire(tag.trim()) ?: return false
+        val current = pattern.matchEntire(installed.trim()) ?: return false
+        for (index in 1..3) {
+            val order = BigInteger(latest.groupValues[index])
+                .compareTo(BigInteger(current.groupValues[index]))
+            if (order != 0) return order > 0
+        }
+        return false
+    }
 }

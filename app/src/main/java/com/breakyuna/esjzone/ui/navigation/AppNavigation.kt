@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import android.net.Uri
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -139,6 +140,9 @@ data class ReaderRoute(
     val chapterIdentity: String
 )
 
+internal fun encodeRouteTokenPart(value: String): String = Uri.encode(value)
+internal fun decodeRouteTokenPart(value: String): String = Uri.decode(value)
+
 private fun LegacyRoute.token(): String = when (this) {
     is LegacyRoute.Static -> token
     is LegacyRoute.Search -> "SearchPage:$keyword"
@@ -146,7 +150,8 @@ private fun LegacyRoute.token(): String = when (this) {
     is LegacyRoute.Category -> if (name.isNotBlank()) "CategoryPage:$identity:$name" else "CategoryPage:$identity"
     is LegacyRoute.NovelList -> "NovelListPage:$novelType:$sortType:$adultOnly"
     is LegacyRoute.ChapterComments -> "ChapterCommentsPage:$identity"
-    is LegacyRoute.ForumCategory -> if (name.isNotBlank()) "ForumCategoryPage:$id:$url:$name" else "ForumCategoryPage:$id:$url"
+    is LegacyRoute.ForumCategory -> "ForumCategoryPage:$id:${encodeRouteTokenPart(url)}" +
+        name.takeIf(String::isNotBlank)?.let { ":${encodeRouteTokenPart(it)}" }.orEmpty()
     is LegacyRoute.ForumBoard -> "ForumBoardPage:$identity"
     is LegacyRoute.ForumPost -> "ForumPostPage:$identity"
 }
@@ -176,10 +181,10 @@ private fun routeFromToken(token: String): LegacyRoute {
         "ForumCategoryPage" -> {
             val parts = argument.split(':', limit = 3)
             val id = parts.getOrNull(0).orEmpty()
-            val url = parts.getOrNull(1).orEmpty().ifBlank {
+            val url = decodeRouteTokenPart(parts.getOrNull(1).orEmpty()).ifBlank {
                 "/forum/${parts.getOrNull(0).orEmpty()}/"
             }
-            val name = parts.getOrNull(2).orEmpty()
+            val name = decodeRouteTokenPart(parts.getOrNull(2).orEmpty())
             LegacyRoute.ForumCategory(
                 id = id,
                 url = url,
@@ -294,6 +299,11 @@ class AppNavigator internal constructor(
         }
         register(destination)
         backStack.add(AppNavKey.Legacy(routeFromToken(destination.key)))
+    }
+
+    /** Keep the persisted root reader key aligned with continuous-reading state. */
+    fun updateReaderRoute(novelId: String, chapterIdentity: String, destination: AppDestination) {
+        root.updateReaderRoute(ReaderRoute(novelId, chapterIdentity), destination)
     }
 
     fun pushIfNotCurrent(destination: AppDestination): Boolean {
@@ -416,6 +426,16 @@ class AppNavigator internal constructor(
         } else {
             backStack[backStack.lastIndex] = AppNavKey.Reader(route)
         }
+    }
+
+    private fun updateReaderRoute(route: ReaderRoute, destination: AppDestination) {
+        val index = backStack.indexOfLast { it is AppNavKey.Reader }
+        if (index < 0) return
+        val old = backStack[index] as AppNavKey.Reader
+        if (old.route == route) return
+        registry[readerToken(route)] = destination
+        backStack[index] = AppNavKey.Reader(route)
+        cleanupKey(old)
     }
 }
 

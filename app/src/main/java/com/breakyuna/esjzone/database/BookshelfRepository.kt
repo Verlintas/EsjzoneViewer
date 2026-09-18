@@ -58,6 +58,7 @@ object BookshelfRepository {
     private lateinit var localReadingDao: LocalReadingActivityDao
     private val syncMutex = Mutex()
     private val intentMutex = Mutex()
+    private const val MAX_SYNC_RETRIES = 5
     private val workerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val scheduledScopes = ConcurrentHashMap.newKeySet<String>()
     private val rescheduleScopes = ConcurrentHashMap.newKeySet<String>()
@@ -356,7 +357,7 @@ object BookshelfRepository {
         val pendingRows = dao.getAll(scope).filter {
             it.syncState == BookshelfSyncState.PENDING_ADD ||
                 it.syncState == BookshelfSyncState.PENDING_REMOVE
-        }
+        }.filter { it.retryCount < MAX_SYNC_RETRIES }
         val initialRemovalKeys = pendingRows
             .filter { it.syncState == BookshelfSyncState.PENDING_REMOVE }
             .mapTo(mutableSetOf()) { it.bookKey }
@@ -378,6 +379,11 @@ object BookshelfRepository {
                     }
                 } else {
                     if (remoteCallCount > 0) delay(150)
+                    val current = dao.find(scope, local.bookKey)
+                    if (current == null || current.operationVersion != local.operationVersion ||
+                        current.syncState != BookshelfSyncState.PENDING_ADD) {
+                        return@forEach
+                    }
                     remoteCallCount++
                     if (EsjzoneClient.toggleFavorite(authorization, local)) {
                         val current = dao.find(scope, local.bookKey)
@@ -390,7 +396,9 @@ object BookshelfRepository {
                         }
                     } else {
                         operationFailed = true
-                        dao.markRetry(scope, local.bookKey, local.operationVersion, "favorite request failed")
+                        if (local.retryCount + 1 >= MAX_SYNC_RETRIES) {
+                            dao.markFailed(scope, local.bookKey, local.operationVersion, "favorite request failed")
+                        } else dao.markRetry(scope, local.bookKey, local.operationVersion, "favorite request failed")
                     }
                 }
             } else {
@@ -405,6 +413,11 @@ object BookshelfRepository {
                     }
                 } else {
                     if (remoteCallCount > 0) delay(150)
+                    val current = dao.find(scope, local.bookKey)
+                    if (current == null || current.operationVersion != local.operationVersion ||
+                        current.syncState != BookshelfSyncState.PENDING_REMOVE) {
+                        return@forEach
+                    }
                     remoteCallCount++
                     if (EsjzoneClient.toggleFavorite(authorization, local)) {
                         val current = dao.find(scope, local.bookKey)
@@ -416,7 +429,9 @@ object BookshelfRepository {
                         }
                     } else {
                         operationFailed = true
-                        dao.markRetry(scope, local.bookKey, local.operationVersion, "unfavorite request failed")
+                        if (local.retryCount + 1 >= MAX_SYNC_RETRIES) {
+                            dao.markFailed(scope, local.bookKey, local.operationVersion, "unfavorite request failed")
+                        } else dao.markRetry(scope, local.bookKey, local.operationVersion, "unfavorite request failed")
                     }
                 }
             }

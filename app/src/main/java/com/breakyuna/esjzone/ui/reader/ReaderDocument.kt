@@ -56,22 +56,29 @@ private fun Component.toReaderBlocks(): List<ReaderBlock> = when (this) {
     is ImageComponent -> listOf(ReaderBlock.Image(url))
     is NewLineComponent -> listOf(ReaderBlock.LineBreak)
     is TextComponent -> {
-        val reading = getStyles()
+        ReaderBlock.Paragraph(flattenParagraphParts())
+            .let(::listOf)
+    }
+    else -> emptyList()
+}
+
+private fun TextComponent.flattenParagraphParts(): List<ReaderBlock.Text> = buildList {
+    fun appendPart(component: TextComponent) {
+        val reading = component.getStyles()
             .filterIsInstance<FuriganaTextStyle>()
             .firstOrNull()
             ?.readingText()
             ?.let { it.text + it.getExtras().joinToString("") { extra -> extra.text } }
-        listOf(
+        add(
             ReaderBlock.Text(
-                value = text,
-                styles = getStyles().mapNotNull(TextStyle::toReaderStyle).toSet(),
-                ruby = reading?.let {
-                    com.breakyuna.esjzone.domain.reader.ReaderRuby(text, it)
-                }
+                value = component.text,
+                styles = component.getStyles().mapNotNull(TextStyle::toReaderStyle).toSet(),
+                ruby = reading?.let { com.breakyuna.esjzone.domain.reader.ReaderRuby(component.text, it) }
             )
-        ) + getExtras().flatMap(TextComponent::toReaderBlocks)
+        )
+        component.getExtras().forEach(::appendPart)
     }
-    else -> emptyList()
+    appendPart(this@flattenParagraphParts)
 }
 
 private fun TextStyle.toReaderStyle(): ReaderTextStyle? = when {
@@ -95,10 +102,13 @@ private fun Color.toReaderColor(factory: (Int, Int, Int) -> ReaderTextStyle): Re
 
 private data class RubyMeasureKey(
     val text: String,
+    val reading: String,
     val fontSizeSp: Float,
     val fontWeight: FontWeight?,
     val fontStyle: FontStyle?,
-    val densityDensity: Float
+    val fontFamily: String?,
+    val densityDensity: Float,
+    val fontScale: Float
 )
 
 private val rubyMeasureCache = object : LinkedHashMap<RubyMeasureKey, Pair<androidx.compose.ui.unit.TextUnit, androidx.compose.ui.unit.TextUnit>>(128, 0.75f, true) {
@@ -128,16 +138,24 @@ internal fun ReaderBlock.Text.toAnnotatedReaderText(
     val effectiveStyle = baseStyle.merge(span)
     val measureKey = RubyMeasureKey(
         text = displayed,
+        reading = ruby.reading,
         fontSizeSp = effectiveStyle.fontSize.value,
         fontWeight = effectiveStyle.fontWeight,
         fontStyle = effectiveStyle.fontStyle,
-        densityDensity = density.density
+        fontFamily = effectiveStyle.fontFamily?.toString(),
+        densityDensity = density.density,
+        fontScale = density.fontScale
+    )
+    val rubyStyle = baseStyle.copy(
+        fontSize = (baseStyle.fontSize.value * 0.56f).coerceAtLeast(8f).sp,
+        lineHeight = (baseStyle.fontSize.value * 0.65f).coerceAtLeast(9f).sp
     )
     val (width, height) = synchronized(rubyMeasureCache) {
         rubyMeasureCache[measureKey]
     } ?: run {
-        val measured = textMeasurer.measure(displayed, effectiveStyle).size
-        val measuredWidth = with(density) { measured.width.toDp().toSp() }
+        val baseWidth = textMeasurer.measure(displayed, effectiveStyle).size.width
+        val rubyWidth = textMeasurer.measure(textTransform(ruby.reading), rubyStyle).size.width
+        val measuredWidth = with(density) { maxOf(baseWidth, rubyWidth).toDp().toSp() }
         val w = if (measuredWidth.value < 1f) 1.sp else measuredWidth
         val h = (baseStyle.lineHeight.value * 1.45f).coerceAtLeast(18f).sp
         val dimensions = w to h
@@ -156,10 +174,7 @@ internal fun ReaderBlock.Text.toAnnotatedReaderText(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = textTransform(ruby.reading),
-                    style = baseStyle.copy(
-                        fontSize = (baseStyle.fontSize.value * 0.56f).coerceAtLeast(8f).sp,
-                        lineHeight = (baseStyle.fontSize.value * 0.65f).coerceAtLeast(9f).sp
-                    ),
+                    style = rubyStyle,
                     maxLines = 1
                 )
                 Text(text = displayed, style = baseStyle.merge(span), maxLines = 1)

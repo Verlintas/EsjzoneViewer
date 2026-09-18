@@ -507,6 +507,13 @@ class ChapterPage(
         val currentReadingChapter = currentBookLocation?.chapter
             ?: activeChapter?.chapter
             ?: requestedChapter.value
+        LaunchedEffect(novelId, currentReadingChapter.url) {
+            navigator?.updateReaderRoute(
+                novelId = novelId.ifBlank { currentReadingChapter.novelId() },
+                chapterIdentity = currentReadingChapter.url,
+                destination = this@ChapterPage
+            )
+        }
         val visibleReaderChapterKeys by remember(result, scrollState) {
             derivedStateOf {
                 val loadedKeys = result?.chapters
@@ -1421,9 +1428,13 @@ class ChapterPage(
                 visible = showReaderSettings,
                 settings = readerSettings,
                 previewText = activeChapter?.document?.blocks
-                    ?.filterIsInstance<ReaderBlock.Text>()
-                    ?.firstOrNull()
-                    ?.value
+                    ?.firstNotNullOfOrNull { block ->
+                        when (block) {
+                            is ReaderBlock.Paragraph -> block.parts.firstOrNull()?.value
+                            is ReaderBlock.Text -> block.value
+                            else -> null
+                        }
+                    }
                     ?.let(readerTextTransform)
                     .orEmpty(),
                 onSettingsChange = { updated -> updateReaderSettings(updated) },

@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
 import com.breakyuna.esjzone.ui.navigation.rememberAppViewModel
 import com.breakyuna.esjzone.ui.navigation.AppDestination
+import com.breakyuna.esjzone.ui.navigation.encodeRouteTokenPart
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneUrls
@@ -182,8 +183,8 @@ object ForumPage : AppDestination {
 class ForumCategoryPage(private val category: ForumCategory) : AppDestination {
     override val key: String =
         "ForumCategoryPage:" + category.id.ifBlank { category.url.trim() } + ":" +
-            EsjzoneUrls.canonicalPageKey(category.url).ifBlank { category.url.trim() } +
-            if (category.name.isNotBlank()) ":" + category.name.trim() else ""
+            encodeRouteTokenPart(EsjzoneUrls.canonicalPageKey(category.url).ifBlank { category.url.trim() }) +
+            if (category.name.isNotBlank()) ":" + encodeRouteTokenPart(category.name.trim()) else ""
 
     @Composable
     override fun Content() {

@@ -24,6 +24,9 @@ data class ReaderRuby(
 
 /** The renderer can map this AST to any UI toolkit without reparsing HTML. */
 sealed interface ReaderBlock {
+    /** One source paragraph; its spans must flow inline instead of becoming rows. */
+    data class Paragraph(val parts: List<Text>) : ReaderBlock
+
     data class Text(
         val value: String,
         val styles: Set<ReaderTextStyle> = emptySet(),
