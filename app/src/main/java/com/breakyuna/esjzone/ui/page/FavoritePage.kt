@@ -710,26 +710,10 @@ private fun ShelfCard(
 @Composable
 private fun BookshelfUpdateDot(modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(14.dp)
-                .background(Color(0xFF4ADE80).copy(alpha = 0.35f), CircleShape)
-        )
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .background(Color(0xFF22C55E).copy(alpha = 0.7f), CircleShape)
-        )
-        Box(
-            modifier = Modifier
-                .size(7.dp)
-                .background(Color(0xFF4ADE80), CircleShape)
-                .border(0.75.dp, Color.White.copy(alpha = 0.9f), CircleShape)
-        )
-    }
+        modifier = modifier
+            .size(AppSpacing.sm)
+            .background(Color(0xFF22C55E), CircleShape)
+    )
 }
 
 @Composable
