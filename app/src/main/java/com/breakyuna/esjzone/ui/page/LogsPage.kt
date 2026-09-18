@@ -113,7 +113,10 @@ object LogsPage : AppDestination {
                         IconButton(onClick = { copyText(context, AppLogger.exportLogsText()); Toast.makeText(context, copiedToast, Toast.LENGTH_SHORT).show() }) { Icon(Icons.Filled.ContentCopy, stringResource(R.string.logs_copy_all)) }
                         IconButton(onClick = {
                             val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, AppLogger.exportLogsText()); putExtra(Intent.EXTRA_SUBJECT, "Esjzone System Logs") }
-                            context.startActivity(Intent.createChooser(intent, shareLabel))
+                            val chooser = Intent.createChooser(intent, shareLabel).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(chooser)
                         }) { Icon(Icons.Filled.Share, stringResource(R.string.logs_share)) }
                         IconButton(onClick = { clearDialog = true }) { Icon(Icons.Filled.Delete, stringResource(R.string.logs_clear)) }
                     },

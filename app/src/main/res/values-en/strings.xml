@@ -432,6 +432,8 @@
     <string name="reader_offline_title">You are offline</string>
     <string name="reader_offline_message">The network is unavailable. Downloaded chapters remain readable.</string>
     <string name="reader_offline_badge">Offline content</string>
+    <string name="external_link_not_supported">External links are not supported yet</string>
+    <string name="external_link_not_supported_desc">This chapter is an external web link and cannot be read directly in the app.</string>
     <string name="reader_loading">Loading chapter…</string>
     <string name="bookmarks">Bookmarks</string>
     <string name="bookmarks_description">Save chapters locally for quick access</string>

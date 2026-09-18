@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -156,19 +157,16 @@ private fun ChapterDetailRow(
     onChapterOpen: (Chapter) -> Unit
 ) {
     val current = chapter.isHistory || (hasHistory && currentChapter == chapter)
-    val canOpen = chapter.url.contains("esjzone", ignoreCase = true) ||
-        chapter.url.contains("/forum/", ignoreCase = true)
+    val isExternal = chapter.isExternal
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .padding(start = (depth * 14).dp, top = 2.dp, bottom = 2.dp)
-            .then(
-                if (canOpen) Modifier.clickable {
-                    onChapterOpen(chapter)
-                } else Modifier
-            ),
+            .clickable {
+                onChapterOpen(chapter)
+            },
         shape = AppShapes.compact,
         color = if (current) {
             MaterialTheme.colorScheme.primaryContainer
@@ -208,9 +206,9 @@ private fun ChapterDetailRow(
                 modifier = Modifier.weight(1f)
             )
             Icon(
-                imageVector = Icons.Filled.ChevronRight,
+                imageVector = if (isExternal) Icons.Filled.OpenInNew else Icons.Filled.ChevronRight,
                 contentDescription = null,
-                tint = if (canOpen) {
+                tint = if (!isExternal) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)

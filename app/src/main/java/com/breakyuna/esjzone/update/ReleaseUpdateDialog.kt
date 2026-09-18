@@ -34,7 +34,10 @@ internal fun ReleaseUpdateDialog() {
         confirmButton = {
             TextButton(onClick = {
                 try {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.pageUrl)))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(release.pageUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
                     ReleaseUpdateChecker.dismiss()
                 } catch (_: ActivityNotFoundException) {
                     Toast.makeText(context, R.string.update_browser_unavailable, Toast.LENGTH_SHORT).show()

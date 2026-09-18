@@ -432,6 +432,8 @@
     <string name="reader_offline_title">当前处于离线状态</string>
     <string name="reader_offline_message">网络不可用，已下载的章节仍可继续阅读。</string>
     <string name="reader_offline_badge">离线内容</string>
+    <string name="external_link_not_supported">暂不支持站外链接</string>
+    <string name="external_link_not_supported_desc">该章节为站外网页链接，当前暂不支持直接阅读。</string>
     <string name="reader_loading">正在加载正文…</string>
     <string name="bookmarks">本地书签</string>
     <string name="bookmarks_description">将章节保存在本机，方便快速访问</string>

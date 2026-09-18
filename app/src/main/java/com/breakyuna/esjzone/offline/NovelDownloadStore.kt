@@ -362,6 +362,7 @@ object NovelDownloadStore {
         onProgress: (DownloadProgress) -> Unit = {}
     ): DownloadedNovelManifest {
         val orderedChapters = novel.chapterList.orderedChapters
+            .filter { !it.isExternal }
             .distinctBy { chapterKey(it.url) }
         require(orderedChapters.isNotEmpty()) { "This novel has no downloadable chapters" }
 

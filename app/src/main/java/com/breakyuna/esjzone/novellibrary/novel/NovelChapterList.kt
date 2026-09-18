@@ -30,24 +30,33 @@ data class NovelChapterList(
         var toRead: Chapter? = null
         for (item in items) {
             if (item is ChapterItem) {
-                if (toRead == null)
+                if (toRead == null && !item.chapter.isExternal)
                     toRead = item.chapter
                 if (item.chapter.isHistory) {
-                    if (!toRead.isHistory)
+                    if (toRead?.isHistory != true)
                         toRead = item.chapter
                     hasHistory = true
                     break
                 }
             } else if (item is ChapterListItem) {
                 for (chapter in item.chapters) {
-                    if (toRead == null)
+                    if (toRead == null && !chapter.isExternal)
                         toRead = chapter
                     if (chapter.isHistory) {
-                        if (!toRead.isHistory)
+                        if (toRead?.isHistory != true)
                             toRead = chapter
                         hasHistory = true
                         break
                     }
+                }
+            }
+        }
+        if (toRead == null) {
+            toRead = items.firstNotNullOfOrNull { item ->
+                when (item) {
+                    is ChapterItem -> item.chapter
+                    is ChapterListItem -> item.chapters.firstOrNull()
+                    else -> null
                 }
             }
         }

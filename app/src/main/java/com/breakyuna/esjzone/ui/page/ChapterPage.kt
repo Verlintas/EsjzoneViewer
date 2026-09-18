@@ -994,6 +994,24 @@ class ChapterPage(
                             }
                         }
 
+                        is ChapterPageModel.State.UnsupportedExternalLink -> item(key = "reader-unsupported-link") {
+                            Column {
+                                ReaderChapterHeading(
+                                    currentChapterName,
+                                    readerSettings,
+                                    readerContentColor,
+                                    readerTextTransform
+                                )
+                                ReaderFeedbackState(
+                                    title = stringResource(R.string.external_link_not_supported),
+                                    message = stringResource(R.string.external_link_not_supported_desc),
+                                    isError = false,
+                                    actionLabel = null,
+                                    onAction = null
+                                )
+                            }
+                        }
+
                         is ChapterPageModel.State.Error -> item(key = "reader-error") {
                             Column {
                                 ReaderChapterHeading(
@@ -1019,7 +1037,7 @@ class ChapterPage(
                                         }
                                     ),
                                     isError = true,
-                                    onRetry = { chapterPageModel.openChapter(requestedChapter.value) }
+                                    onAction = { chapterPageModel.openChapter(requestedChapter.value) }
                                 )
                             }
                         }
@@ -1036,7 +1054,7 @@ class ChapterPage(
                                     title = stringResource(R.string.reader_empty_title),
                                     message = stringResource(R.string.reader_empty_message),
                                     isError = false,
-                                    onRetry = { chapterPageModel.openChapter(requestedChapter.value) }
+                                    onAction = { chapterPageModel.openChapter(requestedChapter.value) }
                                 )
                             }
                         }
@@ -1690,22 +1708,23 @@ private fun ReaderProgressLens(
 ) {
     Surface(
         modifier = Modifier
-            .wrapContentWidth()
-            .widthIn(min = 200.dp, max = 320.dp)
-            .padding(horizontal = AppSpacing.lg),
+            .width(280.dp)
+            .height(56.dp),
         shape = RoundedCornerShape(12.dp),
         color = Color(0xEE222222),
         contentColor = Color.White,
         shadowElevation = 6.dp
     ) {
         Row(
-            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
                 modifier = Modifier
-                    .weight(1f, fill = false)
-                    .padding(end = 12.dp)
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(start = 14.dp, end = 12.dp),
+                verticalArrangement = Arrangement.Center
             ) {
                 Text(
                     text = location.chapter.name,
@@ -1730,18 +1749,21 @@ private fun ReaderProgressLens(
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(32.dp)
-                    .background(Color.White.copy(alpha = 0.15f))
+                    .fillMaxHeight()
+                    .background(Color.White.copy(alpha = 0.18f))
             )
             IconButton(
                 onClick = onReturn,
                 enabled = canReturn,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .width(56.dp)
+                    .fillMaxHeight()
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Undo,
                     contentDescription = stringResource(R.string.reader_preview_return),
-                    tint = if (canReturn) Color.White else Color.White.copy(alpha = 0.38f)
+                    tint = if (canReturn) Color.White else Color.White.copy(alpha = 0.38f),
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
@@ -1924,7 +1946,8 @@ private fun ReaderFeedbackState(
     title: String,
     message: String,
     isError: Boolean,
-    onRetry: () -> Unit
+    actionLabel: String? = stringResource(R.string.retry),
+    onAction: (() -> Unit)? = null
 ) {
     AppGlassSurface(
         modifier = Modifier
@@ -1943,8 +1966,8 @@ private fun ReaderFeedbackState(
         AppFeedback(
             title = title,
             message = message,
-            actionLabel = stringResource(R.string.retry),
-            onAction = onRetry,
+            actionLabel = actionLabel,
+            onAction = onAction,
             modifier = Modifier.fillMaxWidth()
         )
     }

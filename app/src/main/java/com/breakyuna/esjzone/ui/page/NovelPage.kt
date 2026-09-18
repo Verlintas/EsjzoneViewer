@@ -450,21 +450,25 @@ private fun NovelDetailContent(
         }.distinctBy { it.url }
     }
     val latestChapter = orderedChapters.lastOrNull()
-    val onChapterOpen: (Chapter) -> Unit = remember(detailed, history, orderedChapters, navigator) {
+    val onChapterOpen: (Chapter) -> Unit = remember(detailed, history, orderedChapters, navigator, context) {
         { chapter: Chapter ->
-            historyState.value = chapter
-            hasHistory.value = true
-            navigator?.pushIfNotCurrent(
-                ChapterPage(
-                    novelId = detailed.id(),
-                    chapter = chapter,
-                    history = history,
-                    chapterOrder = orderedChapters,
-                    novelName = detailed.name,
-                    novelUrl = detailed.url,
-                    novelCoverUrl = detailed.coverUrl
+            if (chapter.isExternal) {
+                Toast.makeText(context, R.string.external_link_not_supported, Toast.LENGTH_SHORT).show()
+            } else {
+                historyState.value = chapter
+                hasHistory.value = true
+                navigator?.pushIfNotCurrent(
+                    ChapterPage(
+                        novelId = detailed.id(),
+                        chapter = chapter,
+                        history = history,
+                        chapterOrder = orderedChapters,
+                        novelName = detailed.name,
+                        novelUrl = detailed.url,
+                        novelCoverUrl = detailed.coverUrl
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -520,21 +524,25 @@ private fun NovelDetailContent(
                             enabled = targetChapter != null,
                             onClick = {
                                 targetChapter?.let { chapter ->
-                                    navigator?.pushIfNotCurrent(
-                                        ChapterPage(
-                                            novelId = detailed.id(),
-                                            chapter = chapter,
-                                            history = history,
-                                            chapterOrder = orderedChapters,
-                                            novelName = detailed.name,
-                                            novelUrl = detailed.url,
-                                            novelCoverUrl = detailed.coverUrl,
-                                            resumeChapterProgress = localReading?.chapterProgress
-                                                ?.takeIf { localChapter != null &&
-                                                    EsjzoneUrls.canonicalPageKey(chapter.url) ==
-                                                    EsjzoneUrls.canonicalPageKey(localChapter.url) }
+                                    if (chapter.isExternal) {
+                                        Toast.makeText(context, R.string.external_link_not_supported, Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        navigator?.pushIfNotCurrent(
+                                            ChapterPage(
+                                                novelId = detailed.id(),
+                                                chapter = chapter,
+                                                history = history,
+                                                chapterOrder = orderedChapters,
+                                                novelName = detailed.name,
+                                                novelUrl = detailed.url,
+                                                novelCoverUrl = detailed.coverUrl,
+                                                resumeChapterProgress = localReading?.chapterProgress
+                                                    ?.takeIf { localChapter != null &&
+                                                        EsjzoneUrls.canonicalPageKey(chapter.url) ==
+                                                        EsjzoneUrls.canonicalPageKey(localChapter.url) }
+                                            )
                                         )
-                                    )
+                                    }
                                 }
                             },
                             modifier = Modifier
@@ -1020,11 +1028,9 @@ private fun RebuiltChapterRow(
             } else {
                 val current = chapter.chapter.isHistory ||
                     (hasHistory && chapter.chapter == currentChapter)
-                val canOpen = chapter.chapter.url.contains("esjzone", ignoreCase = true) ||
-                    chapter.chapter.url.contains("forum", ignoreCase = true)
+                val isExternal = chapter.chapter.isExternal
                 Card(
-                    onClick = { if (canOpen) onChapterOpen(chapter.chapter) },
-                    enabled = canOpen,
+                    onClick = { onChapterOpen(chapter.chapter) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = AppSpacing.md * row.depth, top = AppSpacing.xs, bottom = AppSpacing.xs),
@@ -1046,7 +1052,11 @@ private fun RebuiltChapterRow(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            imageVector = if (isExternal) Icons.Filled.OpenInNew else Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = if (isExternal) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
@@ -1546,7 +1556,10 @@ private fun openExternal(context: Context, rawUrl: String) {
     val url = rawUrl.trim()
     if (url.isBlank()) return
     runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
     }.onFailure { error ->
         if (error !is ActivityNotFoundException) {
             AppLogger.w("NovelPage", "Unable to open external URL", error)

@@ -53,6 +53,7 @@ class ChapterPageModel(
     sealed class State {
         data object Loading : State()
         data object Empty : State()
+        data object UnsupportedExternalLink : State()
         data class Error(val failure: LoadFailureKind) : State()
         data class Result(
             val chapters: List<ReaderChapter>,
@@ -144,6 +145,12 @@ class ChapterPageModel(
         // Cancel outside the model lock: cancellation handlers may publish or
         // remove their own entries while unwinding.
         jobsToCancel.forEach(Job::cancel)
+
+        if (chapter.isExternal) {
+            mutableState.value = State.UnsupportedExternalLink
+            return
+        }
+
         mutableState.value = State.Loading
 
         initialJob = viewModelScope.launch(Dispatchers.IO) {
@@ -489,6 +496,7 @@ class ChapterPageModel(
     }
 
     private fun prefetch(chapter: Chapter) {
+        if (chapter.isExternal) return
         val key = chapterKey(chapter)
         if (key.isBlank()) return
         synchronized(lock) {
@@ -567,14 +575,14 @@ class ChapterPageModel(
             (if (index >= 0) orderedChapters.getOrNull(index + offset) else null) to
                 (index >= 0)
         }
-        if (adjacent != null) return adjacent
+        if (adjacent != null) return adjacent.takeUnless { it.isExternal }
         // A history record can point to a valid chapter that the refreshed TOC
         // no longer contains.  In that case the live chapter's previous/next
         // link is the only usable continuation.  If the chapter is present in
         // the canonical TOC, keep its boundary authoritative and do not follow
         // unrelated site navigation links.
         if (currentInCanonicalOrder) return null
-        return fallback
+        return fallback?.takeUnless { it.isExternal }
     }
 
     private fun publish(currentSession: Long? = null) {
@@ -611,7 +619,7 @@ class ChapterPageModel(
 
     private fun normalizeChapterOrder(chapters: List<Chapter>): List<Chapter> =
         chapters.asSequence()
-            .filter { chapterKey(it).isNotBlank() }
+            .filter { !it.isExternal && chapterKey(it).isNotBlank() }
             .distinctBy { chapterKey(it) }
             .toList()
 
