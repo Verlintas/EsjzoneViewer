@@ -20,6 +20,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +38,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
@@ -93,6 +97,7 @@ object HomeTab : AppTab {
         val waterCoolerTitle = stringResource(R.string.home_water_cooler)
         val randomRecommendationsTitle = stringResource(R.string.home_random_recommendations)
         val changeBatchLabel = stringResource(R.string.home_random_change_batch)
+        val collapseLabel = stringResource(R.string.home_random_collapse)
 
         val navPadding = LocalFloatingNavPadding.current
         val layoutDirection = LocalLayoutDirection.current
@@ -148,13 +153,38 @@ object HomeTab : AppTab {
         var hasStationedAtBottom by remember { mutableStateOf(false) }
 
         LaunchedEffect(listState, randomState.isActivated) {
-            if (randomState.isActivated) return@LaunchedEffect
+            if (randomState.isActivated) {
+                hasStationedAtBottom = false
+                return@LaunchedEffect
+            }
             snapshotFlow { !listState.canScrollForward && !listState.isScrollInProgress }
                 .collect { isStationed ->
                     if (isStationed) {
                         hasStationedAtBottom = true
                     }
                 }
+        }
+
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_RESUME -> model.onHomeShown()
+                    Lifecycle.Event.ON_PAUSE,
+                    Lifecycle.Event.ON_STOP -> {
+                        model.onHomeHidden {
+                            val layout = listState.layoutInfo
+                            val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: 0
+                            lastVisible < (layout.totalItemsCount - 8).coerceAtLeast(0)
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+            }
         }
 
         val bottomSwipeConnection = remember(randomState.isActivated, adult, hasStationedAtBottom) {
@@ -319,8 +349,10 @@ object HomeTab : AppTab {
                                 state = randomState,
                                 title = randomRecommendationsTitle,
                                 changeBatchLabel = changeBatchLabel,
+                                collapseLabel = collapseLabel,
                                 onActivate = { model.activateRandomRecommendations(adult) },
                                 onChangeBatch = { model.replaceRandomRecommendations(adult) },
+                                onCollapse = { model.unloadRandomRecommendations(clearDeduplication = false) },
                                 onRetry = { model.retryRandomRecommendations(adult) },
                                 onNovelClick = onNovelClick
                             )

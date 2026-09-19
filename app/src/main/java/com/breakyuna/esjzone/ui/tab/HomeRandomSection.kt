@@ -32,8 +32,10 @@ internal fun LazyListScope.randomRecommendationsSection(
     state: HomeTabModel.RandomRecommendationsState,
     title: String,
     changeBatchLabel: String,
+    collapseLabel: String,
     onActivate: () -> Unit,
     onChangeBatch: () -> Unit,
+    onCollapse: () -> Unit,
     onRetry: () -> Unit,
     onNovelClick: (CoveredNovel) -> Unit
 ) {
@@ -85,6 +87,11 @@ internal fun LazyListScope.randomRecommendationsSection(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f)
             )
+            TextButton(
+                onClick = onCollapse
+            ) {
+                Text(collapseLabel)
+            }
             TextButton(
                 enabled = !state.isLoading,
                 onClick = onChangeBatch

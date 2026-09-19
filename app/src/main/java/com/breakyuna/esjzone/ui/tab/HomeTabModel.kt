@@ -1,6 +1,10 @@
 package com.breakyuna.esjzone.ui.tab
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.lifecycle.viewModelScope
+import com.breakyuna.esjzone.EsjzoneApplication
 import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.LoadFailureKind
@@ -16,14 +20,17 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
 internal const val RANDOM_RECOMMENDATION_BATCH_SIZE = 24
 internal const val RANDOM_RECOMMENDATION_MAX_PAGES_PER_BATCH = 3
+internal const val RANDOM_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000L
 
 class HomeTabModel(
     private val authorization: Authorization
@@ -33,6 +40,7 @@ class HomeTabModel(
 
     private var loadStarted = false
     private var randomLoadJob: Job? = null
+    private var inactivityJob: Job? = null
     private var randomRequester: PageableRequester<CoveredNovel>? = null
     private var randomAdultMode: Boolean? = null
     private val randomVisitedPages = mutableSetOf<Int>()
@@ -60,8 +68,8 @@ class HomeTabModel(
     fun onRandomAdultModeChanged(adult: Boolean) {
         val previousMode = randomAdultMode
         randomAdultMode = adult
-        if (previousMode != null && previousMode != adult && _randomRecommendations.value.isActivated) {
-            replaceRandomRecommendations(adult)
+        if (previousMode != null && previousMode != adult) {
+            unloadRandomRecommendations(clearDeduplication = true)
         }
     }
 
@@ -79,6 +87,58 @@ class HomeTabModel(
     fun retryRandomRecommendations(adult: Boolean) {
         randomAdultMode = adult
         loadRandomRecommendations(adult = adult, replace = false, activate = true)
+    }
+
+    fun unloadRandomRecommendations(clearDeduplication: Boolean = false) {
+        inactivityJob?.cancel()
+        inactivityJob = null
+        randomLoadJob?.cancel()
+        randomLoadJob = null
+        if (clearDeduplication) {
+            randomVisitedPages.clear()
+            randomSeenNovelKeys.clear()
+            randomRequester = null
+        }
+        _randomRecommendations.value = RandomRecommendationsState(
+            items = emptyList(),
+            isLoading = false,
+            failure = null,
+            hasMore = true,
+            isActivated = false
+        )
+    }
+
+    fun onHomeHidden(safeToUnload: () -> Boolean = { true }) {
+        if (!_randomRecommendations.value.isActivated) return
+        inactivityJob?.cancel()
+        inactivityJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(RANDOM_INACTIVITY_TIMEOUT_MS)
+            ensureActive()
+            if (isNetworkConnected()) {
+                withContext(Dispatchers.Main.immediate) {
+                    if (safeToUnload()) {
+                        unloadRandomRecommendations(clearDeduplication = false)
+                    }
+                }
+            }
+        }
+    }
+
+    fun onHomeShown() {
+        inactivityJob?.cancel()
+        inactivityJob = null
+    }
+
+    private fun isNetworkConnected(): Boolean {
+        return try {
+            val app = EsjzoneApplication.instance
+            val cm = app.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val activeNet = cm?.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(activeNet) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) {
+            true
+        }
     }
 
     private fun loadRandomRecommendations(adult: Boolean, replace: Boolean, activate: Boolean) {
@@ -190,6 +250,7 @@ class HomeTabModel(
 
     fun reload() {
         loadStarted = false
+        unloadRandomRecommendations(clearDeduplication = true)
         getHomeData(forceRefresh = true)
     }
 }
