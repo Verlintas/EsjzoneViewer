@@ -1,5 +1,10 @@
 package com.breakyuna.esjzone.ui.tab
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,13 +18,12 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.breakyuna.esjzone.R
@@ -30,6 +34,7 @@ import com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState
 import java.time.DayOfWeek
 
 internal const val WEEKLY_UPDATE_MAX_ITEMS = 24
+private const val WEEKLY_UPDATE_TRANSITION_DURATION = 280
 
 internal fun LazyListScope.weeklyUpdatesCollection(
     days: List<WeeklyUpdateDay>,
@@ -48,33 +53,58 @@ internal fun LazyListScope.weeklyUpdatesCollection(
     item(key = "home-weekly-header", contentType = "home-weekly-header") {
         WeeklyUpdatesHeader(days, selectedIndex, onSelect)
     }
-
-    val novels = novelsByDay.getOrNull(selectedIndex).orEmpty()
-    if (novels.isEmpty()) {
-        item(key = "home-weekly-empty-$selectedIndex", contentType = "empty") {
-            DiscoveryEmptyState(
-                title = stringResource(R.string.home_collection_empty_title),
-                message = stringResource(R.string.home_weekly_update_empty)
-            )
+    item(key = "home-weekly-content", contentType = "home-weekly-content") {
+        AnimatedContent(
+            targetState = selectedIndex,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth } togetherWith
+                        slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth }
+                } else {
+                    slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth } togetherWith
+                        slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = AppSpacing.sm)
+                .weeklyDaySwipe(days, selectedIndex, onSelect),
+            label = "weekly-update-date-transition"
+        ) { index ->
+            val novels = novelsByDay.getOrNull(index).orEmpty()
+            if (novels.isEmpty()) {
+                DiscoveryEmptyState(
+                    title = stringResource(R.string.home_collection_empty_title),
+                    message = stringResource(R.string.home_weekly_update_empty)
+                )
+            } else {
+                HomeNovelGrid(
+                    novels = novels,
+                    showLatestTitle = true,
+                    onNovelClick = onNovelClick
+                )
+            }
         }
-    } else {
-        val rows = novels.chunked(HOME_GRID_COLUMNS)
-        items(
-            count = rows.size,
-            key = { rowIndex -> "home-weekly-$selectedIndex-row:${novelKey(rows[rowIndex].first())}" },
-            contentType = { "home-grid-row" }
-        ) { rowIndex ->
-            val row = rows[rowIndex]
+    }
+}
+
+@Composable
+private fun HomeNovelGrid(
+    novels: List<CoveredNovel>,
+    showLatestTitle: Boolean = false,
+    onNovelClick: (CoveredNovel) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val rows = remember(novels) { novels.chunked(HOME_GRID_COLUMNS) }
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
+    ) {
+        rows.forEach { row ->
             NovelGridRow(
                 row = row,
-                showLatestTitle = true,
-                onNovelClick = onNovelClick,
-                modifier = Modifier
-                    .padding(
-                        top = if (rowIndex == 0) AppSpacing.sm else AppSpacing.zero,
-                        bottom = if (rowIndex < rows.size - 1) AppSpacing.lg else AppSpacing.zero
-                    )
-                    .semantics { contentDescription = "Weekly update row $rowIndex" }
+                showLatestTitle = showLatestTitle,
+                onNovelClick = onNovelClick
             )
         }
     }
