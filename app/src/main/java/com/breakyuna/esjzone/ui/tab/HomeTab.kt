@@ -261,7 +261,6 @@ object HomeTab : AppTab {
                                 showDivider = true,
                                 onMore = null,
                                 onNovelClick = onNovelClick,
-                                navigator = navigator,
                                 browseMoreLabel = browseMoreLabel,
                                 emptyTitle = emptyCollectionTitle,
                                 emptyMessage = emptyCollectionMessage
@@ -272,7 +271,6 @@ object HomeTab : AppTab {
                                 showDivider = true,
                                 onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, false)) },
                                 onNovelClick = onNovelClick,
-                                navigator = navigator,
                                 browseMoreLabel = browseMoreLabel,
                                 emptyTitle = emptyCollectionTitle,
                                 emptyMessage = emptyCollectionMessage
@@ -283,7 +281,6 @@ object HomeTab : AppTab {
                                 showDivider = true,
                                 onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, false)) },
                                 onNovelClick = onNovelClick,
-                                navigator = navigator,
                                 browseMoreLabel = browseMoreLabel,
                                 emptyTitle = emptyCollectionTitle,
                                 emptyMessage = emptyCollectionMessage
@@ -295,7 +292,6 @@ object HomeTab : AppTab {
                                     showDivider = true,
                                     onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, true)) },
                                     onNovelClick = onNovelClick,
-                                    navigator = navigator,
                                     browseMoreLabel = browseMoreLabel,
                                     emptyTitle = emptyCollectionTitle,
                                     emptyMessage = emptyCollectionMessage
@@ -306,7 +302,6 @@ object HomeTab : AppTab {
                                     showDivider = true,
                                     onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, true)) },
                                     onNovelClick = onNovelClick,
-                                    navigator = navigator,
                                     browseMoreLabel = browseMoreLabel,
                                     emptyTitle = emptyCollectionTitle,
                                     emptyMessage = emptyCollectionMessage
