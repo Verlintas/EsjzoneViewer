@@ -111,13 +111,13 @@ fun AppNovelCover(
         )
         if (isAdult) {
             val adultColors = appAdultColors()
-            Surface(
+            Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(AppSpacing.xs),
-                shape = RoundedCornerShape(4.dp),
-                color = Color.Transparent,
-                border = BorderStroke(1.dp, adultColors.container)
+                    .padding(AppSpacing.xs)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(adultColors.container)
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = stringResource(R.string.adult_badge),
@@ -126,8 +126,7 @@ fun AppNovelCover(
                         lineHeight = 12.sp,
                         fontWeight = FontWeight.Bold
                     ),
-                    color = adultColors.container,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    color = adultColors.content
                 )
             }
         }

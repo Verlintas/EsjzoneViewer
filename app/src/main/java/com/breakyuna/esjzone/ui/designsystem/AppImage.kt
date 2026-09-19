@@ -63,7 +63,7 @@ fun AppImage(
             if (model is ImageRequest) model
             else ImageRequest.Builder(context)
                 .data(model)
-                .crossfade(true)
+                .crossfade(120)
                 .build()
         }
         AsyncImage(

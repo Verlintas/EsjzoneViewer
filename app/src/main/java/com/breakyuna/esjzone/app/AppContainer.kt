@@ -63,7 +63,7 @@ class AppContainer(context: Context) {
     val imageLoader: ImageLoader = ImageLoader.Builder(appContext)
         .memoryCache {
             MemoryCache.Builder()
-                .maxSizePercent(appContext, 0.15)
+                .maxSizePercent(appContext, 0.20)
                 .build()
         }
         .diskCache {

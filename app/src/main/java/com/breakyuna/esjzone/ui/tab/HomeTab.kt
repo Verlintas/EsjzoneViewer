@@ -2,116 +2,54 @@
 
 package com.breakyuna.esjzone.ui.tab
 
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.repeatOnLifecycle
-
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.RateReview
-import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material.icons.filled.Whatshot
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
-import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.LoadFailureKind
 import com.breakyuna.esjzone.network.LocalAuthorization
-import com.breakyuna.esjzone.network.features.HomeDataCache
-import com.breakyuna.esjzone.network.features.getHomeData
-import com.breakyuna.esjzone.network.features.novels
-import com.breakyuna.esjzone.network.loadFailureKind
-import com.breakyuna.esjzone.network.PageableRequester
-import com.breakyuna.esjzone.novellibrary.data.HomeData
-import com.breakyuna.esjzone.novellibrary.data.WeeklyUpdateDay
-import com.breakyuna.esjzone.novellibrary.data.WeeklyPopularNovel
+import com.breakyuna.esjzone.novellibrary.community.ForumTopic
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
-import androidx.compose.ui.semantics.Role
-import com.breakyuna.esjzone.ui.component.AppNovelCover
-import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.AppTypography
-import com.breakyuna.esjzone.ui.discovery.DiscoveryEmptyState
 import com.breakyuna.esjzone.ui.discovery.DiscoveryErrorState
-import androidx.compose.foundation.layout.calculateStartPadding
-import androidx.compose.ui.platform.LocalLayoutDirection
 import com.breakyuna.esjzone.ui.discovery.DiscoveryOfflineBanner
 import com.breakyuna.esjzone.ui.discovery.DiscoveryScaffold
-import com.breakyuna.esjzone.ui.navigation.AppNavigator
-import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
 import com.breakyuna.esjzone.ui.navigation.AppTab
 import com.breakyuna.esjzone.ui.navigation.AppTabOptions
 import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
@@ -122,23 +60,6 @@ import com.breakyuna.esjzone.ui.page.ForumPostPage
 import com.breakyuna.esjzone.ui.page.GuestbookPage
 import com.breakyuna.esjzone.ui.page.NovelListPage
 import com.breakyuna.esjzone.ui.page.NovelPage
-import com.breakyuna.esjzone.novellibrary.community.ForumTopic
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.delay
-import java.time.DayOfWeek
-import kotlin.random.Random
 
 object HomeTab : AppTab {
 
@@ -149,7 +70,7 @@ object HomeTab : AppTab {
         get() = AppTabOptions(
             index = 0,
             title = stringResource(R.string.screen_main_tab_home),
-            icon = androidx.compose.ui.graphics.vector.rememberVectorPainter(image = Icons.Filled.Home)
+            icon = rememberVectorPainter(image = Icons.Filled.Home)
         )
 
     @Composable
@@ -176,6 +97,11 @@ object HomeTab : AppTab {
         val navPadding = LocalFloatingNavPadding.current
         val layoutDirection = LocalLayoutDirection.current
         val listState = rememberLazyListState()
+
+        val onNovelClick: (CoveredNovel) -> Unit = remember(navigator) {
+            { novel -> navigator?.pushIfNotCurrent(NovelPage(novel)) }
+        }
+
         val weeklyDays = remember(state) {
             (state as? HomeTabModel.State.Result)?.homeData?.weeklyUpdates
                 .orEmpty().sortedByDescending { it.date }
@@ -219,6 +145,33 @@ object HomeTab : AppTab {
             else emptyList()
         }
 
+        var hasStationedAtBottom by remember { mutableStateOf(false) }
+
+        LaunchedEffect(listState, randomState.isActivated) {
+            if (randomState.isActivated) return@LaunchedEffect
+            snapshotFlow { !listState.canScrollForward && !listState.isScrollInProgress }
+                .collect { isStationed ->
+                    if (isStationed) {
+                        hasStationedAtBottom = true
+                    }
+                }
+        }
+
+        val bottomSwipeConnection = remember(randomState.isActivated, adult, hasStationedAtBottom) {
+            object : NestedScrollConnection {
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource
+                ): Offset {
+                    if (!randomState.isActivated && hasStationedAtBottom && source == NestedScrollSource.UserInput && available.y < -15f) {
+                        model.activateRandomRecommendations(adult)
+                    }
+                    return Offset.Zero
+                }
+            }
+        }
+
         DiscoveryScaffold(
             titleContent = {
                 Row(
@@ -242,148 +195,148 @@ object HomeTab : AppTab {
             PullToRefreshBox(
                 isRefreshing = (state as? HomeTabModel.State.Result)?.isSyncing == true,
                 onRefresh = model::reload,
-                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = padding.calculateTopPadding())
             ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp + navPadding.calculateStartPadding(layoutDirection),
-                    end = 16.dp,
-                    top = AppSpacing.sm,
-                    bottom = AppSpacing.sm + navPadding.calculateBottomPadding()
-                ),
-                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-            ) {
-                when (val snapshot = state) {
-                    HomeTabModel.State.Loading -> item(key = "home-loading", contentType = "loading") {
-                        HomeInitialLoadingState()
-                    }
-                    is HomeTabModel.State.Error -> item(key = "home-error", contentType = "error") {
-                        Column {
-                            if (snapshot.failure == LoadFailureKind.NETWORK) {
-                                DiscoveryOfflineBanner(modifier = Modifier.padding(bottom = 8.dp))
-                            }
-                            DiscoveryErrorState(
-                                message = stringResource(failureMessage(snapshot.failure)),
-                                onRetry = model::reload
-                            )
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(bottomSwipeConnection),
+                    contentPadding = PaddingValues(
+                        start = 16.dp + navPadding.calculateStartPadding(layoutDirection),
+                        end = 16.dp,
+                        top = AppSpacing.sm,
+                        bottom = AppSpacing.sm + navPadding.calculateBottomPadding()
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+                ) {
+                    when (val snapshot = state) {
+                        HomeTabModel.State.Loading -> item(key = "home-loading", contentType = "loading") {
+                            HomeInitialLoadingState()
                         }
-                    }
-                    is HomeTabModel.State.Result -> {
-                        weeklyPopularCarousel(
-                            novels = weeklyPopularNovels,
-                            navigator = navigator
-                        )
-                        item(key = "home-actions", contentType = "home-actions") {
-                            HomeActions(
-                                onForum = { navigator?.pushIfNotCurrent(ForumPage) },
-                                onGuestbook = { navigator?.pushIfNotCurrent(GuestbookPage) },
-                                onWaterCooler = {
-                                    navigator?.pushIfNotCurrent(
-                                        ForumPostPage(
-                                            ForumTopic(
-                                                boardId = EsjzoneUrls.WATER_COOLER_BOARD_ID,
-                                                id = EsjzoneUrls.WATER_COOLER_TOPIC_ID,
-                                                title = waterCoolerTitle,
-                                                author = null,
-                                                createdAt = null,
-                                                replyCount = null,
-                                                viewCount = null,
-                                                lastReplyAt = null,
-                                                url = EsjzoneUrls.WaterCooler
+                        is HomeTabModel.State.Error -> item(key = "home-error", contentType = "error") {
+                            Column {
+                                if (snapshot.failure == LoadFailureKind.NETWORK) {
+                                    DiscoveryOfflineBanner(modifier = Modifier.padding(bottom = 8.dp))
+                                }
+                                DiscoveryErrorState(
+                                    message = stringResource(failureMessage(snapshot.failure)),
+                                    onRetry = model::reload
+                                )
+                            }
+                        }
+                        is HomeTabModel.State.Result -> {
+                            weeklyPopularCarousel(
+                                novels = weeklyPopularNovels,
+                                onNovelClick = onNovelClick
+                            )
+                            item(key = "home-actions", contentType = "home-actions") {
+                                HomeActions(
+                                    onForum = { navigator?.pushIfNotCurrent(ForumPage) },
+                                    onGuestbook = { navigator?.pushIfNotCurrent(GuestbookPage) },
+                                    onWaterCooler = {
+                                        navigator?.pushIfNotCurrent(
+                                            ForumPostPage(
+                                                ForumTopic(
+                                                    boardId = EsjzoneUrls.WATER_COOLER_BOARD_ID,
+                                                    id = EsjzoneUrls.WATER_COOLER_TOPIC_ID,
+                                                    title = waterCoolerTitle,
+                                                    author = null,
+                                                    createdAt = null,
+                                                    replyCount = null,
+                                                    viewCount = null,
+                                                    lastReplyAt = null,
+                                                    url = EsjzoneUrls.WaterCooler
+                                                )
                                             )
                                         )
-                                    )
-                                }
-                            )
-                        }
-                        homeCollection(
-                            title = editorPicksTitle,
-                            rows = editorPicksRows,
-                            showDivider = true,
-                            onMore = null,
-                            navigator = navigator,
-                            browseMoreLabel = browseMoreLabel,
-                            emptyTitle = emptyCollectionTitle,
-                            emptyMessage = emptyCollectionMessage
-                        )
-                        homeCollection(
-                            title = translatedTitle,
-                            rows = translatedRows,
-                            showDivider = true,
-                            onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, false)) },
-                            navigator = navigator,
-                            browseMoreLabel = browseMoreLabel,
-                            emptyTitle = emptyCollectionTitle,
-                            emptyMessage = emptyCollectionMessage
-                        )
-                        homeCollection(
-                            title = originalTitle,
-                            rows = originalRows,
-                            showDivider = true,
-                            onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, false)) },
-                            navigator = navigator,
-                            browseMoreLabel = browseMoreLabel,
-                            emptyTitle = emptyCollectionTitle,
-                            emptyMessage = emptyCollectionMessage
-                        )
-                        if (adult) {
+                                    }
+                                )
+                            }
                             homeCollection(
-                                title = translatedAdultTitle,
-                                rows = translatedAdultRows,
+                                title = editorPicksTitle,
+                                rows = editorPicksRows,
                                 showDivider = true,
-                                onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, true)) },
+                                onMore = null,
+                                onNovelClick = onNovelClick,
                                 navigator = navigator,
                                 browseMoreLabel = browseMoreLabel,
                                 emptyTitle = emptyCollectionTitle,
                                 emptyMessage = emptyCollectionMessage
                             )
                             homeCollection(
-                                title = originalAdultTitle,
-                                rows = originalAdultRows,
+                                title = translatedTitle,
+                                rows = translatedRows,
                                 showDivider = true,
-                                onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, true)) },
+                                onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, false)) },
+                                onNovelClick = onNovelClick,
                                 navigator = navigator,
                                 browseMoreLabel = browseMoreLabel,
                                 emptyTitle = emptyCollectionTitle,
                                 emptyMessage = emptyCollectionMessage
                             )
+                            homeCollection(
+                                title = originalTitle,
+                                rows = originalRows,
+                                showDivider = true,
+                                onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, false)) },
+                                onNovelClick = onNovelClick,
+                                navigator = navigator,
+                                browseMoreLabel = browseMoreLabel,
+                                emptyTitle = emptyCollectionTitle,
+                                emptyMessage = emptyCollectionMessage
+                            )
+                            if (adult) {
+                                homeCollection(
+                                    title = translatedAdultTitle,
+                                    rows = translatedAdultRows,
+                                    showDivider = true,
+                                    onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, true)) },
+                                    onNovelClick = onNovelClick,
+                                    navigator = navigator,
+                                    browseMoreLabel = browseMoreLabel,
+                                    emptyTitle = emptyCollectionTitle,
+                                    emptyMessage = emptyCollectionMessage
+                                )
+                                homeCollection(
+                                    title = originalAdultTitle,
+                                    rows = originalAdultRows,
+                                    showDivider = true,
+                                    onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, true)) },
+                                    onNovelClick = onNovelClick,
+                                    navigator = navigator,
+                                    browseMoreLabel = browseMoreLabel,
+                                    emptyTitle = emptyCollectionTitle,
+                                    emptyMessage = emptyCollectionMessage
+                                )
+                            }
+                            weeklyUpdatesCollection(
+                                days = weeklyDays,
+                                selectedIndex = weeklyIndex,
+                                novelsByDay = weeklyNovelsByDay,
+                                showDivider = true,
+                                onSelect = { selectedWeeklyDate = weeklyDays[it].date.toString() },
+                                onNovelClick = onNovelClick
+                            )
+                            randomRecommendationsSection(
+                                state = randomState,
+                                title = randomRecommendationsTitle,
+                                changeBatchLabel = changeBatchLabel,
+                                onActivate = { model.activateRandomRecommendations(adult) },
+                                onChangeBatch = { model.replaceRandomRecommendations(adult) },
+                                onRetry = { model.retryRandomRecommendations(adult) },
+                                onNovelClick = onNovelClick
+                            )
                         }
-                        weeklyUpdatesCollection(
-                            days = weeklyDays,
-                            selectedIndex = weeklyIndex,
-                            novelsByDay = weeklyNovelsByDay,
-                            showDivider = true,
-                            onSelect = { selectedWeeklyDate = weeklyDays[it].date.toString() },
-                            navigator = navigator
-                        )
-                        randomRecommendationsCollection(
-                            state = randomState,
-                            title = randomRecommendationsTitle,
-                            changeBatchLabel = changeBatchLabel,
-                            onChangeBatch = { model.replaceRandomRecommendations(adult) },
-                            onRetry = { model.loadMoreRandomRecommendations(adult) },
-                            navigator = navigator
-                        )
                     }
                 }
-            }
             }
         }
 
         LaunchedEffect(Unit) { model.getHomeData() }
         LaunchedEffect(adult) { model.onRandomAdultModeChanged(adult) }
-        LaunchedEffect(listState, randomState.hasMore) {
-            snapshotFlow {
-                val layout = listState.layoutInfo
-                val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: -1
-                layout.totalItemsCount > 0 && lastVisible >= layout.totalItemsCount - 3
-            }
-                .distinctUntilChanged()
-                .filter { it }
-                .collect { model.loadMoreRandomRecommendations(adult) }
-        }
     }
 }
 
@@ -394,872 +347,5 @@ private fun HomeInitialLoadingState() {
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator()
-    }
-}
-
-private const val HOME_GRID_COLUMNS = 4
-private const val WEEKLY_UPDATE_MAX_ITEMS = 24
-private const val WEEKLY_UPDATE_TRANSITION_DURATION = 280
-private const val RANDOM_RECOMMENDATION_BATCH_SIZE = 32
-private const val RANDOM_RECOMMENDATION_MAX_PAGES_PER_BATCH = 3
-
-
-private fun LazyListScope.weeklyUpdatesCollection(
-    days: List<WeeklyUpdateDay>,
-    selectedIndex: Int,
-    novelsByDay: List<List<CoveredNovel>>,
-    showDivider: Boolean,
-    onSelect: (Int) -> Unit,
-    navigator: AppNavigator?
-) {
-    if (days.isEmpty()) return
-    if (showDivider) {
-        homeSectionDivider(key = "home-weekly-divider")
-    }
-    item(key = "home-weekly-header", contentType = "home-weekly-header") {
-        WeeklyUpdatesHeader(days, selectedIndex, onSelect)
-    }
-    item(key = "home-weekly-content", contentType = "home-weekly-content") {
-        AnimatedContent(
-            targetState = selectedIndex,
-            transitionSpec = {
-                if (targetState > initialState) {
-                    slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth } togetherWith
-                        slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth }
-                } else {
-                    slideInHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> -fullWidth } togetherWith
-                        slideOutHorizontally(animationSpec = tween(WEEKLY_UPDATE_TRANSITION_DURATION)) { fullWidth -> fullWidth }
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = AppSpacing.sm)
-                .weeklyDaySwipe(days, selectedIndex, onSelect),
-            label = "weekly-update-date-transition"
-        ) { index ->
-            val novels = novelsByDay.getOrNull(index).orEmpty()
-            if (novels.isEmpty()) {
-                DiscoveryEmptyState(
-                    title = stringResource(R.string.home_collection_empty_title),
-                    message = stringResource(R.string.home_weekly_update_empty)
-                )
-            } else {
-                HomeNovelGrid(
-                    novels = novels,
-                    showLatestTitle = true,
-                    onNovelClick = { novel -> navigator?.pushIfNotCurrent(NovelPage(novel)) }
-                )
-            }
-        }
-    }
-}
-
-private fun LazyListScope.randomRecommendationsCollection(
-    state: HomeTabModel.RandomRecommendationsState,
-    title: String,
-    changeBatchLabel: String,
-    onChangeBatch: () -> Unit,
-    onRetry: () -> Unit,
-    navigator: AppNavigator?
-) {
-    homeSectionDivider(key = "home-random-divider")
-    item(key = "home-random-header", contentType = "home-random-header") {
-        Row(
-            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(
-                enabled = !state.isLoading,
-                onClick = onChangeBatch
-            ) {
-                Text(changeBatchLabel)
-            }
-        }
-    }
-
-    val rows = state.items.chunked(HOME_GRID_COLUMNS)
-    items(
-        items = rows,
-        key = { row -> "home-random-row:${novelKey(row.first())}" },
-        contentType = { "home-random-row" }
-    ) { row ->
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = AppSpacing.md),
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md / 2)
-        ) {
-            row.forEach { novel ->
-                HomeGridNovelTile(
-                    novel = novel,
-                    showLatestTitle = false,
-                    onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            repeat(HOME_GRID_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
-        }
-    }
-
-    if (state.isLoading) {
-        item(key = "home-random-loading", contentType = "loading") {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(AppSpacing.lg),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        }
-    } else if (state.failure != null) {
-        item(key = "home-random-error", contentType = "error") {
-            DiscoveryErrorState(
-                message = stringResource(failureMessage(state.failure)),
-                onRetry = onRetry
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeNovelGrid(
-    novels: List<CoveredNovel>,
-    showLatestTitle: Boolean = false,
-    onNovelClick: (CoveredNovel) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val rows = remember(novels) { novels.chunked(HOME_GRID_COLUMNS) }
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.lg)
-    ) {
-        rows.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md / 2)
-            ) {
-                row.forEach { novel ->
-                    HomeGridNovelTile(
-                        novel = novel,
-                        showLatestTitle = showLatestTitle,
-                        onClick = { onNovelClick(novel) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                repeat(HOME_GRID_COLUMNS - row.size) {
-                    Spacer(Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun WeeklyUpdatesHeader(
-    days: List<WeeklyUpdateDay>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-            .weeklyDaySwipe(days, selectedIndex, onSelect),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = 48.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(stringResource(R.string.home_weekly_updates), style = MaterialTheme.typography.titleMedium)
-        }
-        TabRow(selectedTabIndex = selectedIndex) {
-            days.forEachIndexed { index, day ->
-                Tab(
-                    selected = index == selectedIndex,
-                    onClick = { onSelect(index) },
-                    text = { Text(weeklyDayLabel(day.date.dayOfWeek), maxLines = 1, overflow = TextOverflow.Clip) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun Modifier.weeklyDaySwipe(
-    days: List<WeeklyUpdateDay>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit
-): Modifier {
-    val swipeThreshold = with(LocalDensity.current) { 48.dp.toPx() }
-    return pointerInput(days, selectedIndex, swipeThreshold) {
-                var dragDistance = 0f
-                detectHorizontalDragGestures(
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        dragDistance += dragAmount
-                    },
-                    onDragCancel = { dragDistance = 0f },
-                    onDragEnd = {
-                        val target = when {
-                            dragDistance <= -swipeThreshold -> (selectedIndex + 1).coerceAtMost(days.lastIndex)
-                            dragDistance >= swipeThreshold -> (selectedIndex - 1).coerceAtLeast(0)
-                            else -> selectedIndex
-                        }
-                        if (target != selectedIndex) onSelect(target)
-                        dragDistance = 0f
-                    }
-                )
-    }
-}
-
-@Composable
-private fun HomeGridNovelTile(
-    novel: CoveredNovel,
-    showLatestTitle: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier.clickable(onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)
-    ) {
-        AppNovelCover(
-            coverUrl = novel.coverUrl,
-            title = novel.name,
-            isAdult = novel.isAdult,
-            modifier = Modifier.fillMaxWidth().aspectRatio(0.7f)
-        )
-        Text(
-            text = novel.name,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        if (showLatestTitle) {
-            Text(
-                text = novel.latestTitle?.trim().takeUnless { it.isNullOrBlank() }
-                    ?: stringResource(R.string.home_weekly_update_no_chapter),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun weeklyDayLabel(day: DayOfWeek): String = stringResource(
-    when (day) {
-        DayOfWeek.MONDAY -> R.string.home_weekday_monday
-        DayOfWeek.TUESDAY -> R.string.home_weekday_tuesday
-        DayOfWeek.WEDNESDAY -> R.string.home_weekday_wednesday
-        DayOfWeek.THURSDAY -> R.string.home_weekday_thursday
-        DayOfWeek.FRIDAY -> R.string.home_weekday_friday
-        DayOfWeek.SATURDAY -> R.string.home_weekday_saturday
-        DayOfWeek.SUNDAY -> R.string.home_weekday_sunday
-    }
-)
-
-private fun LazyListScope.weeklyPopularCarousel(
-    novels: List<WeeklyPopularNovel>,
-    navigator: AppNavigator?
-) {
-    val visible = novels.take(10)
-    if (visible.isEmpty()) return
-
-    item(key = "home-weekly-popular", contentType = "home-weekly-popular") {
-        val pageCount = Int.MAX_VALUE
-        val initialPage = Int.MAX_VALUE / 2 - (Int.MAX_VALUE / 2 % visible.size)
-        val pagerState = rememberPagerState(
-            initialPage = initialPage,
-            pageCount = { pageCount }
-        )
-        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-        LaunchedEffect(pagerState, visible.size, lifecycleOwner) {
-            lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
-                while (true) {
-                    val manualScrollStarted = withTimeoutOrNull(HOME_WEEKLY_POPULAR_AUTO_PLAY_MS) {
-                        snapshotFlow { pagerState.isScrollInProgress }
-                            .filter { it }
-                            .first()
-                    } != null
-                    if (manualScrollStarted) {
-                        if (pagerState.isScrollInProgress) {
-                            snapshotFlow { pagerState.isScrollInProgress }
-                                .filter { !it }
-                                .first()
-                        }
-                        continue
-                    }
-                    try {
-                        pagerState.animateScrollToPage(
-                            page = pagerState.currentPage + 1,
-                            animationSpec = tween(HOME_WEEKLY_POPULAR_ANIMATION_MS)
-                        )
-                    } catch (_: CancellationException) {
-                        currentCoroutineContext().ensureActive()
-                    }
-                }
-            }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-            HorizontalPager(
-                state = pagerState,
-                pageSpacing = AppSpacing.sm,
-                modifier = Modifier.fillMaxWidth()
-            ) { page ->
-                val novel = visible[page % visible.size]
-                WeeklyPopularCard(
-                    novel = novel,
-                    onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) }
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                visible.indices.forEach { index ->
-                    Box(
-                        Modifier
-                            .padding(horizontal = 3.dp)
-                            .width(if (index == pagerState.currentPage % visible.size) 28.dp else 7.dp)
-                            .height(7.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (index == pagerState.currentPage % visible.size) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outlineVariant
-                            )
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun WeeklyPopularCard(
-    novel: WeeklyPopularNovel,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(HOME_WEEKLY_POPULAR_CARD_HEIGHT),
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
-                            MaterialTheme.colorScheme.surfaceContainer,
-                            MaterialTheme.colorScheme.surfaceContainerLow
-                        )
-                    )
-                )
-                .padding(start = 12.dp, end = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(HOME_WEEKLY_POPULAR_COVER_WIDTH)
-                    .height(HOME_WEEKLY_POPULAR_CONTENT_HEIGHT)
-            ) {
-                AppNovelCover(
-                    coverUrl = novel.coverUrl,
-                    title = novel.name,
-                    modifier = Modifier.fillMaxSize(),
-                    isAdult = novel.isAdult
-                )
-                Text(
-                    text = stringResource(R.string.home_weekly_popular_badge, novel.rank),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(7.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f))
-                        .padding(horizontal = 7.dp, vertical = 4.dp)
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(HOME_WEEKLY_POPULAR_CONTENT_HEIGHT)
-            ) {
-                Text(
-                    text = novel.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = novel.descriptionPreview.ifBlank { stringResource(R.string.home_weekly_popular_no_description) },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                )
-                Spacer(Modifier.height(7.dp))
-                Text(
-                    text = novel.author
-                        ?.takeIf(String::isNotBlank)
-                        ?.let { stringResource(R.string.home_weekly_popular_author, it) }
-                        ?: " ",
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = novel.type
-                        .takeIf(String::isNotBlank)
-                        ?.let { stringResource(R.string.home_weekly_popular_type, it) }
-                        ?: " ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(4.dp))
-                Card(
-                    shape = RoundedCornerShape(8.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(162, 25, 23),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Whatshot,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            text = stringResource(
-                                R.string.home_weekly_popular_heat,
-                                formatWeeklyHeat(novel.weeklyViews)
-                            ),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun formatWeeklyHeat(value: Int): String = when {
-    value >= 10_000 -> "%.1f万".format(value / 10_000f)
-    else -> value.toString()
-}
-
-@Composable
-private fun HomeSearchBar(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier
-            .height(40.dp)
-            .clip(AppShapes.pill)
-            .clickable(
-                role = Role.Button,
-                onClickLabel = stringResource(R.string.search_action),
-                onClick = onClick
-            ),
-        shape = AppShapes.pill,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = AppSpacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
-            Text(
-                text = stringResource(R.string.search_placeholder),
-                style = AppTypography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeActions(
-    onForum: () -> Unit,
-    onGuestbook: () -> Unit,
-    onWaterCooler: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-    ) {
-        HomeShortcut(
-            label = stringResource(R.string.forum),
-            icon = Icons.Filled.Forum,
-            modifier = Modifier.weight(1f),
-            iconTint = Color(162, 25, 23),
-            onClick = onForum
-        )
-        HomeShortcut(
-            label = stringResource(R.string.guestbook),
-            icon = Icons.Filled.RateReview,
-            modifier = Modifier.weight(1f),
-            iconTint = Color(0xFFC67D0A),
-            onClick = onGuestbook
-        )
-        HomeShortcut(
-            label = stringResource(R.string.home_water_cooler),
-            icon = Icons.Filled.WaterDrop,
-            modifier = Modifier.weight(1f),
-            iconTint = Color(0xFF0288D1),
-            onClick = onWaterCooler
-        )
-    }
-}
-
-@Composable
-private fun HomeShortcut(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector?,
-    modifier: Modifier,
-    iconTint: Color = LocalContentColor.current,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.height(64.dp).semantics { contentDescription = label },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            Spacer(Modifier.width(AppSpacing.sm))
-            Text(label, style = MaterialTheme.typography.titleSmall)
-        }
-    }
-}
-
-private val HOME_WEEKLY_POPULAR_COVER_WIDTH = 106.dp
-private val HOME_WEEKLY_POPULAR_CONTENT_HEIGHT = 172.dp
-private val HOME_WEEKLY_POPULAR_CARD_HEIGHT = 196.dp
-
-private const val HOME_WEEKLY_POPULAR_AUTO_PLAY_MS = 4_000L
-private const val HOME_WEEKLY_POPULAR_ANIMATION_MS = 800
-
-private const val HOME_COLLECTION_MAX_ITEMS = 16
-
-private fun prepareHomeSectionRows(
-    novels: List<CoveredNovel>,
-    adult: Boolean
-): List<List<CoveredNovel>> = novels
-    .asSequence()
-    .filter { adult || !it.isAdult }
-    .distinctBy { it.url.trim().ifBlank { it.name.trim() } }
-    .take(HOME_COLLECTION_MAX_ITEMS)
-    .chunked(HOME_GRID_COLUMNS)
-    .toList()
-
-private fun LazyListScope.homeCollection(
-    title: String,
-    rows: List<List<CoveredNovel>>,
-    showDivider: Boolean,
-    onMore: (() -> Unit)?,
-    navigator: AppNavigator?,
-    browseMoreLabel: String,
-    emptyTitle: String,
-    emptyMessage: String
-) {
-    if (showDivider) {
-        homeSectionDivider(key = "home-divider-$title")
-    }
-    item(key = "home-section-$title", contentType = "home-section") {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = 48.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Text(
-                text = homeSectionTitleText(title),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
-            )
-            if (onMore != null) {
-                TextButton(onClick = onMore) { Text(browseMoreLabel) }
-            }
-        }
-    }
-    if (rows.isEmpty()) {
-        item(key = "home-empty-$title", contentType = "empty") {
-            DiscoveryEmptyState(
-                title = emptyTitle,
-                message = emptyMessage
-            )
-        }
-    } else {
-        items(
-            count = rows.size,
-            key = { rowIndex -> "home-grid-$title-row:${novelKey(rows[rowIndex].first())}" },
-            contentType = { "home-grid-row" }
-        ) { rowIndex ->
-            val row = rows[rowIndex]
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = if (rowIndex < rows.size - 1) AppSpacing.lg else AppSpacing.zero)
-                    .semantics { contentDescription = "$title row $rowIndex" },
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md / 2)
-            ) {
-                row.forEach { novel ->
-                    HomeGridNovelTile(
-                        novel = novel,
-                        showLatestTitle = false,
-                        onClick = { navigator?.pushIfNotCurrent(NovelPage(novel)) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                repeat(HOME_GRID_COLUMNS - row.size) {
-                    Spacer(Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-private fun LazyListScope.homeSectionDivider(key: String) {
-    item(key = key, contentType = "home-section-divider") {
-        HorizontalDivider(
-            modifier = Modifier.padding(top = AppSpacing.md, bottom = AppSpacing.zero),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
-        )
-    }
-}
-
-/** Gives optional parenthetical section descriptors a subordinate visual weight. */
-@Composable
-private fun homeSectionTitleText(title: String): androidx.compose.ui.text.AnnotatedString {
-    val descriptorFontSize = MaterialTheme.typography.labelLarge.fontSize
-    return buildAnnotatedString {
-        var cursor = 0
-        HOME_SECTION_TITLE_PARENTHESIS.findAll(title).forEach { match ->
-            append(title.substring(cursor, match.range.first))
-            withStyle(SpanStyle(fontSize = descriptorFontSize)) {
-                append(match.value)
-            }
-            cursor = match.range.last + 1
-        }
-        append(title.substring(cursor))
-    }
-}
-
-private val HOME_SECTION_TITLE_PARENTHESIS = Regex("[（(][^（）()]*[）)]")
-
-private fun novelKey(novel: CoveredNovel): String =
-    novel.url.trim().ifBlank { novel.name.trim() }
-
-private fun failureMessage(failure: LoadFailureKind): Int = when (failure) {
-    LoadFailureKind.NETWORK -> R.string.load_network_error
-    LoadFailureKind.CLIENT -> R.string.load_client_error
-}
-
-class HomeTabModel(
-    private val authorization: Authorization
-) : AppStateViewModel<HomeTabModel.State>(
-    HomeDataCache.readSnapshot()?.let { State.Result(it) } ?: State.Loading
-) {
-
-    private var loadStarted = false
-    private var randomLoadJob: Job? = null
-    private var randomRequester: PageableRequester<CoveredNovel>? = null
-    private var randomAdultMode: Boolean? = null
-    private val randomVisitedPages = mutableSetOf<Int>()
-    private val randomSeenNovelKeys = mutableSetOf<String>()
-    private val _randomRecommendations = MutableStateFlow(RandomRecommendationsState())
-    val randomRecommendations = _randomRecommendations.asStateFlow()
-
-    sealed class State {
-        data object Loading : State()
-        data class Error(val failure: LoadFailureKind) : State()
-        data class Result(
-            val homeData: HomeData,
-            val isSyncing: Boolean = false
-        ) : State()
-    }
-
-    data class RandomRecommendationsState(
-        val items: List<CoveredNovel> = emptyList(),
-        val isLoading: Boolean = false,
-        val failure: LoadFailureKind? = null,
-        val hasMore: Boolean = true
-    )
-
-    fun onRandomAdultModeChanged(adult: Boolean) {
-        val previousMode = randomAdultMode
-        randomAdultMode = adult
-        if (previousMode != null && previousMode != adult) {
-            replaceRandomRecommendations(adult)
-        }
-    }
-
-    fun replaceRandomRecommendations(adult: Boolean) {
-        randomAdultMode = adult
-        loadRandomRecommendations(adult = adult, replace = true)
-    }
-
-    fun loadMoreRandomRecommendations(adult: Boolean) {
-        loadRandomRecommendations(adult = adult, replace = false)
-    }
-
-    private fun loadRandomRecommendations(adult: Boolean, replace: Boolean) {
-        val activeJob = randomLoadJob
-        if (!replace && activeJob?.isActive == true) return
-        if (!replace && !_randomRecommendations.value.hasMore) return
-
-        randomLoadJob = viewModelScope.launch(Dispatchers.IO) {
-            if (replace) activeJob?.cancelAndJoin()
-            val previous = _randomRecommendations.value
-            _randomRecommendations.value = previous.copy(isLoading = true, failure = null)
-            try {
-                val requester = randomRequester ?: PresentationAccess.client
-                    .novels(authorization, novelType = 0, sortType = 1)
-                    .first
-                    .also { randomRequester = it }
-                if (replace && randomVisitedPages.size >= requester.pages()) {
-                    randomVisitedPages.clear()
-                    randomSeenNovelKeys.clear()
-                }
-                val collected = ArrayList<CoveredNovel>(RANDOM_RECOMMENDATION_BATCH_SIZE)
-                var requestedPages = 0
-
-                while (
-                    collected.size < RANDOM_RECOMMENDATION_BATCH_SIZE &&
-                    requestedPages < RANDOM_RECOMMENDATION_MAX_PAGES_PER_BATCH &&
-                    randomVisitedPages.size < requester.pages()
-                ) {
-                    ensureActive()
-                    val page = chooseUnvisitedRandomPage(requester.pages()) ?: break
-                    randomVisitedPages += page
-                    requestedPages += 1
-                    requester.more(page)
-                        .filter { adult || !it.isAdult }
-                        .shuffled()
-                        .forEach { novel ->
-                            if (
-                                collected.size < RANDOM_RECOMMENDATION_BATCH_SIZE &&
-                                randomSeenNovelKeys.add(novelKey(novel))
-                            ) {
-                                collected += novel
-                            }
-                        }
-                }
-
-                ensureActive()
-                val items = if (replace) collected else previous.items + collected
-                _randomRecommendations.value = RandomRecommendationsState(
-                    items = items,
-                    hasMore = randomVisitedPages.size < requester.pages()
-                )
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                _randomRecommendations.value = previous.copy(
-                    isLoading = false,
-                    failure = error.loadFailureKind()
-                )
-                com.breakyuna.esjzone.util.AppLogger.e(
-                    "HomeTabModel",
-                    "Failed to load random recommendations",
-                    error
-                )
-            }
-        }
-    }
-
-    private fun chooseUnvisitedRandomPage(pageCount: Int): Int? {
-        if (pageCount <= 0 || randomVisitedPages.size >= pageCount) return null
-        repeat(12) {
-            val candidate = Random.nextInt(1, pageCount + 1)
-            if (candidate !in randomVisitedPages) return candidate
-        }
-        return (1..pageCount).firstOrNull { it !in randomVisitedPages }
-    }
-
-    fun getHomeData(forceRefresh: Boolean = false) {
-        if (loadStarted) return
-        loadStarted = true
-        viewModelScope.launch(Dispatchers.IO) {
-            val visibleData = mutableState.value as? State.Result
-            mutableState.value = visibleData?.copy(isSyncing = true) ?: State.Loading
-            try {
-                val data = PresentationAccess.client.getHomeData(authorization, forceRefresh = forceRefresh)
-                ensureActive()
-                HomeDataCache.writeSnapshot(data)
-                mutableState.value = State.Result(data)
-            } catch (e: CancellationException) {
-                loadStarted = false
-                throw e
-            } catch (e: Exception) {
-                if (visibleData == null) {
-                    mutableState.value = State.Error(e.loadFailureKind())
-                } else {
-                    mutableState.value = visibleData.copy(isSyncing = false)
-                }
-                loadStarted = false
-                com.breakyuna.esjzone.util.AppLogger.e("HomeTabModel", "Failed to load home data", e)
-            }
-        }
-    }
-
-    fun reload() {
-        loadStarted = false
-        getHomeData(forceRefresh = true)
     }
 }
