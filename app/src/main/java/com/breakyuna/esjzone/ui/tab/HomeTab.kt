@@ -176,9 +176,13 @@ object HomeTab : AppTab {
         val navPadding = LocalFloatingNavPadding.current
         val layoutDirection = LocalLayoutDirection.current
         val listState = rememberLazyListState()
-        val weeklyDays = (state as? HomeTabModel.State.Result)?.homeData?.weeklyUpdates
-            .orEmpty().sortedByDescending { it.date }
-        val weeklyDayKeys = weeklyDays.map { it.date.toString() }
+        val weeklyDays = remember(state) {
+            (state as? HomeTabModel.State.Result)?.homeData?.weeklyUpdates
+                .orEmpty().sortedByDescending { it.date }
+        }
+        val weeklyDayKeys = remember(weeklyDays) {
+            weeklyDays.map { it.date.toString() }
+        }
         var selectedWeeklyDate by rememberSaveable(weeklyDayKeys) {
             mutableStateOf(weeklyDayKeys.firstOrNull().orEmpty())
         }
@@ -192,6 +196,27 @@ object HomeTab : AppTab {
                     .take(WEEKLY_UPDATE_MAX_ITEMS)
                     .toList()
             }
+        }
+        val homeData = (state as? HomeTabModel.State.Result)?.homeData
+        val weeklyPopularNovels = remember(homeData?.weeklyPopular, adult) {
+            homeData?.weeklyPopular.orEmpty().filter { adult || !it.isAdult }
+        }
+        val editorPicksRows = remember(homeData?.recommendation, adult) {
+            prepareHomeSectionRows(homeData?.recommendation.orEmpty(), adult)
+        }
+        val translatedRows = remember(homeData?.recentlyUpdateTranslated, adult) {
+            prepareHomeSectionRows(homeData?.recentlyUpdateTranslated.orEmpty(), adult)
+        }
+        val originalRows = remember(homeData?.recentlyUpdateOriginal, adult) {
+            prepareHomeSectionRows(homeData?.recentlyUpdateOriginal.orEmpty(), adult)
+        }
+        val translatedAdultRows = remember(homeData?.recentlyUpdateTranslatedR18, adult) {
+            if (adult) prepareHomeSectionRows(homeData?.recentlyUpdateTranslatedR18.orEmpty(), true)
+            else emptyList()
+        }
+        val originalAdultRows = remember(homeData?.recentlyUpdateOriginalR18, adult) {
+            if (adult) prepareHomeSectionRows(homeData?.recentlyUpdateOriginalR18.orEmpty(), true)
+            else emptyList()
         }
 
         DiscoveryScaffold(
@@ -247,7 +272,7 @@ object HomeTab : AppTab {
                     }
                     is HomeTabModel.State.Result -> {
                         weeklyPopularCarousel(
-                            novels = snapshot.homeData.weeklyPopular.filter { adult || !it.isAdult },
+                            novels = weeklyPopularNovels,
                             navigator = navigator
                         )
                         item(key = "home-actions", contentType = "home-actions") {
@@ -275,10 +300,9 @@ object HomeTab : AppTab {
                         }
                         homeCollection(
                             title = editorPicksTitle,
-                            novels = snapshot.homeData.recommendation,
+                            rows = editorPicksRows,
                             showDivider = true,
                             onMore = null,
-                            adult = adult,
                             navigator = navigator,
                             browseMoreLabel = browseMoreLabel,
                             emptyTitle = emptyCollectionTitle,
@@ -286,10 +310,9 @@ object HomeTab : AppTab {
                         )
                         homeCollection(
                             title = translatedTitle,
-                            novels = snapshot.homeData.recentlyUpdateTranslated,
+                            rows = translatedRows,
                             showDivider = true,
                             onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, false)) },
-                            adult = adult,
                             navigator = navigator,
                             browseMoreLabel = browseMoreLabel,
                             emptyTitle = emptyCollectionTitle,
@@ -297,10 +320,9 @@ object HomeTab : AppTab {
                         )
                         homeCollection(
                             title = originalTitle,
-                            novels = snapshot.homeData.recentlyUpdateOriginal,
+                            rows = originalRows,
                             showDivider = true,
                             onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, false)) },
-                            adult = adult,
                             navigator = navigator,
                             browseMoreLabel = browseMoreLabel,
                             emptyTitle = emptyCollectionTitle,
@@ -309,10 +331,9 @@ object HomeTab : AppTab {
                         if (adult) {
                             homeCollection(
                                 title = translatedAdultTitle,
-                                novels = snapshot.homeData.recentlyUpdateTranslatedR18,
+                                rows = translatedAdultRows,
                                 showDivider = true,
                                 onMore = { navigator?.pushIfNotCurrent(NovelListPage(1, 1, true)) },
-                                adult = true,
                                 navigator = navigator,
                                 browseMoreLabel = browseMoreLabel,
                                 emptyTitle = emptyCollectionTitle,
@@ -320,10 +341,9 @@ object HomeTab : AppTab {
                             )
                             homeCollection(
                                 title = originalAdultTitle,
-                                novels = snapshot.homeData.recentlyUpdateOriginalR18,
+                                rows = originalAdultRows,
                                 showDivider = true,
                                 onMore = { navigator?.pushIfNotCurrent(NovelListPage(2, 1, true)) },
-                                adult = true,
                                 navigator = navigator,
                                 browseMoreLabel = browseMoreLabel,
                                 emptyTitle = emptyCollectionTitle,
@@ -976,24 +996,27 @@ private const val HOME_WEEKLY_POPULAR_ANIMATION_MS = 800
 
 private const val HOME_COLLECTION_MAX_ITEMS = 16
 
+private fun prepareHomeSectionRows(
+    novels: List<CoveredNovel>,
+    adult: Boolean
+): List<List<CoveredNovel>> = novels
+    .asSequence()
+    .filter { adult || !it.isAdult }
+    .distinctBy { it.url.trim().ifBlank { it.name.trim() } }
+    .take(HOME_COLLECTION_MAX_ITEMS)
+    .chunked(HOME_GRID_COLUMNS)
+    .toList()
+
 private fun LazyListScope.homeCollection(
     title: String,
-    novels: List<CoveredNovel>,
+    rows: List<List<CoveredNovel>>,
     showDivider: Boolean,
     onMore: (() -> Unit)?,
-    adult: Boolean,
     navigator: AppNavigator?,
     browseMoreLabel: String,
     emptyTitle: String,
     emptyMessage: String
 ) {
-    val visible = novels
-        .asSequence()
-        .filter { adult || !it.isAdult }
-        .distinctBy { it.url.trim().ifBlank { it.name.trim() } }
-        .take(HOME_COLLECTION_MAX_ITEMS)
-        .toList()
-
     if (showDivider) {
         homeSectionDivider(key = "home-divider-$title")
     }
@@ -1014,7 +1037,7 @@ private fun LazyListScope.homeCollection(
             }
         }
     }
-    if (visible.isEmpty()) {
+    if (rows.isEmpty()) {
         item(key = "home-empty-$title", contentType = "empty") {
             DiscoveryEmptyState(
                 title = emptyTitle,
@@ -1022,10 +1045,9 @@ private fun LazyListScope.homeCollection(
             )
         }
     } else {
-        val rows = visible.chunked(HOME_GRID_COLUMNS)
         items(
             count = rows.size,
-            key = { rowIndex -> "home-grid-$title-row-$rowIndex" },
+            key = { rowIndex -> "home-grid-$title-row:${novelKey(rows[rowIndex].first())}" },
             contentType = { "home-grid-row" }
         ) { rowIndex ->
             val row = rows[rowIndex]

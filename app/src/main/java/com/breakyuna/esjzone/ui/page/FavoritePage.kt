@@ -127,7 +127,6 @@ object FavoritePage : AppDestination {
         val authorization = LocalAuthorization.current
         val model = rememberAppViewModel { FavoritePageModel(authorization) }
         val entries by model.entries.collectAsStateWithLifecycle()
-        val readingActivities by model.readingActivities.collectAsStateWithLifecycle()
         val readingIndex by model.readingIndex.collectAsStateWithLifecycle()
         val downloaded by model.downloadedBookKeys.collectAsStateWithLifecycle()
         val syncState by model.state.collectAsStateWithLifecycle()
@@ -156,8 +155,17 @@ object FavoritePage : AppDestination {
         val recentReads = remember(visible, readingIndex) {
             visible.asSequence().filter { it in readingIndex }.take(4).toList()
         }
-        val sortedVisible = remember(visible, readingActivities, activeSort) {
-            BookshelfSort.sort(visible, readingActivities, { url -> BookshelfRepository.keyFor(url) }, activeSort)
+        val sortedVisible = remember(visible, readingIndex, activeSort) {
+            if (activeSort == BookshelfSort.Order.RECENT_READ) {
+                // BookshelfRepository.observe already delivers entries in RECENT_READ order
+                visible
+            } else {
+                BookshelfSort.sortWithReadProvider(
+                    entries = visible,
+                    order = activeSort,
+                    readAtProvider = { entry -> readingIndex.activityFor(entry)?.lastReadAt }
+                )
+            }
         }
         val shown = remember(sortedVisible, downloaded, activeFilter) {
             when (activeFilter) {
@@ -200,7 +208,6 @@ object FavoritePage : AppDestination {
         LaunchedEffect(Unit) {
             model.initShelf()
         }
-        LaunchedEffect(entries) { model.refreshDownloaded() }
         LaunchedEffect(visibleKeys) { selected = selected.intersect(visibleKeys) }
         LaunchedEffect(syncState) {
             when (val state = syncState) {

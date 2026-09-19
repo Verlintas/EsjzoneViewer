@@ -1,7 +1,6 @@
 package com.breakyuna.esjzone.ui.component
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,7 +36,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -51,7 +49,6 @@ import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
 import com.breakyuna.esjzone.ui.designsystem.AppContentType
 import com.breakyuna.esjzone.ui.designsystem.AppCoverImage
-import com.breakyuna.esjzone.ui.designsystem.AppImageLoading
 import com.breakyuna.esjzone.ui.designsystem.AppLayout
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
@@ -110,16 +107,7 @@ fun AppNovelCover(
                 ?: R.drawable.missing_cover,
             contentDescription = title,
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            loading = { AppImageLoading() },
-            error = {
-                Image(
-                    painter = painterResource(R.drawable.missing_cover),
-                    contentDescription = title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            contentScale = ContentScale.Crop
         )
         if (isAdult) {
             val adultColors = appAdultColors()

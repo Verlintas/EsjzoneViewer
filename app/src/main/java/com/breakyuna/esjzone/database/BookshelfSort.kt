@@ -7,6 +7,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /** Pure ordering rules for the local-first bookshelf. */
 object BookshelfSort {
@@ -15,6 +16,62 @@ object BookshelfSort {
         RECENT_READ,
         RECENT_ADDED,
         RECENT_UPDATED
+    }
+
+    private val dateCache = ConcurrentHashMap<String, Long>()
+
+    /**
+     * Fast-path sorting using precomputed read timestamps.
+     * Avoids rebuilding novelId/bookKey maps and date parsing when not required.
+     */
+    fun sortWithReadProvider(
+        entries: List<BookshelfEntry>,
+        order: Order = Order.RECENT_READ,
+        readAtProvider: (BookshelfEntry) -> Long?
+    ): List<BookshelfEntry> {
+        if (entries.isEmpty()) return entries
+        return when (order) {
+            Order.RECENT_READ -> {
+                entries.map { entry ->
+                    RankedEntry(
+                        entry = entry,
+                        readAt = readAtProvider(entry),
+                        updatedAt = null
+                    )
+                }.sortedWith(
+                    Comparator { left, right ->
+                        val comparison = compareNullableDescending(left.readAt, right.readAt)
+                            .takeIf { it != 0 }
+                            ?: right.entry.addedAt.compareTo(left.entry.addedAt)
+                        comparison.takeIf { it != 0 } ?: left.entry.bookKey.compareTo(right.entry.bookKey)
+                    }
+                ).map { it.entry }
+            }
+            Order.RECENT_ADDED -> {
+                entries.sortedWith(
+                    Comparator { left, right ->
+                        val comparison = right.addedAt.compareTo(left.addedAt)
+                        comparison.takeIf { it != 0 } ?: left.bookKey.compareTo(right.bookKey)
+                    }
+                )
+            }
+            Order.RECENT_UPDATED -> {
+                entries.map { entry ->
+                    RankedEntry(
+                        entry = entry,
+                        readAt = null,
+                        updatedAt = updatedAt(entry)
+                    )
+                }.sortedWith(
+                    Comparator { left, right ->
+                        val comparison = compareNullableDescending(left.updatedAt, right.updatedAt)
+                            .takeIf { it != 0 }
+                            ?: right.entry.addedAt.compareTo(left.entry.addedAt)
+                        comparison.takeIf { it != 0 } ?: left.entry.bookKey.compareTo(right.entry.bookKey)
+                    }
+                ).map { it.entry }
+            }
+        }
     }
 
     /**
@@ -102,8 +159,10 @@ object BookshelfSort {
             .replace('/', '-')
             .trim()
         if (normalized.isBlank()) return null
+        val cached = dateCache[normalized]
+        if (cached != null) return cached
         val zone = ZoneId.systemDefault()
-        return try {
+        val parsed = try {
             if (normalized.contains(':')) {
                 val formatter = if (normalized.count { it == ':' } >= 2) DT_WITH_SECONDS else DT_WITHOUT_SECONDS
                 LocalDateTime.parse(normalized, formatter).atZone(zone).toInstant().toEpochMilli()
@@ -113,6 +172,10 @@ object BookshelfSort {
         } catch (_: Exception) {
             null
         }
+        if (parsed != null) {
+            dateCache[normalized] = parsed
+        }
+        return parsed
     }
 
     private val DT_WITH_SECONDS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT)

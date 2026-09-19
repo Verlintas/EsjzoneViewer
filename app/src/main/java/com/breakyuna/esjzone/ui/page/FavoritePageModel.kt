@@ -23,17 +23,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 /** Owns bookshelf synchronization and deletion jobs for the page. */
 class FavoritePageModel(private val authorization: Authorization) :
     AppStateViewModel<FavoritePageModel.State>(State.Idle) {
     /** Hot snapshots prevent an empty Room frame from resetting the restored shelf position. */
     val entries: StateFlow<List<BookshelfEntry>> = BookshelfRepository.observe(authorization)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    /** Full local reading timestamps used only for the optional shelf order. */
-    val readingActivities: StateFlow<List<LocalReadingActivity>> =
-        PresentationAccess.database.localReadingActivityDao().observeAll()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Latest local activity for the showcase, grid progress labels, and reactive ordering. */
     data class ReadingIndex(
@@ -90,15 +87,21 @@ class FavoritePageModel(private val authorization: Authorization) :
 
     private val _downloadedBookKeys = MutableStateFlow<Set<String>>(emptySet())
     val downloadedBookKeys: StateFlow<Set<String>> = _downloadedBookKeys
+    private val isRefreshingDownloaded = AtomicBoolean(false)
 
     /** Refreshes the local-download index without blocking bookshelf composition. */
     fun refreshDownloaded() {
+        if (isRefreshingDownloaded.getAndSet(true)) return
         viewModelScope.launch(Dispatchers.IO) {
-            _downloadedBookKeys.value = PresentationAccess.downloads.listDownloadedNovels()
-                .mapTo(LinkedHashSet()) { summary ->
-                    BookshelfRepository.keyFor(summary.novelUrl)
-                        .ifBlank { EsjzoneUrls.canonicalPageKey(summary.novelUrl) }
-                }
+            try {
+                _downloadedBookKeys.value = PresentationAccess.downloads.listDownloadedNovels()
+                    .mapTo(LinkedHashSet()) { summary ->
+                        BookshelfRepository.keyFor(summary.novelUrl)
+                            .ifBlank { EsjzoneUrls.canonicalPageKey(summary.novelUrl) }
+                    }
+            } finally {
+                isRefreshingDownloaded.set(false)
+            }
         }
     }
 
