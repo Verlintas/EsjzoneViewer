@@ -20,8 +20,8 @@ import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
 import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
+import coil3.request.CachePolicy
 import coil3.request.ImageRequest
-import coil3.request.crossfade
 import me.saket.telephoto.zoomable.DoubleClickToZoomListener
 import me.saket.telephoto.zoomable.EnabledZoomGestures
 import me.saket.telephoto.zoomable.ZoomableImageState
@@ -63,14 +63,18 @@ fun AppImage(
             if (model is ImageRequest) model
             else ImageRequest.Builder(context)
                 .data(model)
-                .crossfade(120)
+                // Covers are cache-first.  A missing-cover drawable is deliberately
+                // not used as a loading placeholder: on a disk-cache hit it would
+                // flash for at least one composition before the real cover appears.
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .networkCachePolicy(CachePolicy.ENABLED)
                 .build()
         }
         AsyncImage(
             model = imageRequest,
             imageLoader = PresentationAccess.imageLoader,
             contentDescription = contentDescription,
-            placeholder = painterResource(R.drawable.missing_cover),
             error = painterResource(R.drawable.missing_cover),
             modifier = modifier,
             contentScale = contentScale,

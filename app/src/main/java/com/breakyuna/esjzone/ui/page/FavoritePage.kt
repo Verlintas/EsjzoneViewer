@@ -79,6 +79,7 @@ import com.breakyuna.esjzone.ui.navigation.LocalFloatingNavSuppression
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.database.BookshelfRepository
+import com.breakyuna.esjzone.database.BookshelfCoverStore
 import com.breakyuna.esjzone.database.BookshelfSort
 import com.breakyuna.esjzone.database.entity.BookshelfEntry
 import com.breakyuna.esjzone.database.entity.LocalReadingActivity
@@ -127,6 +128,9 @@ object FavoritePage : AppDestination {
         val authorization = LocalAuthorization.current
         val model = rememberAppViewModel { FavoritePageModel(authorization) }
         val entries by model.entries.collectAsStateWithLifecycle()
+        LaunchedEffect(entries) {
+            BookshelfCoverStore.schedulePersist(entries)
+        }
         val readingIndex by model.readingIndex.collectAsStateWithLifecycle()
         val downloaded by model.downloadedBookKeys.collectAsStateWithLifecycle()
         val syncState by model.state.collectAsStateWithLifecycle()
@@ -661,7 +665,7 @@ private fun ShelfCard(
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(0.7f)) {
             AppNovelCover(
-                coverUrl = entry.coverUrl,
+                coverUrl = BookshelfCoverStore.localOrRemote(entry),
                 title = entry.title,
                 modifier = Modifier.fillMaxSize().clip(shape)
             )
@@ -730,7 +734,11 @@ private fun ShelfListItem(entry: BookshelfEntry, enabled: Boolean, onClick: () -
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md), verticalAlignment = Alignment.Top
     ) {
         Box(Modifier.size(width = 100.dp, height = 140.dp)) {
-            AppNovelCover(entry.coverUrl, entry.title, Modifier.fillMaxSize().clip(AppShapes.compact))
+            AppNovelCover(
+                BookshelfCoverStore.localOrRemote(entry),
+                entry.title,
+                Modifier.fillMaxSize().clip(AppShapes.compact)
+            )
             if (entry.hasUpdate) {
                 BookshelfUpdateDot(
                     modifier = Modifier

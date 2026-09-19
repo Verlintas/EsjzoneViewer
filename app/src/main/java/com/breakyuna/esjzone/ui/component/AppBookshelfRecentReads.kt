@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.database.entity.BookshelfEntry
+import com.breakyuna.esjzone.database.BookshelfCoverStore
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import kotlin.math.roundToInt
 
@@ -74,7 +75,7 @@ fun AppBookshelfRecentReads(
                 key(entry.bookKey) {
                     val rankDescription = stringResource(R.string.bookshelf_recent_rank, rank + 1)
                     AppNovelCover(
-                        coverUrl = entry.coverUrl,
+                        coverUrl = BookshelfCoverStore.localOrRemote(entry),
                         title = entry.title.ifBlank { stringResource(R.string.download_unknown_novel) },
                         modifier = Modifier
                             .shadow(
