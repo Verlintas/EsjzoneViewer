@@ -2,6 +2,9 @@
 
 package com.breakyuna.esjzone.ui.tab
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +20,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,13 +36,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -98,6 +108,7 @@ object HomeTab : AppTab {
         val randomRecommendationsTitle = stringResource(R.string.home_random_recommendations)
         val changeBatchLabel = stringResource(R.string.home_random_change_batch)
         val collapseLabel = stringResource(R.string.home_random_collapse)
+        val pullToLoadLabel = stringResource(R.string.home_random_pull_to_load)
 
         val navPadding = LocalFloatingNavPadding.current
         val layoutDirection = LocalLayoutDirection.current
@@ -150,19 +161,32 @@ object HomeTab : AppTab {
             else emptyList()
         }
 
-        var hasStationedAtBottom by remember { mutableStateOf(false) }
+        val density = LocalDensity.current
+        val thresholdPx = remember(density) { with(density) { 56.dp.toPx() } }
+        val maxPullPx = remember(density) { with(density) { 96.dp.toPx() } }
+        var pullUpOffsetPx by remember { mutableFloatStateOf(0f) }
+        val isPullingUp by remember {
+            derivedStateOf { !randomState.isActivated && pullUpOffsetPx > 0f }
+        }
 
-        LaunchedEffect(listState, randomState.isActivated) {
+        LaunchedEffect(randomState.isActivated) {
             if (randomState.isActivated) {
-                hasStationedAtBottom = false
-                return@LaunchedEffect
+                pullUpOffsetPx = 0f
             }
-            snapshotFlow { !listState.canScrollForward && !listState.isScrollInProgress }
-                .collect { isStationed ->
-                    if (isStationed) {
-                        hasStationedAtBottom = true
-                    }
+        }
+
+        LaunchedEffect(listState.isScrollInProgress) {
+            if (!listState.isScrollInProgress && pullUpOffsetPx > 0f) {
+                Animatable(pullUpOffsetPx).animateTo(
+                    targetValue = 0f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                ) {
+                    pullUpOffsetPx = value
                 }
+            }
         }
 
         val lifecycleOwner = LocalLifecycleOwner.current
@@ -187,17 +211,49 @@ object HomeTab : AppTab {
             }
         }
 
-        val bottomSwipeConnection = remember(randomState.isActivated, adult, hasStationedAtBottom) {
+        val bottomSwipeConnection = remember(randomState.isActivated, adult, thresholdPx, maxPullPx) {
             object : NestedScrollConnection {
+                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    if (!randomState.isActivated && pullUpOffsetPx > 0f && available.y > 0f) {
+                        val consumedY = available.y.coerceAtMost(pullUpOffsetPx)
+                        pullUpOffsetPx -= consumedY
+                        return Offset(0f, consumedY)
+                    }
+                    return Offset.Zero
+                }
+
                 override fun onPostScroll(
                     consumed: Offset,
                     available: Offset,
                     source: NestedScrollSource
                 ): Offset {
-                    if (!randomState.isActivated && hasStationedAtBottom && source == NestedScrollSource.UserInput && available.y < -15f) {
-                        model.activateRandomRecommendations(adult)
+                    if (!randomState.isActivated && source == NestedScrollSource.UserInput && available.y < 0f) {
+                        val resistance = (1f - (pullUpOffsetPx / maxPullPx).coerceIn(0f, 0.85f)) * 0.5f
+                        val delta = -available.y * resistance
+                        pullUpOffsetPx = (pullUpOffsetPx + delta).coerceAtMost(maxPullPx)
+                        return Offset(0f, available.y)
                     }
                     return Offset.Zero
+                }
+
+                override suspend fun onPreFling(available: Velocity): Velocity {
+                    if (!randomState.isActivated && pullUpOffsetPx > 0f) {
+                        val triggered = pullUpOffsetPx >= thresholdPx
+                        if (triggered) {
+                            model.activateRandomRecommendations(adult)
+                        }
+                        Animatable(pullUpOffsetPx).animateTo(
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ) {
+                            pullUpOffsetPx = value
+                        }
+                        return available
+                    }
+                    return Velocity.Zero
                 }
             }
         }
@@ -228,12 +284,40 @@ object HomeTab : AppTab {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = padding.calculateTopPadding())
+                    .clipToBounds()
             ) {
+                if (isPullingUp) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = navPadding.calculateBottomPadding() + AppSpacing.md)
+                            .graphicsLayer {
+                                val progress = (pullUpOffsetPx / thresholdPx).coerceIn(0f, 1f)
+                                alpha = progress
+                                translationY = (1f - progress) * 16.dp.toPx()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = pullToLoadLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (pullUpOffsetPx >= thresholdPx) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                }
+
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .nestedScroll(bottomSwipeConnection),
+                        .nestedScroll(bottomSwipeConnection)
+                        .graphicsLayer {
+                            translationY = -pullUpOffsetPx
+                        },
                     contentPadding = PaddingValues(
                         start = 16.dp + navPadding.calculateStartPadding(layoutDirection),
                         end = 16.dp,
@@ -350,7 +434,6 @@ object HomeTab : AppTab {
                                 title = randomRecommendationsTitle,
                                 changeBatchLabel = changeBatchLabel,
                                 collapseLabel = collapseLabel,
-                                onActivate = { model.activateRandomRecommendations(adult) },
                                 onChangeBatch = { model.replaceRandomRecommendations(adult) },
                                 onCollapse = { model.unloadRandomRecommendations(clearDeduplication = false) },
                                 onRetry = { model.retryRandomRecommendations(adult) },

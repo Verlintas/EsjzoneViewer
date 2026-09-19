@@ -1,30 +1,23 @@
 package com.breakyuna.esjzone.ui.tab
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
-import com.breakyuna.esjzone.ui.designsystem.AppShapes
 import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.discovery.DiscoveryErrorState
 
@@ -33,19 +26,12 @@ internal fun LazyListScope.randomRecommendationsSection(
     title: String,
     changeBatchLabel: String,
     collapseLabel: String,
-    onActivate: () -> Unit,
     onChangeBatch: () -> Unit,
     onCollapse: () -> Unit,
     onRetry: () -> Unit,
     onNovelClick: (CoveredNovel) -> Unit
 ) {
     if (!state.isActivated) {
-        item(key = "home-random-trigger", contentType = "home-random-trigger") {
-            RandomRecommendationTriggerItem(
-                isLoading = state.isLoading,
-                onClick = onActivate
-            )
-        }
         return
     }
 
@@ -135,42 +121,6 @@ internal fun LazyListScope.randomRecommendationsSection(
                 message = stringResource(failureMessage(state.failure)),
                 onRetry = onRetry
             )
-        }
-    }
-}
-
-@Composable
-private fun RandomRecommendationTriggerItem(
-    isLoading: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = AppShapes.pill,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = AppSpacing.lg)
-            .height(44.dp)
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            } else {
-                Text(
-                    text = stringResource(R.string.home_random_pull_to_load),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
