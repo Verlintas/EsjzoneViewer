@@ -2,6 +2,7 @@ package com.breakyuna.esjzone.database
 
 import com.breakyuna.esjzone.EsjzoneApplication
 import com.breakyuna.esjzone.app.PresentationAccess
+import com.breakyuna.esjzone.data.settings.SettingsDefaults
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.offline.NovelDownloadStore
@@ -9,6 +10,7 @@ import com.breakyuna.esjzone.util.AppLogger
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * Manages local cover image files for bookmarks.
@@ -69,11 +71,22 @@ object BookmarkCoverStore {
         if (trimmed.isBlank()) return null
         val diskCache = PresentationAccess.imageLoader.diskCache ?: return null
 
-        val candidateKeys = listOfNotNull(
-            trimmed,
-            EsjzoneUrls.coverOrEmpty(trimmed).takeIf(String::isNotBlank),
-            runCatching { EsjzoneUrls.resolve(trimmed) }.getOrNull()?.takeIf(String::isNotBlank)
-        ).distinct()
+        val parsed = trimmed.toHttpUrlOrNull()
+        val isEsj = parsed != null && EsjzoneUrls.isEsjHost(parsed.host)
+
+        val candidateKeys = buildList {
+            add(trimmed)
+            val normalized = EsjzoneUrls.coverOrEmpty(trimmed)
+            if (normalized.isNotBlank()) add(normalized)
+            runCatching { EsjzoneUrls.resolve(trimmed) }.getOrNull()?.takeIf(String::isNotBlank)?.let(::add)
+            if (isEsj && parsed != null) {
+                SettingsDefaults.DOMAINS.forEach { domain ->
+                    runCatching {
+                        parsed.newBuilder().host(domain).build().toString()
+                    }.getOrNull()?.let(::add)
+                }
+            }
+        }.distinct()
 
         for (key in candidateKeys) {
             runCatching {

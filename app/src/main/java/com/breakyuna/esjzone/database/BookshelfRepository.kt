@@ -144,7 +144,17 @@ object BookshelfRepository {
             val suppliedCover = (novel as? CoveredNovel)?.coverUrl
                 ?.let { EsjzoneUrls.coverOrEmpty(it) }
                 .orEmpty()
-            val retainedCover = current?.coverUrl?.takeIf { it.isNotBlank() } ?: suppliedCover
+            val crossScope = if (current == null || current.coverUrl.isBlank() || current.author.isBlank()) {
+                dao.findAnyWithCover(key)
+            } else null
+            val fallbackCover = crossScope?.coverUrl?.takeIf { it.isNotBlank() }?.let { rawCover ->
+                runCatching { EsjzoneUrls.resolve(rawCover) }.getOrDefault(rawCover)
+            }.orEmpty()
+            val retainedCover = current?.coverUrl?.takeIf { it.isNotBlank() }
+                ?: suppliedCover.takeIf { it.isNotBlank() }
+                ?: fallbackCover
+            val author = current?.author?.takeIf { it.isNotBlank() } ?: crossScope?.author.orEmpty()
+            val isAdult = current?.isAdult ?: crossScope?.isAdult ?: false
             val next = if (desired) {
                 BookshelfEntry(
                     scope = scope,
@@ -152,9 +162,9 @@ object BookshelfRepository {
                     novelId = current?.novelId?.takeIf { it.isNotBlank() } ?: novelIdFor(novel.url),
                     url = EsjzoneUrls.resolve(novel.url).substringBefore('#'),
                     title = novel.name,
-                    author = current?.author.orEmpty(),
+                    author = author,
                     coverUrl = retainedCover,
-                    isAdult = current?.isAdult ?: false,
+                    isAdult = isAdult,
                     addedAt = if (current?.syncState == BookshelfSyncState.PENDING_REMOVE) {
                         System.currentTimeMillis()
                     } else {
@@ -177,9 +187,9 @@ object BookshelfRepository {
                     novelId = current?.novelId?.takeIf { it.isNotBlank() } ?: novelIdFor(novel.url),
                     url = EsjzoneUrls.resolve(novel.url).substringBefore('#'),
                     title = novel.name,
-                    author = current?.author.orEmpty(),
+                    author = author,
                     coverUrl = retainedCover,
-                    isAdult = current?.isAdult ?: false,
+                    isAdult = isAdult,
                     addedAt = current?.addedAt ?: System.currentTimeMillis(),
                     syncState = BookshelfSyncState.PENDING_REMOVE,
                     visible = false,
@@ -223,7 +233,6 @@ object BookshelfRepository {
         return removed
     }
 
-    /** Seeds a remote favorite or supplements missing metadata without changing intent state. */
     suspend fun seedRemoteFavorite(
         authorization: Authorization,
         novel: Novel,
@@ -235,6 +244,15 @@ object BookshelfRepository {
         val scope = scopeFor(authorization)
         val key = keyFor(novel.url)
         val existing = dao.find(scope, key)
+        val crossScope = if (coverUrl.isBlank() || author.isBlank()) {
+            dao.findAnyWithCover(key)
+        } else null
+        val fallbackCover = crossScope?.coverUrl?.takeIf { it.isNotBlank() }?.let { rawCover ->
+            runCatching { EsjzoneUrls.resolve(rawCover) }.getOrDefault(rawCover)
+        }.orEmpty()
+        val effectiveCover = coverUrl.takeIf { it.isNotBlank() } ?: fallbackCover
+        val effectiveAuthor = author.takeIf { it.isNotBlank() } ?: crossScope?.author.orEmpty()
+        val effectiveIsAdult = isAdult || (crossScope?.isAdult ?: false)
         if (existing == null) {
             dao.insertIfAbsent(
                 BookshelfEntry(
@@ -243,15 +261,15 @@ object BookshelfRepository {
                     novelId = novelIdFor(novel.url),
                     url = EsjzoneUrls.resolve(novel.url).substringBefore('#'),
                     title = novel.name,
-                    author = author,
-                    coverUrl = coverUrl,
-                    isAdult = isAdult,
+                    author = effectiveAuthor,
+                    coverUrl = effectiveCover,
+                    isAdult = effectiveIsAdult,
                     syncState = BookshelfSyncState.SYNCED
                 )
             )
         } else {
-            dao.supplementMetadata(scope, key, novel.name, author, coverUrl, isAdult)
-            dao.updateCoverIfChanged(scope, key, EsjzoneUrls.coverOrEmpty(coverUrl))
+            dao.supplementMetadata(scope, key, novel.name, effectiveAuthor, effectiveCover, effectiveIsAdult)
+            dao.updateCoverIfChanged(scope, key, EsjzoneUrls.coverOrEmpty(effectiveCover))
         }
     }
 
@@ -284,9 +302,33 @@ object BookshelfRepository {
     fun scheduleMetadataSupplement(authorization: Authorization) {
         if (!authorization.hasCredentials()) return
         workerScope.launch {
-            delay(2_500L)
             val dao = requireDao()
             val scope = scopeFor(authorization)
+
+            val initialCandidates = dao.getAll(scope)
+                .filter { it.visible && it.coverUrl.isBlank() && it.url.isNotBlank() }
+
+            if (initialCandidates.isNotEmpty()) {
+                requireDatabase().withTransaction {
+                    for (row in initialCandidates) {
+                        val existing = dao.findAnyWithCover(row.bookKey)
+                        if (existing != null && existing.coverUrl.isNotBlank()) {
+                            val resolvedCover = runCatching { EsjzoneUrls.resolve(existing.coverUrl) }
+                                .getOrDefault(existing.coverUrl)
+                            dao.supplementMetadata(
+                                scope = scope,
+                                bookKey = row.bookKey,
+                                title = existing.title.takeIf { it.isNotBlank() } ?: row.title,
+                                author = existing.author,
+                                coverUrl = resolvedCover,
+                                isAdult = existing.isAdult
+                            )
+                        }
+                    }
+                }
+            }
+
+            delay(2_500L)
             val now = System.currentTimeMillis()
             val candidates = dao.getAll(scope)
                 .asSequence()
@@ -479,6 +521,10 @@ object BookshelfRepository {
         remoteByKey.values.forEach { remoteNovel ->
             val key = keyFor(remoteNovel.url)
             if (BookshelfSyncRules.shouldImport(key, localKeys, tombstoneKeys)) {
+                val existing = dao.findAnyWithCover(key)
+                val resolvedCover = existing?.coverUrl?.takeIf { it.isNotBlank() }?.let { rawCover ->
+                    runCatching { EsjzoneUrls.resolve(rawCover) }.getOrDefault(rawCover)
+                }.orEmpty()
                 val inserted = dao.insertIfAbsent(
                     BookshelfEntry(
                         scope = scope,
@@ -486,7 +532,9 @@ object BookshelfRepository {
                         novelId = novelIdFor(remoteNovel.url),
                         url = EsjzoneUrls.resolve(remoteNovel.url).substringBefore('#'),
                         title = remoteNovel.name,
-                        isAdult = false,
+                        author = existing?.author.orEmpty(),
+                        coverUrl = resolvedCover,
+                        isAdult = existing?.isAdult ?: false,
                         syncState = BookshelfSyncState.SYNCED
                     )
                 )

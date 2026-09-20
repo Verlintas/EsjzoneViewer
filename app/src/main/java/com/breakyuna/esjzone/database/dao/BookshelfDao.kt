@@ -26,6 +26,12 @@ interface BookshelfDao {
     @Query("SELECT * FROM bookshelf WHERE scope = :scope AND book_key = :bookKey LIMIT 1")
     suspend fun find(scope: String, bookKey: String): BookshelfEntry?
 
+    @Query(
+        "SELECT * FROM bookshelf WHERE book_key = :bookKey AND cover_url != '' " +
+            "ORDER BY added_at DESC LIMIT 1"
+    )
+    suspend fun findAnyWithCover(bookKey: String): BookshelfEntry?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: BookshelfEntry)
 

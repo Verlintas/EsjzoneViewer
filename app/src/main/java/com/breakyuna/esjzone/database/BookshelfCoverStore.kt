@@ -2,6 +2,7 @@ package com.breakyuna.esjzone.database
 
 import com.breakyuna.esjzone.EsjzoneApplication
 import com.breakyuna.esjzone.app.PresentationAccess
+import com.breakyuna.esjzone.data.settings.SettingsDefaults
 import com.breakyuna.esjzone.database.entity.BookshelfEntry
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.util.AppLogger
@@ -21,19 +22,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * Durable local copies of bookshelf covers.
  *
  * Coil remains the common image cache for the rest of the app, while every
  * visible bookshelf item gets a stable app-files copy.  The file name includes
- * the source URL fingerprint, so a changed remote cover naturally gets a new
- * local file instead of serving stale artwork.
+ * the remote image hash, so an updated cover replaces the previous file.
  */
 object BookshelfCoverStore {
     private const val DIRECTORY_NAME = "bookshelf_covers"
-    private const val BATCH_SIZE = 36
-    private const val BATCH_COOLDOWN_MILLIS = 3_000L
+    private const val BATCH_SIZE = 4
+    private const val BATCH_COOLDOWN_MILLIS = 300L
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val activeKeys = ConcurrentHashMap.newKeySet<String>()
     private val downloadSemaphore = Semaphore(2)
@@ -41,19 +42,67 @@ object BookshelfCoverStore {
     private val directory: File
         get() = File(EsjzoneApplication.instance.filesDir, DIRECTORY_NAME).apply { mkdirs() }
 
-    private fun fileName(entry: BookshelfEntry): String {
-        val source = EsjzoneUrls.coverOrEmpty(entry.coverUrl)
-        val identity = "${entry.bookKey}|$source"
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(identity.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
-        return "cover_${digest}.img"
+    internal fun canonicalSource(rawUrl: String): String {
+        val trimmed = EsjzoneUrls.coverOrEmpty(rawUrl).trim()
+        if (trimmed.isBlank()) return ""
+        val parsed = trimmed.toHttpUrlOrNull() ?: return trimmed
+        return if (EsjzoneUrls.isEsjHost(parsed.host)) {
+            "esj:${parsed.encodedPath}${parsed.encodedQuery?.let { "?$it" }.orEmpty()}"
+        } else {
+            parsed.toString().substringBefore('#')
+        }
     }
 
-    private fun fileFor(entry: BookshelfEntry): File = File(directory, fileName(entry))
+    private fun digest(identity: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(identity.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
+    internal fun fileName(entry: BookshelfEntry): String {
+        val source = canonicalSource(entry.coverUrl)
+        val identity = "${entry.bookKey}|$source"
+        return "cover_${digest(identity)}.img"
+    }
+
+    internal fun legacyFileNames(entry: BookshelfEntry): List<String> {
+        val trimmed = EsjzoneUrls.coverOrEmpty(entry.coverUrl).trim()
+        if (trimmed.isBlank()) return emptyList()
+        val parsed = trimmed.toHttpUrlOrNull()
+        val isEsj = parsed != null && EsjzoneUrls.isEsjHost(parsed.host)
+
+        val candidateSources = buildList {
+            add(trimmed)
+            if (isEsj && parsed != null) {
+                SettingsDefaults.DOMAINS.forEach { domain ->
+                    runCatching {
+                        parsed.newBuilder().host(domain).build().toString()
+                    }.getOrNull()?.let(::add)
+                }
+            }
+        }.distinct()
+
+        return candidateSources.map { source ->
+            val identity = "${entry.bookKey}|$source"
+            "cover_${digest(identity)}.img"
+        }.distinct()
+    }
+
+    private fun fileFor(entry: BookshelfEntry): File {
+        val target = File(directory, fileName(entry))
+        if (target.isFile && target.length() > 0L) return target
+        for (legacyName in legacyFileNames(entry)) {
+            val legacy = File(directory, legacyName)
+            if (legacy.isFile && legacy.length() > 0L) {
+                if (legacy.renameTo(target)) return target
+                return legacy
+            }
+        }
+        return target
+    }
 
     /** Returns a durable local URI when present, otherwise the original URL. */
     fun localOrRemote(entry: BookshelfEntry): String {
+        if (entry.coverUrl.isBlank()) return ""
         val local = fileFor(entry)
         return if (local.isFile && local.length() > 0L) local.toURI().toString() else entry.coverUrl
     }
