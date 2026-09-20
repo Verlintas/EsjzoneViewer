@@ -25,9 +25,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -528,15 +531,15 @@ internal fun CommentComposerHost(
             model.load(forceRefresh = true)
         },
         onSubmit = { model.submit(draft, model.replyToken.value) },
-        // Keep system insets outside the painted composer surface.  Applying
-        // IME padding to the inner column makes the surface's measured content
-        // grow by the keyboard height, which can make the input panel appear
-        // abnormally tall when the keyboard opens.  The host is shared by
-        // detail, comment, and community pages, so this keeps all three paths
-        // consistent without touching draft/reply state or submission logic.
+        // Keep system insets outside the painted composer surface.
+        // Combining navigationBars and IME insets using union (taking the max
+        // of both) ensures the composer sits above the navigation bar when the
+        // keyboard is closed, and sits flush directly above the keyboard when
+        // the keyboard opens, eliminating additive double-padding (navigation
+        // bar height + keyboard height) that causes an extra blank gap above
+        // the keyboard.
         modifier = modifier
-            .navigationBarsPadding()
-            .imePadding()
+            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
             .onSizeChanged { onHeightChanged?.invoke(it.height) }
     )
 }
