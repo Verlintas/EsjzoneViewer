@@ -107,8 +107,8 @@ object LoginScreen : AppDestination {
                         result
                     }
                     if (authorization != null) {
-                        BookshelfRepository.scheduleSync(authorization)
-                        CommunitySyncManager.schedulePreSync(authorization)
+                        BookshelfRepository.scheduleSync(authorization, delayMillis = 2000L)
+                        CommunitySyncManager.schedulePreSync(authorization, delayMillis = 3500L)
                         navigator.replace(MainScreen(authorization))
                     } else {
                         loginFailed = true
@@ -184,8 +184,8 @@ object LoginScreen : AppDestination {
                                                 PresentationAccess.client.restoreAuthorization(domain)
                                             }?.takeIf { it.hasCredentials() }
                                             if (existing != null) {
-                                                BookshelfRepository.scheduleSync(existing)
-                                                CommunitySyncManager.schedulePreSync(existing)
+                                                BookshelfRepository.scheduleSync(existing, delayMillis = 2000L)
+                                                CommunitySyncManager.schedulePreSync(existing, delayMillis = 3500L)
                                                 navigator.replaceAll(MainScreen(existing))
                                             }
                                         } catch (e: Exception) {

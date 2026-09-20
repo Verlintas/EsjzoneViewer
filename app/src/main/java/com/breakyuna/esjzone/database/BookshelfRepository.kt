@@ -273,7 +273,7 @@ object BookshelfRepository {
         }
     }
 
-    fun scheduleSync(authorization: Authorization) {
+    fun scheduleSync(authorization: Authorization, delayMillis: Long = 0L) {
         if (authorization.hasCredentials()) {
             val scope = scopeFor(authorization)
             if (!scheduledScopes.add(scope)) {
@@ -284,6 +284,7 @@ object BookshelfRepository {
             }
             workerScope.launch {
                 try {
+                    if (delayMillis > 0L) delay(delayMillis)
                     sync(authorization)
                 } finally {
                     scheduledScopes.remove(scope)

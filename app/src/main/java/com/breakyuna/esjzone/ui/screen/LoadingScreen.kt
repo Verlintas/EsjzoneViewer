@@ -99,8 +99,8 @@ class LoadingScreen : AppDestination {
                 // Start the shelf retry/import in the process-scoped worker.
                 // MainScreen and the shelf itself remain local-first and do
                 // not wait for this network operation.
-                BookshelfRepository.scheduleSync(authorization)
-                CommunitySyncManager.schedulePreSync(authorization)
+                BookshelfRepository.scheduleSync(authorization, delayMillis = 2000L)
+                CommunitySyncManager.schedulePreSync(authorization, delayMillis = 3500L)
                 navigator.replace(MainScreen(authorization = authorization))
             } else {
                 navigator.replace(LoginScreen)

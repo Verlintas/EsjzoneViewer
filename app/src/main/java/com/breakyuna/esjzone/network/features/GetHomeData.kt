@@ -23,18 +23,32 @@ import org.jsoup.Jsoup
 
 suspend fun EsjzoneClient.getHomeData(
     authorization: Authorization,
-    forceRefresh: Boolean = false
+    forceRefresh: Boolean = false,
+    onProgress: ((HomeData) -> Unit)? = null
 ): HomeData = withContext(Dispatchers.IO) {
     AppLogger.i("GetHomeData", "Fetching home data from ${EsjzoneUrls.Home} (forceRefresh=$forceRefresh)")
 
-    val responseBody = getPage(
-        authorization,
-        EsjzoneUrls.Home,
-        PageCacheTtl.HOME,
-        forceRefresh = forceRefresh,
-        pageKind = PageKind.HOME
-    )
+    val homeDeferred = async {
+        getPage(
+            authorization,
+            EsjzoneUrls.Home,
+            PageCacheTtl.HOME,
+            forceRefresh = forceRefresh,
+            pageKind = PageKind.HOME
+        )
+    }
+    val weeklyUpdatesDeferred = async {
+        try {
+            getWeeklyUpdates(authorization, forceRefresh = forceRefresh)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            AppLogger.w("GetHomeData", "Error parsing weekly updates", error)
+            emptyList()
+        }
+    }
 
+    val responseBody = homeDeferred.await()
     val document = Jsoup.parse(responseBody)
 
     val recentlyUpdateTranslatedNovels = mutableListOf<CoveredNovel>()
@@ -42,37 +56,6 @@ suspend fun EsjzoneClient.getHomeData(
     val recentlyUpdateTranslatedR18Novels = mutableListOf<CoveredNovel>()
     val recentlyUpdateOriginalR18Novels = mutableListOf<CoveredNovel>()
     val recommendationNovels = mutableListOf<CoveredNovel>()
-    val weeklyUpdates = try {
-        getWeeklyUpdates(authorization, forceRefresh = forceRefresh)
-    } catch (error: kotlinx.coroutines.CancellationException) {
-        throw error
-    } catch (error: Exception) {
-        AppLogger.w("GetHomeData", "Error parsing weekly updates", error)
-        emptyList()
-    }
-    val popularSeeds = selectWeeklyPopularSeeds(document)
-    val weeklyPopular = if (popularSeeds.isEmpty()) {
-        emptyList()
-    } else {
-        val semaphore = Semaphore(4)
-        popularSeeds.map { seed ->
-            async {
-                semaphore.withPermit {
-                    try {
-                        // Detail HTML is already covered by the six-hour page cache. Keep this
-                        // cache-first even for pull-to-refresh so the carousel never creates ten forced
-                        // refreshes in addition to the single home request.
-                        enrichWeeklyPopular(authorization, seed)
-                    } catch (error: kotlinx.coroutines.CancellationException) {
-                        throw error
-                    } catch (error: Exception) {
-                        AppLogger.w("GetHomeData", "Failed to enrich weekly popular item: ${seed.name}", error)
-                        null
-                    }
-                }
-            }
-        }.awaitAll().filterNotNull()
-    }
 
     try {
         for (recentlyUpdateTranslatedData in selectHomeSectionCards(document, HomeSection.TRANSLATED)) {
@@ -139,16 +122,102 @@ suspend fun EsjzoneClient.getHomeData(
 
     AppLogger.i("GetHomeData", "Home data parsed successfully: rec=${recommendationNovels.size}, trans=${recentlyUpdateTranslatedNovels.size}, orig=${recentlyUpdateOriginalNovels.size}")
 
+    val popularSeeds = selectWeeklyPopularSeeds(document)
+
+    // Build initial popular carousel items: immediately enrich any seeds that are already cached,
+    // and provide baseline fallback items for uncached seeds so initial render is zero-latency.
+    val initialPopular = popularSeeds.map { seed ->
+        val targetUrl = EsjzoneUrls.resolve(seed.url)
+        if (hasCachedPage(authorization, targetUrl, PageCacheTtl.DETAIL)) {
+            runCatching { enrichWeeklyPopular(authorization, seed) }.getOrNull()
+                ?: seedToInitialWeeklyPopular(seed)
+        } else {
+            seedToInitialWeeklyPopular(seed)
+        }
+    }
+
+    // Grab weekly updates if already finished
+    val initialWeeklyUpdates = if (weeklyUpdatesDeferred.isCompleted) {
+        weeklyUpdatesDeferred.await()
+    } else {
+        emptyList()
+    }
+
+    val initialHomeData = HomeData(
+        recentlyUpdateTranslatedNovels,
+        recentlyUpdateOriginalNovels,
+        recentlyUpdateTranslatedR18Novels,
+        recentlyUpdateOriginalR18Novels,
+        recommendationNovels,
+        initialWeeklyUpdates,
+        initialPopular
+    )
+
+    // Emit initial parsed home data immediately so UI displays with zero wait!
+    onProgress?.invoke(initialHomeData)
+
+    // Now await weekly updates if not already included
+    val finalWeeklyUpdates = if (initialWeeklyUpdates.isNotEmpty()) {
+        initialWeeklyUpdates
+    } else {
+        weeklyUpdatesDeferred.await()
+    }
+
+    // Asynchronously enrich remaining uncached popular seeds with bounded concurrency
+    val seedsToEnrich = popularSeeds.filterIndexed { index, _ ->
+        val item = initialPopular.getOrNull(index)
+        item == null || item.coverUrl.isBlank()
+    }
+
+    val enrichedPopular = if (seedsToEnrich.isEmpty()) {
+        initialPopular
+    } else {
+        val semaphore = Semaphore(3)
+        val enrichedMap = seedsToEnrich.map { seed ->
+            async {
+                semaphore.withPermit {
+                    try {
+                        enrichWeeklyPopular(authorization, seed)
+                    } catch (error: kotlinx.coroutines.CancellationException) {
+                        throw error
+                    } catch (error: Exception) {
+                        AppLogger.w("GetHomeData", "Failed to enrich weekly popular item: ${seed.name}", error)
+                        null
+                    }
+                }?.let { seed.url to it }
+            }
+        }.awaitAll().filterNotNull().toMap()
+
+        initialPopular.map { item ->
+            enrichedMap[item.url] ?: item
+        }
+    }
+
     HomeData(
         recentlyUpdateTranslatedNovels,
         recentlyUpdateOriginalNovels,
         recentlyUpdateTranslatedR18Novels,
         recentlyUpdateOriginalR18Novels,
         recommendationNovels,
-        weeklyUpdates,
-        weeklyPopular
+        finalWeeklyUpdates,
+        enrichedPopular
     )
 }
+
+internal fun seedToInitialWeeklyPopular(seed: WeeklyPopularSeed): WeeklyPopularNovel =
+    WeeklyPopularNovel(
+        rank = seed.rank,
+        weeklyViews = seed.weeklyViews,
+        descriptionPreview = "",
+        type = "",
+        coverUrl = "",
+        name = seed.name,
+        url = seed.url,
+        views = seed.weeklyViews,
+        likes = 0,
+        isAdult = false,
+        author = null
+    )
 
 internal data class WeeklyPopularSeed(
     val rank: Int,

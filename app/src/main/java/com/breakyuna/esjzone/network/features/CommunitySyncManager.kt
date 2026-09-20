@@ -10,6 +10,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
@@ -36,10 +37,11 @@ object CommunitySyncManager {
             url = EsjzoneUrls.WaterCooler
         )
 
-    fun schedulePreSync(authorization: Authorization) {
+    fun schedulePreSync(authorization: Authorization, delayMillis: Long = 0L) {
         if (!isSyncing.compareAndSet(false, true)) return
         workerScope.launch {
             try {
+                if (delayMillis > 0L) delay(delayMillis)
                 AppLogger.i("CommunitySyncManager", "Starting background pre-sync for guestbook and water cooler")
                 val guestbookJob = launch {
                     try {

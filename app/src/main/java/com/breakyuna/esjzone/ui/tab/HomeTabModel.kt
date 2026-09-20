@@ -235,18 +235,27 @@ class HomeTabModel(
             val visibleData = mutableState.value as? State.Result
             mutableState.value = visibleData?.copy(isSyncing = true) ?: State.Loading
             try {
-                val data = PresentationAccess.client.getHomeData(authorization, forceRefresh = forceRefresh)
+                val data = PresentationAccess.client.getHomeData(
+                    authorization = authorization,
+                    forceRefresh = forceRefresh,
+                    onProgress = { partialData ->
+                        ensureActive()
+                        HomeDataCache.writeSnapshot(partialData)
+                        mutableState.value = State.Result(partialData, isSyncing = true)
+                    }
+                )
                 ensureActive()
                 HomeDataCache.writeSnapshot(data)
-                mutableState.value = State.Result(data)
+                mutableState.value = State.Result(data, isSyncing = false)
             } catch (e: CancellationException) {
                 loadStarted = false
                 throw e
             } catch (e: Exception) {
-                if (visibleData == null) {
+                if (mutableState.value !is State.Result) {
                     mutableState.value = State.Error(e.loadFailureKind())
                 } else {
-                    mutableState.value = visibleData.copy(isSyncing = false)
+                    val current = mutableState.value as State.Result
+                    mutableState.value = current.copy(isSyncing = false)
                 }
                 loadStarted = false
                 com.breakyuna.esjzone.util.AppLogger.e("HomeTabModel", "Failed to load home data", e)
