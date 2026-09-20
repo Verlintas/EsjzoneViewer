@@ -74,6 +74,7 @@ import com.breakyuna.esjzone.ui.page.ForumPostPage
 import com.breakyuna.esjzone.ui.page.GuestbookPage
 import com.breakyuna.esjzone.ui.page.NovelListPage
 import com.breakyuna.esjzone.ui.page.NovelPage
+import kotlinx.coroutines.flow.collect
 
 object HomeTab : AppTab {
 
@@ -162,9 +163,10 @@ object HomeTab : AppTab {
         }
 
         val density = LocalDensity.current
-        val thresholdPx = remember(density) { with(density) { 56.dp.toPx() } }
-        val maxPullPx = remember(density) { with(density) { 96.dp.toPx() } }
+        val thresholdPx = remember(density) { with(density) { 40.dp.toPx() } }
+        val maxPullPx = remember(density) { with(density) { 80.dp.toPx() } }
         var pullUpOffsetPx by remember { mutableFloatStateOf(0f) }
+        var lastAutoLoadSize by remember { mutableStateOf(-1) }
         val isPullingUp by remember {
             derivedStateOf { !randomState.isActivated && pullUpOffsetPx > 0f }
         }
@@ -172,6 +174,25 @@ object HomeTab : AppTab {
         LaunchedEffect(randomState.isActivated) {
             if (randomState.isActivated) {
                 pullUpOffsetPx = 0f
+            } else {
+                lastAutoLoadSize = -1
+            }
+        }
+
+        LaunchedEffect(randomState.isActivated, randomState.items.size, randomState.isLoading,
+            randomState.hasMore, randomState.failure, adult) {
+            if (randomState.isActivated && randomState.items.isNotEmpty() &&
+                randomState.hasMore && !randomState.isLoading && randomState.failure == null) {
+                snapshotFlow {
+                    val layout = listState.layoutInfo
+                    val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: -1
+                    lastVisible >= (layout.totalItemsCount - 3).coerceAtLeast(0)
+                }.collect { nearEnd ->
+                    if (nearEnd && lastAutoLoadSize != randomState.items.size) {
+                        lastAutoLoadSize = randomState.items.size
+                        model.loadMoreRandomRecommendations(adult)
+                    }
+                }
             }
         }
 
@@ -228,8 +249,7 @@ object HomeTab : AppTab {
                     source: NestedScrollSource
                 ): Offset {
                     if (!randomState.isActivated && source == NestedScrollSource.UserInput && available.y < 0f) {
-                        val resistance = (1f - (pullUpOffsetPx / maxPullPx).coerceIn(0f, 0.85f)) * 0.5f
-                        val delta = -available.y * resistance
+                        val delta = -available.y * 0.75f
                         pullUpOffsetPx = (pullUpOffsetPx + delta).coerceAtMost(maxPullPx)
                         return Offset(0f, available.y)
                     }
@@ -237,20 +257,9 @@ object HomeTab : AppTab {
                 }
 
                 override suspend fun onPreFling(available: Velocity): Velocity {
-                    if (!randomState.isActivated && pullUpOffsetPx > 0f) {
-                        val triggered = pullUpOffsetPx >= thresholdPx
-                        if (triggered) {
-                            model.activateRandomRecommendations(adult)
-                        }
-                        Animatable(pullUpOffsetPx).animateTo(
-                            targetValue = 0f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            )
-                        ) {
-                            pullUpOffsetPx = value
-                        }
+                    if (!randomState.isActivated && pullUpOffsetPx >= thresholdPx) {
+                        model.activateRandomRecommendations(adult)
+                        pullUpOffsetPx = 0f
                         return available
                     }
                     return Velocity.Zero
@@ -299,7 +308,9 @@ object HomeTab : AppTab {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = pullToLoadLabel,
+                            text = if (pullUpOffsetPx >= thresholdPx) {
+                                stringResource(R.string.home_random_release_to_load)
+                            } else pullToLoadLabel,
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (pullUpOffsetPx >= thresholdPx) {
                                 MaterialTheme.colorScheme.primary

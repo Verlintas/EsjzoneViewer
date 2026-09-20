@@ -58,6 +58,8 @@ import com.breakyuna.esjzone.database.BookshelfRepository
 import com.breakyuna.esjzone.database.dao.put
 import com.breakyuna.esjzone.network.features.CommunitySyncManager
 import com.breakyuna.esjzone.network.features.login
+import com.breakyuna.esjzone.network.hasCredentials
+import kotlinx.coroutines.flow.first
 import com.breakyuna.esjzone.ui.component.AppGroup
 import com.breakyuna.esjzone.ui.component.AppSectionHeader
 import com.breakyuna.esjzone.ui.designsystem.AppShapes
@@ -82,12 +84,13 @@ object LoginScreen : AppDestination {
         var emailError by remember { mutableStateOf(false) }
         var passwordError by remember { mutableStateOf(false) }
         var loggingIn by remember { mutableStateOf(false) }
+        var restoringSite by remember { mutableStateOf(false) }
         var loginFailed by remember { mutableStateOf(false) }
 
         fun submit() {
             emailError = email.trim().isBlank()
             passwordError = password.isBlank()
-            if (emailError || passwordError || loggingIn) return
+            if (emailError || passwordError || loggingIn || restoringSite) return
             loggingIn = true
             loginFailed = false
             val selectedDomain = currentDomain
@@ -171,16 +174,28 @@ object LoginScreen : AppDestination {
                             FilterChip(
                                 selected = currentDomain == domain,
                                 onClick = {
+                                    if (currentDomain == domain || restoringSite) return@FilterChip
+                                    restoringSite = true
                                     PresentationAccess.settings.setDomain(domain)
-                                    scope.launch(Dispatchers.IO) {
-                                        runCatching {
-                                            PresentationAccess.database.cacheDao().put("domain", domain)
-                                        }.onFailure {
-                                            AppLogger.e("LoginScreen", "Failed to persist selected domain", it)
+                                    scope.launch {
+                                        try {
+                                            PresentationAccess.settings.domainFlow.first { it == domain }
+                                            val existing = withContext(Dispatchers.IO) {
+                                                PresentationAccess.client.restoreAuthorization(domain)
+                                            }?.takeIf { it.hasCredentials() }
+                                            if (existing != null) {
+                                                BookshelfRepository.scheduleSync(existing)
+                                                CommunitySyncManager.schedulePreSync(existing)
+                                                navigator.replaceAll(MainScreen(existing))
+                                            }
+                                        } catch (e: Exception) {
+                                            AppLogger.e("LoginScreen", "Failed to restore selected site", e)
+                                        } finally {
+                                            restoringSite = false
                                         }
                                     }
                                 },
-                                enabled = !loggingIn,
+                                enabled = !loggingIn && !restoringSite,
                                 label = { Text(domain) },
                                 leadingIcon = if (currentDomain == domain) {
                                     {

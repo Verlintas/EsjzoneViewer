@@ -266,7 +266,8 @@
     <string name="home_weekly_updates">Weekly updates</string>
     <string name="home_random_recommendations">Random recommendations</string>
     <string name="home_random_change_batch">Shuffle</string>
-    <string name="home_random_pull_to_load">Load random recommendations</string>
+    <string name="home_random_pull_to_load">Keep swiping up</string>
+    <string name="home_random_release_to_load">Release to load recommendations</string>
     <string name="home_random_collapse">Collapse</string>
     <string name="home_weekly_update_empty">There are no visible updates for this day.</string>
     <string name="home_weekly_update_no_chapter">No update today</string>

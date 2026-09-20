@@ -89,6 +89,12 @@ class HomeTabModel(
         loadRandomRecommendations(adult = adult, replace = false, activate = true)
     }
 
+    fun loadMoreRandomRecommendations(adult: Boolean) {
+        val state = _randomRecommendations.value
+        if (!state.isActivated || !state.hasMore || state.isLoading || state.failure != null) return
+        loadRandomRecommendations(adult = adult, replace = false, activate = true)
+    }
+
     fun unloadRandomRecommendations(clearDeduplication: Boolean = false) {
         inactivityJob?.cancel()
         inactivityJob = null

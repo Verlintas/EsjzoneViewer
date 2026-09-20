@@ -58,6 +58,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,12 +81,21 @@ import com.breakyuna.esjzone.ui.designsystem.accountContentWidth
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
 import com.breakyuna.esjzone.network.LocalAuthorization
+import com.breakyuna.esjzone.network.hasCredentials
+import com.breakyuna.esjzone.database.BookshelfRepository
+import com.breakyuna.esjzone.network.features.CommunitySyncManager
 import com.breakyuna.esjzone.ui.navigation.AppDestination
 import com.breakyuna.esjzone.ui.navigation.LocalAppNavigator
 import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
 import com.breakyuna.esjzone.ui.navigation.rememberAppViewModel
 import com.breakyuna.esjzone.ui.screen.LoginScreen
+import com.breakyuna.esjzone.ui.screen.MainScreen
 import com.breakyuna.esjzone.util.LocaleHelper
+import com.breakyuna.esjzone.util.AppLogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Account preferences and local maintenance; every write retains existing semantics. */
 object SettingsPage : AppDestination {
@@ -99,6 +109,7 @@ object SettingsPage : AppDestination {
         val navigator = LocalBaseNavigator.current
         val authorization = LocalAuthorization.current
         val context = LocalContext.current
+        val scope = rememberCoroutineScope()
         val model = rememberAppViewModel { SettingsPageModel() }
         val state by model.state.collectAsStateWithLifecycle()
         val adult by PresentationAccess.settings.adult
@@ -112,6 +123,7 @@ object SettingsPage : AppDestination {
         val checkState by ReleaseUpdateChecker.status.collectAsStateWithLifecycle()
         val autoCheck by ReleaseUpdateChecker.autoCheck.collectAsStateWithLifecycle()
         var showLogout by remember { mutableStateOf(false) }
+        var switchingDomain by remember { mutableStateOf(false) }
         var draggingNavigationItem by remember { mutableStateOf<String?>(null) }
         var editableNavigationOrder by remember { mutableStateOf(navigationOrder) }
         LaunchedEffect(navigationOrder, draggingNavigationItem) {
@@ -150,7 +162,34 @@ object SettingsPage : AppDestination {
                             title = candidate,
                             subtitle = stringResource(if (candidate.contains(".one")) R.string.settings_backup_description else R.string.settings_primary_description),
                             selected = candidate == domain,
-                            onClick = { PresentationAccess.settings.setDomain(candidate); model.clearPageCache(); model.persist("domain", candidate) }
+                            onClick = {
+                                if (candidate != domain && !switchingDomain) {
+                                    switchingDomain = true
+                                    scope.launch {
+                                        try {
+                                            val session = withContext(Dispatchers.IO) {
+                                                PresentationAccess.client.restoreAuthorization(candidate)
+                                            }?.takeIf { it.hasCredentials() }
+                                            PresentationAccess.settings.setDomain(candidate)
+                                            PresentationAccess.settings.domainFlow.first { it == candidate }
+                                            withContext(Dispatchers.IO) {
+                                                PresentationAccess.client.clearPageCache()
+                                            }
+                                            if (session != null) {
+                                                BookshelfRepository.scheduleSync(session)
+                                                CommunitySyncManager.schedulePreSync(session)
+                                                rootNavigator?.replaceAll(MainScreen(session))
+                                            } else {
+                                                rootNavigator?.replaceAll(LoginScreen)
+                                            }
+                                        } catch (e: Exception) {
+                                            AppLogger.e("SettingsPage", "Failed to switch site", e)
+                                        } finally {
+                                            switchingDomain = false
+                                        }
+                                    }
+                                }
+                            }
                         )
                     }
                     Text(stringResource(R.string.settings_mirror_note), style = com.breakyuna.esjzone.ui.designsystem.AppTypography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
