@@ -3,6 +3,7 @@ package com.breakyuna.esjzone
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -134,5 +135,50 @@ class EsjzoneUrlsTest {
         assertEquals("https://www.esjzone.one/forum/123/image.jpg", EsjzoneUrls.resolve("image.jpg", base))
         assertEquals("https://www.esjzone.one/forum/image.jpg", EsjzoneUrls.resolve("../image.jpg", base))
         assertEquals("https://cdn.example/image.jpg", EsjzoneUrls.resolve("https://cdn.example/image.jpg", base))
+    }
+
+    @Test
+    fun isEsjHost_identifiesMirrorDomainsAndSubdomains() {
+        assertTrue(EsjzoneUrls.isEsjHost("www.esjzone.cc"))
+        assertTrue(EsjzoneUrls.isEsjHost("esjzone.cc"))
+        assertTrue(EsjzoneUrls.isEsjHost("www.esjzone.one"))
+        assertTrue(EsjzoneUrls.isEsjHost("esjzone.one"))
+        assertTrue(EsjzoneUrls.isEsjHost("m.esjzone.cc"))
+        assertTrue(EsjzoneUrls.isEsjHost("m.esjzone.one"))
+        assertFalse(EsjzoneUrls.isEsjHost("esjzone.me"))
+        assertFalse(EsjzoneUrls.isEsjHost("ncode.syosetu.com"))
+        assertFalse(EsjzoneUrls.isEsjHost("fake-esjzone.com"))
+    }
+
+    @Test
+    fun resolve_rewritesEsjMirrorDomainToTargetBase() {
+        assertEquals(
+            "https://www.esjzone.one/detail/123.html",
+            EsjzoneUrls.resolve("https://www.esjzone.cc/detail/123.html", "https://www.esjzone.one")
+        )
+        assertEquals(
+            "https://www.esjzone.cc/forum/123/456.html?q=1#bottom",
+            EsjzoneUrls.resolve("https://www.esjzone.one/forum/123/456.html?q=1#bottom", "https://www.esjzone.cc")
+        )
+        assertEquals(
+            "https://www.esjzone.one/detail/789.html",
+            EsjzoneUrls.resolve("http://www.esjzone.cc/detail/789.html", "https://www.esjzone.one")
+        )
+        assertEquals(
+            "https://www.esjzone.one/forum/1/2.html",
+            EsjzoneUrls.resolve("//www.esjzone.cc/forum/1/2.html", "https://www.esjzone.one")
+        )
+    }
+
+    @Test
+    fun resolve_preservesExternalUrls() {
+        assertEquals(
+            "https://ncode.syosetu.com/n1234/",
+            EsjzoneUrls.resolve("https://ncode.syosetu.com/n1234/", "https://www.esjzone.one")
+        )
+        assertEquals(
+            "https://i.pinimg.com/image.jpg",
+            EsjzoneUrls.resolve("https://i.pinimg.com/image.jpg", "https://www.esjzone.cc")
+        )
     }
 }

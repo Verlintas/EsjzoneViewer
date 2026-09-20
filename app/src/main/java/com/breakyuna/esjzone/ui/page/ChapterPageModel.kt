@@ -469,9 +469,9 @@ class ChapterPageModel(
 
     /** Saves successfully loaded reader content without delaying UI publication. */
     private fun persistLoadedChapter(chapter: Chapter, detail: DetailedChapter, orderSnapshot: List<Chapter>) {
-        val targetNovelUrl = novelUrl.trim().ifBlank {
-            if (novelId.isBlank()) "" else "${EsjzoneUrls.Base}/detail/$novelId.html"
-        }
+        val targetNovelUrl = novelUrl.trim().takeIf { it.isNotBlank() }
+            ?.let { EsjzoneUrls.resolve(it) }
+            ?: if (novelId.isBlank()) "" else "${EsjzoneUrls.Base}/detail/$novelId.html"
         if (targetNovelUrl.isBlank()) return
         runCatching {
             PresentationAccess.downloads.saveChapter(

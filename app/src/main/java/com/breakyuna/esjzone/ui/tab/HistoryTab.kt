@@ -20,6 +20,7 @@ import com.breakyuna.esjzone.database.entity.LocalReadingActivity
 import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.ui.navigation.LocalBaseNavigator
 import com.breakyuna.esjzone.ui.navigation.ChapterStateHolder
+import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.ui.page.ChapterPage
 import com.breakyuna.esjzone.ui.page.HistoryPage
 
@@ -85,9 +86,11 @@ object HistoryTab : AppTab {
         navigator: AppNavigator?,
         activity: LocalReadingActivity
     ) {
+        val chapterUrl = EsjzoneUrls.resolve(activity.chapterUrl).ifBlank { activity.chapterUrl }
+        val novelUrl = EsjzoneUrls.resolve(activity.novelUrl).ifBlank { activity.novelUrl }
         val chapter = Chapter(
             activity.chapterName,
-            activity.chapterUrl,
+            chapterUrl,
             true
         )
         navigator?.pushIfNotCurrent(
@@ -96,7 +99,7 @@ object HistoryTab : AppTab {
                 chapter = chapter,
                 history = ChapterStateHolder(chapter),
                 novelName = activity.novelName,
-                novelUrl = activity.novelUrl,
+                novelUrl = novelUrl,
                 novelCoverUrl = activity.novelCoverUrl,
                 resumeChapterProgress = activity.chapterProgress
             )

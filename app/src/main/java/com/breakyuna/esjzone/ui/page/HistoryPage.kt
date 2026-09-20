@@ -415,13 +415,15 @@ private fun LocalHistoryContent(
                                 if (editing) {
                                     onToggleSelected(activity.activityId)
                                 } else {
-                                    val chapter = Chapter(activity.chapterName, activity.chapterUrl, true)
+                                    val chapterUrl = EsjzoneUrls.resolve(activity.chapterUrl).ifBlank { activity.chapterUrl }
+                                    val novelUrl = EsjzoneUrls.resolve(activity.novelUrl).ifBlank { activity.novelUrl }
+                                    val chapter = Chapter(activity.chapterName, chapterUrl, true)
                                     navigator?.pushIfNotCurrent(ChapterPage(
                                         novelId = activity.novelId.ifBlank { chapter.novelId() },
                                         chapter = chapter,
                                         history = ChapterStateHolder(chapter),
                                         novelName = activity.novelName,
-                                        novelUrl = activity.novelUrl,
+                                        novelUrl = novelUrl,
                                         novelCoverUrl = activity.novelCoverUrl,
                                         resumeChapterProgress = activity.chapterProgress
                                     ))
@@ -779,6 +781,8 @@ class LocalHistoryPageModel(private val authorization: Authorization) : AppState
         }
     }
 
-    private fun coverLookupUrl(activity: LocalReadingActivity): String = activity.novelUrl.trim().ifBlank { activity.novelId.trim().takeIf(String::isNotBlank)?.let { "/detail/$it.html" }.orEmpty() }
+    private fun coverLookupUrl(activity: LocalReadingActivity): String =
+        activity.novelUrl.trim().takeIf { it.isNotBlank() }?.let { EsjzoneUrls.resolve(it) }
+            ?: activity.novelId.trim().takeIf(String::isNotBlank)?.let { "/detail/$it.html" }.orEmpty()
     private fun coverKey(url: String): String = EsjzoneUrls.canonicalPageKey(url).ifBlank { url.trim() }
 }

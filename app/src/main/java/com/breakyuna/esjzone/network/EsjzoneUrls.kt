@@ -20,16 +20,45 @@ object EsjzoneUrls {
         return resolve(rawUrl, Base)
     }
 
+    fun isEsjHost(host: String): Boolean {
+        val normalized = host.trim().lowercase().removePrefix("www.")
+        return SettingsDefaults.DOMAINS.any { domain ->
+            val d = domain.trim().lowercase().removePrefix("www.")
+            normalized == d || normalized.endsWith(".$d")
+        }
+    }
+
     fun resolve(rawUrl: String, baseUrl: String): String {
         val url = rawUrl.trim()
         if (url.isBlank()) return ""
         val base = normalizeHttpUrl(baseUrl.trim()) ?: return ""
+        val baseHttpUrl = base.toHttpUrl()
         val candidate = if (url.startsWith("http://", ignoreCase = true) ||
             url.startsWith("https://", ignoreCase = true)
         ) {
-            url
+            val parsed = url.toHttpUrlOrNull() ?: return ""
+            if (isEsjHost(parsed.host)) {
+                parsed.newBuilder()
+                    .scheme(baseHttpUrl.scheme)
+                    .host(baseHttpUrl.host)
+                    .port(baseHttpUrl.port)
+                    .build()
+                    .toString()
+            } else {
+                parsed.toString()
+            }
         } else {
-            base.toHttpUrl().resolve(url)?.toString() ?: return ""
+            val resolved = baseHttpUrl.resolve(url) ?: return ""
+            if (isEsjHost(resolved.host)) {
+                resolved.newBuilder()
+                    .scheme(baseHttpUrl.scheme)
+                    .host(baseHttpUrl.host)
+                    .port(baseHttpUrl.port)
+                    .build()
+                    .toString()
+            } else {
+                resolved.toString()
+            }
         }
         return normalizeHttpUrl(candidate).orEmpty()
     }

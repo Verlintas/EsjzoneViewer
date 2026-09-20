@@ -1347,12 +1347,12 @@ class ChapterPage(
                                         }
                                     }
                                 )
-                                val detailUrl = novelUrl.ifBlank {
-                                    novelId.ifBlank { commentChapter.novelId() }
+                                val detailUrl = novelUrl.takeIf { it.isNotBlank() }
+                                    ?.let { EsjzoneUrls.resolve(it) }
+                                    ?: novelId.ifBlank { commentChapter.novelId() }
                                         .takeIf { it.isNotBlank() }
                                         ?.let { id -> EsjzoneUrls.resolve("/detail/$id.html") }
                                         .orEmpty()
-                                }
                                 ReaderToolButton(
                                     contentDescription = stringResource(
                                         R.string.reader_open_novel_detail
