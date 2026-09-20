@@ -4,6 +4,7 @@ import com.breakyuna.esjzone.database.entity.Bookmark
 import com.breakyuna.esjzone.database.entity.LocalReadingActivity
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -41,5 +42,11 @@ class ReaderPersistenceContractTest {
         )
         assertEquals("novel:/detail/9001.html", position.activityId)
         assertEquals(0.75f, position.chapterProgress, 0.0001f)
+    }
+
+    @Test
+    fun readerSettings_defaultAutoResumeLastReadingIsFalse() {
+        val settings = com.breakyuna.esjzone.ui.reader.ReaderSettings()
+        assertFalse(settings.autoResumeLastReading)
     }
 }

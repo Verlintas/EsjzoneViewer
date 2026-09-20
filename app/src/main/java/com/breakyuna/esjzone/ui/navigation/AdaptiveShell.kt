@@ -61,6 +61,10 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.getValue
@@ -146,17 +150,25 @@ fun AdaptiveAppShell(
     val historyStack: MutableList<NavKey> = rememberNavBackStack(AppNavKey.HistoryTab)
     val bookshelfStack: MutableList<NavKey> = rememberNavBackStack(AppNavKey.BookshelfTab)
     val profileStack: MutableList<NavKey> = rememberNavBackStack(AppNavKey.ProfileTab)
-    var selectedTab by rememberSaveable { mutableStateOf(AppTabId.HOME.name) }
     val widthSizeClass = currentWindowAdaptiveInfoV2().windowSizeClass.windowWidthSizeClass
     val savedNavigationOrder by PresentationAccess.settings.navigationOrder
+    val savedStartTab by PresentationAccess.settings.startTab
     val orderedTabs = remember(savedNavigationOrder) {
         val byName = AppTabId.entries.associateBy { it.name }
         savedNavigationOrder.mapNotNull(byName::get).let { saved ->
             saved + AppTabId.entries.filterNot { it in saved }
         }
     }
+    val defaultTabId = remember(savedStartTab, orderedTabs) {
+        if (savedStartTab == com.breakyuna.esjzone.data.settings.SettingsDefaults.START_TAB_FOLLOW_NAV) {
+            orderedTabs.firstOrNull() ?: AppTabId.HOME
+        } else {
+            AppTabId.entries.find { it.name == savedStartTab } ?: AppTabId.HOME
+        }
+    }
+    var selectedTab by rememberSaveable { mutableStateOf(defaultTabId.name) }
     val suppressedTabs = remember { mutableStateMapOf<AppTabId, Boolean>() }
-    val tab = AppTabId.valueOf(selectedTab)
+    val tab = AppTabId.entries.find { it.name == selectedTab } ?: defaultTabId
     val focusManager = LocalFocusManager.current
     val homeNavigator = remember(homeStack, rootNavigator) { rootNavigator.child(homeStack) }
     val historyNavigator = remember(historyStack, rootNavigator) { rootNavigator.child(historyStack) }
@@ -178,12 +190,53 @@ fun AdaptiveAppShell(
 
     val floatingNavPadding = PaddingValues(0.dp)
 
-    val isRootOfSecondaryTab = tab != AppTabId.HOME && (selectedStack.size <= 1 || selectedStack.lastOrNull() == tab.route)
+    val isRootOfSecondaryTab = tab != defaultTabId && (selectedStack.size <= 1 || selectedStack.lastOrNull() == tab.route)
     BackHandler(enabled = isRootOfSecondaryTab) {
-        selectedTab = AppTabId.HOME.name
+        selectedTab = defaultTabId.name
     }
 
     var lastHistoryTabClickTime by remember { mutableStateOf(0L) }
+    val readerSettings by PresentationAccess.readerSettings.settings.collectAsStateWithLifecycle()
+    var autoResumeHandled by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (!autoResumeHandled) {
+            autoResumeHandled = true
+            if (PresentationAccess.readerSettings.settings.value.autoResumeLastReading) {
+                try {
+                    val latest = withContext(Dispatchers.IO) {
+                        PresentationAccess.database.localReadingActivityDao().getLatest()
+                    }
+                    if (latest != null) {
+                        selectedTab = defaultTabId.name
+                        val defaultNavigator = when (defaultTabId) {
+                            AppTabId.HOME -> homeNavigator
+                            AppTabId.HISTORY -> historyNavigator
+                            AppTabId.BOOKSHELF -> bookshelfNavigator
+                            AppTabId.PROFILE -> profileNavigator
+                        }
+                        val defaultStack = when (defaultTabId) {
+                            AppTabId.HOME -> homeStack
+                            AppTabId.HISTORY -> historyStack
+                            AppTabId.BOOKSHELF -> bookshelfStack
+                            AppTabId.PROFILE -> profileStack
+                        }
+                        if (defaultStack.size <= 1) {
+                            HistoryTab.openLocalActivity(defaultNavigator, latest)
+                        }
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    com.breakyuna.esjzone.util.AppLogger.e(
+                        "AdaptiveShell",
+                        "Failed to auto resume latest reading",
+                        e
+                    )
+                }
+            }
+        }
+    }
 
     val onTabSelected: (AppTabId) -> Unit = { targetTab ->
         focusManager.clearFocus(force = true)

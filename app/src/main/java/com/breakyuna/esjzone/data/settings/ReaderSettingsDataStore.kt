@@ -84,7 +84,8 @@ class ReaderSettingsDataStore(
                 HORIZONTAL_PADDING,
                 SCRIPT,
                 PAGE_ANIMATION,
-                VOLUME_KEY_PAGING
+                VOLUME_KEY_PAGING,
+                AUTO_RESUME_LAST_READING
             ).any { current.contains(it) }
             if (!hasCurrentSettings) {
                 dataStore.edit { preferences ->
@@ -126,7 +127,8 @@ class ReaderSettingsDataStore(
             horizontalPaddingDp = this[HORIZONTAL_PADDING].safeValue(defaults.horizontalPaddingDp, 12f, 48f),
             script = enumOrDefault(this[SCRIPT], defaults.script),
             pageAnimation = enumOrDefault(this[PAGE_ANIMATION], defaults.pageAnimation),
-            volumeKeyPaging = this[VOLUME_KEY_PAGING] ?: defaults.volumeKeyPaging
+            volumeKeyPaging = this[VOLUME_KEY_PAGING] ?: defaults.volumeKeyPaging,
+            autoResumeLastReading = this[AUTO_RESUME_LAST_READING] ?: defaults.autoResumeLastReading
         )
     }
 
@@ -151,6 +153,7 @@ class ReaderSettingsDataStore(
         preferences[SCRIPT] = script.name
         preferences[PAGE_ANIMATION] = pageAnimation.name
         preferences[VOLUME_KEY_PAGING] = volumeKeyPaging
+        preferences[AUTO_RESUME_LAST_READING] = autoResumeLastReading
     }
 
     private fun SharedPreferences.readString(key: String): String? =
@@ -196,6 +199,7 @@ class ReaderSettingsDataStore(
         val SCRIPT = stringPreferencesKey("script")
         val PAGE_ANIMATION = stringPreferencesKey("page_animation")
         val VOLUME_KEY_PAGING = booleanPreferencesKey("volume_key_paging")
+        val AUTO_RESUME_LAST_READING = booleanPreferencesKey("auto_resume_last_reading")
         val MIGRATION_COMPLETE = androidx.datastore.preferences.core.booleanPreferencesKey(
             "legacy_reader_settings_migration_complete"
         )

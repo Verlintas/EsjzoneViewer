@@ -36,6 +36,10 @@ object SettingsDefaults {
     const val MAX_DOWNLOAD_CONCURRENCY = 8
     val DOMAINS: List<String> = listOf("www.esjzone.cc", "www.esjzone.one")
     val NAVIGATION_ORDER: List<String> = listOf("HOME", "HISTORY", "BOOKSHELF", "PROFILE")
+    const val START_TAB_KEY = "start_tab"
+    const val START_TAB_FOLLOW_NAV = "FOLLOW_NAV"
+    const val DEFAULT_START_TAB = "FOLLOW_NAV"
+    val VALID_START_TABS: List<String> = listOf("FOLLOW_NAV", "HOME", "BOOKSHELF", "HISTORY", "PROFILE")
 }
 
 /** Preferences-backed settings boundary; callers can migrate independently of legacy storage. */
@@ -73,6 +77,8 @@ class SettingsDataStore(
         .stateIn(scope, SharingStarted.Eagerly, defaults.novelListAdultOnly)
     override val navigationOrder: StateFlow<List<String>> = values.map { it.navigationOrder }
         .stateIn(scope, SharingStarted.Eagerly, defaults.navigationOrder)
+    override val startTab: StateFlow<String> = values.map { it.startTab }
+        .stateIn(scope, SharingStarted.Eagerly, defaults.startTab)
 
     override fun setAdult(value: Boolean) = write { it[ADULT] = value }
     override fun setDomain(value: String) {
@@ -90,6 +96,9 @@ class SettingsDataStore(
     override fun setNovelListAdultOnly(value: Boolean) = write { it[NOVEL_LIST_ADULT_ONLY] = value }
     override fun setNavigationOrder(value: List<String>) = write {
         it[NAVIGATION_ORDER] = normalizeNavigationOrder(value).joinToString(",")
+    }
+    override fun setStartTab(value: String) = write {
+        it[START_TAB] = value.takeIf { candidate -> candidate in SettingsDefaults.VALID_START_TABS } ?: defaults.startTab
     }
 
     /** Copies legacy Room preferences once; authentication/session keys are intentionally excluded. */
@@ -109,6 +118,8 @@ class SettingsDataStore(
                 ?.value?.toIntOrNull()
                 ?.coerceIn(SettingsDefaults.MIN_DOWNLOAD_CONCURRENCY, SettingsDefaults.MAX_DOWNLOAD_CONCURRENCY)
                 ?: defaults.downloadConcurrency
+            preferences[START_TAB] = cache.findByKey(SettingsDefaults.START_TAB_KEY)?.value
+                ?.takeIf { it in SettingsDefaults.VALID_START_TABS } ?: defaults.startTab
             preferences[MIGRATION_COMPLETE] = true
         }
 
@@ -125,6 +136,7 @@ class SettingsDataStore(
             database.cacheDao().deleteByKey("language")
             database.cacheDao().deleteByKey(READER_AUTO_SAVE_KEY)
             database.cacheDao().deleteByKey(SettingsDefaults.DOWNLOAD_CONCURRENCY_KEY)
+            database.cacheDao().deleteByKey(SettingsDefaults.START_TAB_KEY)
         }
     }
 
@@ -146,7 +158,8 @@ class SettingsDataStore(
         val downloadConcurrency: Int = SettingsDefaults.DEFAULT_DOWNLOAD_CONCURRENCY,
         val novelListGridView: Boolean = false,
         val novelListAdultOnly: Boolean = false,
-        val navigationOrder: List<String> = SettingsDefaults.NAVIGATION_ORDER
+        val navigationOrder: List<String> = SettingsDefaults.NAVIGATION_ORDER,
+        val startTab: String = SettingsDefaults.DEFAULT_START_TAB
     )
 
     private fun Preferences.toSettingsValues(): SettingsValues = SettingsValues(
@@ -161,7 +174,8 @@ class SettingsDataStore(
         novelListAdultOnly = this[NOVEL_LIST_ADULT_ONLY] ?: defaults.novelListAdultOnly,
         navigationOrder = normalizeNavigationOrder(
             this[NAVIGATION_ORDER]?.split(',').orEmpty()
-        )
+        ),
+        startTab = this[START_TAB]?.takeIf { it in SettingsDefaults.VALID_START_TABS } ?: defaults.startTab
     )
 
     private fun normalizeNavigationOrder(value: List<String>): List<String> {
@@ -180,6 +194,7 @@ class SettingsDataStore(
         val NOVEL_LIST_GRID_VIEW = booleanPreferencesKey("novel_list_grid_view")
         val NOVEL_LIST_ADULT_ONLY = booleanPreferencesKey("novel_list_adult_only")
         val NAVIGATION_ORDER = stringPreferencesKey("navigation_order")
+        val START_TAB = stringPreferencesKey("start_tab")
         val MIGRATION_COMPLETE = booleanPreferencesKey("legacy_room_migration_complete")
     }
 }

@@ -85,7 +85,8 @@ data class ReaderSettings(
     val horizontalPaddingDp: Float = 20f,
     val script: ReaderScript = ReaderScript.ORIGINAL,
     val pageAnimation: ReaderPageAnimation = ReaderPageAnimation.VERTICAL_SCROLL,
-    val volumeKeyPaging: Boolean = false
+    val volumeKeyPaging: Boolean = false,
+    val autoResumeLastReading: Boolean = false
 ) {
     val lineHeightSp: Float
         get() = fontSizeSp + lineSpacingSp

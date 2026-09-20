@@ -107,6 +107,7 @@ object SettingsPage : AppDestination {
         val autoSave by PresentationAccess.settings.readerAutoSave
         val downloadConcurrency by PresentationAccess.settings.downloadConcurrency
         val navigationOrder by PresentationAccess.settings.navigationOrder
+        val startTab by PresentationAccess.settings.startTab
         val readerSettings by PresentationAccess.readerSettings.settings.collectAsStateWithLifecycle()
         val checkState by ReleaseUpdateChecker.status.collectAsStateWithLifecycle()
         val autoCheck by ReleaseUpdateChecker.autoCheck.collectAsStateWithLifecycle()
@@ -288,9 +289,54 @@ object SettingsPage : AppDestination {
                             Text(stringResource(R.string.settings_navigation_reset), modifier = Modifier.padding(start = 8.dp))
                         }
                     }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    Text(
+                        stringResource(R.string.settings_startup_page_title),
+                        style = com.breakyuna.esjzone.ui.designsystem.AppTypography.labelLarge
+                    )
+                    Text(
+                        stringResource(R.string.settings_startup_page_description),
+                        style = com.breakyuna.esjzone.ui.designsystem.AppTypography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    val startTabOptions = remember {
+                        listOf(
+                            com.breakyuna.esjzone.data.settings.SettingsDefaults.START_TAB_FOLLOW_NAV,
+                            "HOME",
+                            "BOOKSHELF",
+                            "HISTORY",
+                            "PROFILE"
+                        )
+                    }
+                    startTabOptions.forEach { candidate ->
+                        ChoiceRow(
+                            title = startupPageTitle(candidate),
+                            subtitle = startupPageSubtitle(candidate),
+                            selected = candidate == startTab,
+                            onClick = {
+                                PresentationAccess.settings.setStartTab(candidate)
+                            }
+                        )
+                    }
                 }
 
                 SettingsSection(Icons.Filled.MenuBook, stringResource(R.string.settings_reader_section)) {
+                    ToggleRow(
+                        stringResource(R.string.settings_auto_resume_reading),
+                        stringResource(R.string.settings_auto_resume_reading_description),
+                        readerSettings.autoResumeLastReading
+                    ) { enabled ->
+                        PresentationAccess.readerSettings.saveInBackground(
+                            readerSettings.copy(autoResumeLastReading = enabled)
+                        )
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
                     ToggleRow(
                         stringResource(R.string.settings_volume_key_paging),
                         stringResource(R.string.settings_volume_key_paging_description),
@@ -489,6 +535,28 @@ private fun navigationItemIcon(id: String): ImageVector = when (id) {
     "BOOKSHELF" -> Icons.Filled.AutoStories
     "PROFILE" -> Icons.Filled.Person
     else -> Icons.Filled.Reorder
+}
+
+@Composable
+private fun startupPageTitle(id: String): String = when (id) {
+    com.breakyuna.esjzone.data.settings.SettingsDefaults.START_TAB_FOLLOW_NAV ->
+        stringResource(R.string.settings_startup_follow_nav)
+    "HOME" -> stringResource(R.string.navigation_home)
+    "BOOKSHELF" -> stringResource(R.string.bookshelf)
+    "HISTORY" -> stringResource(R.string.history)
+    "PROFILE" -> stringResource(R.string.navigation_profile)
+    else -> id
+}
+
+@Composable
+private fun startupPageSubtitle(id: String): String = when (id) {
+    com.breakyuna.esjzone.data.settings.SettingsDefaults.START_TAB_FOLLOW_NAV ->
+        stringResource(R.string.settings_startup_follow_nav_description)
+    "HOME" -> stringResource(R.string.settings_startup_home_description)
+    "BOOKSHELF" -> stringResource(R.string.settings_startup_bookshelf_description)
+    "HISTORY" -> stringResource(R.string.settings_startup_history_description)
+    "PROFILE" -> stringResource(R.string.settings_startup_profile_description)
+    else -> ""
 }
 
 @Composable

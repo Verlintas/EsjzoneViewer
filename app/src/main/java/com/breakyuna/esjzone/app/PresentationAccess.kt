@@ -64,7 +64,10 @@ object PresentationAccess {
 object SettingsStateBoundary {
     const val READER_AUTO_SAVE_KEY: String = SettingsDefaults.READER_AUTO_SAVE_KEY
     const val DOWNLOAD_CONCURRENCY_KEY: String = SettingsDefaults.DOWNLOAD_CONCURRENCY_KEY
+    const val START_TAB_KEY: String = SettingsDefaults.START_TAB_KEY
+    const val START_TAB_FOLLOW_NAV: String = SettingsDefaults.START_TAB_FOLLOW_NAV
     val DOMAINS: List<String> get() = SettingsDefaults.DOMAINS
+    val VALID_START_TABS: List<String> get() = SettingsDefaults.VALID_START_TABS
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val bindingLock = Any()
@@ -78,6 +81,7 @@ object SettingsStateBoundary {
     private val _novelListGridView = mutableStateOf(false)
     private val _novelListAdultOnly = mutableStateOf(false)
     private val _navigationOrder = mutableStateOf(SettingsDefaults.NAVIGATION_ORDER)
+    private val _startTab = mutableStateOf(SettingsDefaults.DEFAULT_START_TAB)
 
     private fun repository(): SettingsRepository {
         val repository = EsjzoneApplication.instance.container.settings
@@ -93,6 +97,7 @@ object SettingsStateBoundary {
             _novelListGridView.value = repository.novelListGridView.value
             _novelListAdultOnly.value = repository.novelListAdultOnly.value
             _navigationOrder.value = repository.navigationOrder.value
+            _startTab.value = repository.startTab.value
             scope.launch { repository.adult.collect { _adult.value = it } }
             scope.launch { repository.domain.collect { _domain.value = it } }
             scope.launch { repository.language.collect { _language.value = it } }
@@ -101,6 +106,7 @@ object SettingsStateBoundary {
             scope.launch { repository.novelListGridView.collect { _novelListGridView.value = it } }
             scope.launch { repository.novelListAdultOnly.collect { _novelListAdultOnly.value = it } }
             scope.launch { repository.navigationOrder.collect { _navigationOrder.value = it } }
+            scope.launch { repository.startTab.collect { _startTab.value = it } }
         }
         return repository
     }
@@ -121,6 +127,8 @@ object SettingsStateBoundary {
     val novelListAdultOnlyFlow: StateFlow<Boolean> get() = repository().novelListAdultOnly
     val navigationOrder: State<List<String>> get() { repository(); return _navigationOrder }
     val navigationOrderFlow: StateFlow<List<String>> get() = repository().navigationOrder
+    val startTab: State<String> get() { repository(); return _startTab }
+    val startTabFlow: StateFlow<String> get() = repository().startTab
 
     fun setAdult(value: Boolean) = repository().setAdult(value)
     fun setDomain(value: String) = repository().setDomain(value)
@@ -130,4 +138,5 @@ object SettingsStateBoundary {
     fun setNovelListGridView(value: Boolean) = repository().setNovelListGridView(value)
     fun setNovelListAdultOnly(value: Boolean) = repository().setNovelListAdultOnly(value)
     fun setNavigationOrder(value: List<String>) = repository().setNavigationOrder(value)
+    fun setStartTab(value: String) = repository().setStartTab(value)
 }

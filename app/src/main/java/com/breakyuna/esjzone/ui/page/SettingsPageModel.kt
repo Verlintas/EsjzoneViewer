@@ -38,6 +38,8 @@ class SettingsPageModel : AppStateViewModel<SettingsPageModel.State>(State()) {
                         PresentationAccess.settings.setReaderAutoSave(value.toBooleanStrictOrNull() ?: return@launch)
                     PresentationAccess.settings.DOWNLOAD_CONCURRENCY_KEY ->
                         PresentationAccess.settings.setDownloadConcurrency(value.toIntOrNull() ?: return@launch)
+                    PresentationAccess.settings.START_TAB_KEY ->
+                        PresentationAccess.settings.setStartTab(value)
                     else -> PresentationAccess.database.cacheDao().put(key, value)
                 }
             } catch (e: CancellationException) {

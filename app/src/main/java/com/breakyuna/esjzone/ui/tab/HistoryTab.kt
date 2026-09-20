@@ -80,26 +80,26 @@ object HistoryTab : AppTab {
             }
         }
     }
-}
 
-private fun openLocalActivity(
-    navigator: AppNavigator?,
-    activity: LocalReadingActivity
-) {
-    val chapter = Chapter(
-        activity.chapterName,
-        activity.chapterUrl,
-        true
-    )
-    navigator?.pushIfNotCurrent(
-        ChapterPage(
-            novelId = activity.novelId.ifBlank { chapter.novelId() },
-            chapter = chapter,
-            history = ChapterStateHolder(chapter),
-            novelName = activity.novelName,
-            novelUrl = activity.novelUrl,
-            novelCoverUrl = activity.novelCoverUrl,
-            resumeChapterProgress = activity.chapterProgress
+    internal fun openLocalActivity(
+        navigator: AppNavigator?,
+        activity: LocalReadingActivity
+    ) {
+        val chapter = Chapter(
+            activity.chapterName,
+            activity.chapterUrl,
+            true
         )
-    )
+        navigator?.pushIfNotCurrent(
+            ChapterPage(
+                novelId = activity.novelId.ifBlank { chapter.novelId() },
+                chapter = chapter,
+                history = ChapterStateHolder(chapter),
+                novelName = activity.novelName,
+                novelUrl = activity.novelUrl,
+                novelCoverUrl = activity.novelCoverUrl,
+                resumeChapterProgress = activity.chapterProgress
+            )
+        )
+    }
 }

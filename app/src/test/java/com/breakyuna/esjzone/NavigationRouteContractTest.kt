@@ -5,6 +5,7 @@ import com.breakyuna.esjzone.ui.navigation.LegacyRoute
 import com.breakyuna.esjzone.ui.navigation.ReaderRoute
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Pure JVM coverage for the value objects stored by Navigation 3. */
@@ -24,5 +25,16 @@ class NavigationRouteContractTest {
         val route = ReaderRoute(novelId = "novel", chapterIdentity = "chapter")
         assertEquals(AppNavKey.Reader(route), AppNavKey.Reader(route))
         assertNotEquals(AppNavKey.Reader(route), AppNavKey.Legacy(LegacyRoute.Novel("novel")))
+    }
+
+    @Test
+    fun startTabDefaultsAndValidValuesAreConsistent() {
+        val valid = com.breakyuna.esjzone.data.settings.SettingsDefaults.VALID_START_TABS
+        val defaultTab = com.breakyuna.esjzone.data.settings.SettingsDefaults.DEFAULT_START_TAB
+        assertTrue(valid.contains(defaultTab))
+        assertTrue(valid.contains("HOME"))
+        assertTrue(valid.contains("BOOKSHELF"))
+        assertTrue(valid.contains("HISTORY"))
+        assertTrue(valid.contains("PROFILE"))
     }
 }

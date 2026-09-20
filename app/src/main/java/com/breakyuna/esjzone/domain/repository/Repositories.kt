@@ -39,6 +39,7 @@ interface SettingsRepository {
     val novelListGridView: StateFlow<Boolean>
     val novelListAdultOnly: StateFlow<Boolean>
     val navigationOrder: StateFlow<List<String>>
+    val startTab: StateFlow<String>
     fun setAdult(value: Boolean)
     fun setDomain(value: String)
     fun setLanguage(value: AppLanguage)
@@ -47,6 +48,7 @@ interface SettingsRepository {
     fun setNovelListGridView(value: Boolean)
     fun setNovelListAdultOnly(value: Boolean)
     fun setNavigationOrder(value: List<String>)
+    fun setStartTab(value: String)
 }
 
 interface NovelRepository {
