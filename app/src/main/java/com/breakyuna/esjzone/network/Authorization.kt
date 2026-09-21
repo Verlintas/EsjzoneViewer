@@ -3,8 +3,8 @@ package com.breakyuna.esjzone.network
 import java.io.Serializable
 
 data class Authorization(
-    val ewsKey: String,
-    val ewsToken: String,
+    val ewsKey: String = "",
+    val ewsToken: String = "",
     /** Host that issued this session, used to keep sessions isolated per site domain. */
     val domain: String = "",
 ) : Serializable

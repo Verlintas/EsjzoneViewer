@@ -293,7 +293,7 @@ object NovelDownloadStore {
             return previous
         }
 
-        val auth = authorization ?: Authorization()
+        val auth = authorization ?: Authorization("", "", EsjzoneUrls.BaseWithoutProtocol)
         val imageComponents = detail.content.filterIsInstance<ImageComponent>()
         val downloadedImages = imageComponents
             .distinctBy { it.url }
