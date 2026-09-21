@@ -147,6 +147,8 @@ object FavoritePage : AppDestination {
         var showDeleteDialog by remember { mutableStateOf(false) }
         var showSyncStatusMenu by remember { mutableStateOf(false) }
         var showSortMenu by remember { mutableStateOf(false) }
+        var lastHandledSyncEventId by rememberSaveable { mutableStateOf(0L) }
+        var lastHandledDeleteEventId by rememberSaveable { mutableStateOf(0L) }
         val suppressFloatingNav = LocalFloatingNavSuppression.current
         DisposableEffect(editing, showDeleteDialog, suppressFloatingNav) {
             suppressFloatingNav(editing || showDeleteDialog)
@@ -216,18 +218,24 @@ object FavoritePage : AppDestination {
         LaunchedEffect(syncState) {
             when (val state = syncState) {
                 is FavoritePageModel.State.Completed -> {
-                    snackbar.showSnackbar(
-                        if (state.result.added > 0) syncAddedMessage.format(state.result.added)
-                        else syncDoneMessage
-                    )
+                    if (state.eventId != 0L && state.eventId != lastHandledSyncEventId) {
+                        lastHandledSyncEventId = state.eventId
+                        snackbar.showSnackbar(
+                            if (state.result.added > 0) syncAddedMessage.format(state.result.added)
+                            else syncDoneMessage
+                        )
+                    }
                 }
                 is FavoritePageModel.State.Failed -> {
-                    snackbar.showSnackbar(
-                        when (state.failure) {
-                            LoadFailureKind.NETWORK -> networkErrorMessage
-                            else -> syncFailedMessage
-                        }
-                    )
+                    if (state.eventId != 0L && state.eventId != lastHandledSyncEventId) {
+                        lastHandledSyncEventId = state.eventId
+                        snackbar.showSnackbar(
+                            when (state.failure) {
+                                LoadFailureKind.NETWORK -> networkErrorMessage
+                                else -> syncFailedMessage
+                            }
+                        )
+                    }
                 }
                 else -> Unit
             }
@@ -239,9 +247,17 @@ object FavoritePage : AppDestination {
                     selected = emptySet()
                     pendingDelete = emptyList()
                     showDeleteDialog = false
-                    snackbar.showSnackbar(deleteDoneMessage.format(state.count))
+                    if (state.eventId != 0L && state.eventId != lastHandledDeleteEventId) {
+                        lastHandledDeleteEventId = state.eventId
+                        snackbar.showSnackbar(deleteDoneMessage.format(state.count))
+                    }
                 }
-                FavoritePageModel.DeleteState.Failed -> snackbar.showSnackbar(deleteFailedMessage)
+                is FavoritePageModel.DeleteState.Failed -> {
+                    if (state.eventId != 0L && state.eventId != lastHandledDeleteEventId) {
+                        lastHandledDeleteEventId = state.eventId
+                        snackbar.showSnackbar(deleteFailedMessage)
+                    }
+                }
                 else -> Unit
             }
         }

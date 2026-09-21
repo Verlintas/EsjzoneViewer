@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /** Owns bookshelf synchronization and deletion jobs for the page. */
 class FavoritePageModel(private val authorization: Authorization) :
@@ -108,15 +109,26 @@ class FavoritePageModel(private val authorization: Authorization) :
     sealed class State {
         data object Idle : State()
         data object Syncing : State()
-        data class Completed(val result: BookshelfSyncResult) : State()
-        data class Failed(val failure: LoadFailureKind?) : State()
+        data class Completed(
+            val result: BookshelfSyncResult,
+            val eventId: Long = nextEventId.getAndIncrement()
+        ) : State()
+        data class Failed(
+            val failure: LoadFailureKind?,
+            val eventId: Long = nextEventId.getAndIncrement()
+        ) : State()
     }
 
     sealed class DeleteState {
         data object Idle : DeleteState()
         data object Deleting : DeleteState()
-        data class Completed(val count: Int) : DeleteState()
-        data object Failed : DeleteState()
+        data class Completed(
+            val count: Int,
+            val eventId: Long = nextEventId.getAndIncrement()
+        ) : DeleteState()
+        data class Failed(
+            val eventId: Long = nextEventId.getAndIncrement()
+        ) : DeleteState()
     }
 
     private val _deleteState = MutableStateFlow<DeleteState>(DeleteState.Idle)
@@ -174,7 +186,7 @@ class FavoritePageModel(private val authorization: Authorization) :
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                _deleteState.value = DeleteState.Failed
+                _deleteState.value = DeleteState.Failed()
             }
         }
     }
@@ -182,5 +194,6 @@ class FavoritePageModel(private val authorization: Authorization) :
     private companion object {
         const val AUTO_CHECK_COOLDOWN_MILLIS = 30 * 60 * 1000L
         val autoCheckTimes = mutableMapOf<String, Long>()
+        val nextEventId = AtomicLong(1L)
     }
 }
