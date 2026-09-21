@@ -599,19 +599,22 @@ private fun CommentSection(
                 modifier = Modifier.fillMaxWidth()
             )
         } else {
-            CommentPager(
-                page = safePageIndex + 1,
-                totalPages = pages.size,
-                onFirst = { selectedPageIndex = 0 },
-                onPrevious = {
-                    selectedPageIndex = (safePageIndex - 1).coerceAtLeast(0)
-                },
-                onNext = {
-                    selectedPageIndex =
-                        (safePageIndex + 1).coerceAtMost(pages.lastIndex)
-                },
-                onLast = { selectedPageIndex = pages.lastIndex }
-            )
+            val pager = @Composable {
+                CommentPager(
+                    page = safePageIndex + 1,
+                    totalPages = pages.size,
+                    onFirst = { selectedPageIndex = 0 },
+                    onPrevious = {
+                        selectedPageIndex = (safePageIndex - 1).coerceAtLeast(0)
+                    },
+                    onNext = {
+                        selectedPageIndex =
+                            (safePageIndex + 1).coerceAtMost(pages.lastIndex)
+                    },
+                    onLast = { selectedPageIndex = pages.lastIndex }
+                )
+            }
+            pager()
             pages[safePageIndex].forEachIndexed { index, comment ->
                 // A malformed or legacy page can contain blank/repeated DOM
                 // ids. Include the page-local position so every rendered item
@@ -627,6 +630,7 @@ private fun CommentSection(
                     )
                 }
             }
+            pager()
         }
 
         Spacer(modifier = Modifier.height(12.dp))
