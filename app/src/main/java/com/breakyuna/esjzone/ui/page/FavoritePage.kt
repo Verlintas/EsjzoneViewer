@@ -47,6 +47,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -56,7 +57,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -155,6 +162,24 @@ object FavoritePage : AppDestination {
             onDispose { suppressFloatingNav(false) }
         }
 
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                    snackbar.currentSnackbarData?.dismiss()
+                    showSyncStatusMenu = false
+                    showSortMenu = false
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                snackbar.currentSnackbarData?.dismiss()
+                showSyncStatusMenu = false
+                showSortMenu = false
+            }
+        }
+
         val visible = remember(entries, adult) { entries.filter { adult || !it.isAdult } }
         // The repository stream is intentionally kept in recent-read order so
         // the showcase remains stable when the list order is changed below.
@@ -192,9 +217,28 @@ object FavoritePage : AppDestination {
         val deleteDoneMessage = stringResource(R.string.bookshelf_delete_done)
         val deleteFailedMessage = stringResource(R.string.bookshelf_delete_failed)
 
+        suspend fun showTransientSnackbar(message: String, durationMillis: Long = 2000L) {
+            snackbar.currentSnackbarData?.dismiss()
+            coroutineScope {
+                val showJob = launch {
+                    snackbar.showSnackbar(
+                        message = message,
+                        duration = SnackbarDuration.Indefinite
+                    )
+                }
+                val timerJob = launch {
+                    delay(durationMillis)
+                    snackbar.currentSnackbarData?.dismiss()
+                }
+                showJob.join()
+                timerJob.cancel()
+            }
+        }
+
         fun openBook(entry: BookshelfEntry) {
             // Release any focus-pinned lazy item before beginning a page transition.
             focusManager.clearFocus(force = true)
+            snackbar.currentSnackbarData?.dismiss()
             navigator?.pushIfNotCurrent(NovelPage(entry.asCoveredNovel(), favorite = BooleanStateHolder(true)))
         }
 
@@ -220,7 +264,7 @@ object FavoritePage : AppDestination {
                 is FavoritePageModel.State.Completed -> {
                     if (state.eventId != 0L && state.eventId != lastHandledSyncEventId) {
                         lastHandledSyncEventId = state.eventId
-                        snackbar.showSnackbar(
+                        showTransientSnackbar(
                             if (state.result.added > 0) syncAddedMessage.format(state.result.added)
                             else syncDoneMessage
                         )
@@ -229,7 +273,7 @@ object FavoritePage : AppDestination {
                 is FavoritePageModel.State.Failed -> {
                     if (state.eventId != 0L && state.eventId != lastHandledSyncEventId) {
                         lastHandledSyncEventId = state.eventId
-                        snackbar.showSnackbar(
+                        showTransientSnackbar(
                             when (state.failure) {
                                 LoadFailureKind.NETWORK -> networkErrorMessage
                                 else -> syncFailedMessage
@@ -249,13 +293,13 @@ object FavoritePage : AppDestination {
                     showDeleteDialog = false
                     if (state.eventId != 0L && state.eventId != lastHandledDeleteEventId) {
                         lastHandledDeleteEventId = state.eventId
-                        snackbar.showSnackbar(deleteDoneMessage.format(state.count))
+                        showTransientSnackbar(deleteDoneMessage.format(state.count))
                     }
                 }
                 is FavoritePageModel.DeleteState.Failed -> {
                     if (state.eventId != 0L && state.eventId != lastHandledDeleteEventId) {
                         lastHandledDeleteEventId = state.eventId
-                        snackbar.showSnackbar(deleteFailedMessage)
+                        showTransientSnackbar(deleteFailedMessage)
                     }
                 }
                 else -> Unit
@@ -286,7 +330,10 @@ object FavoritePage : AppDestination {
                     isSyncFailed = isSyncFailed,
                     showSyncStatusMenu = showSyncStatusMenu,
                     deleting = deleting,
-                    onBack = { if (editing) exitEdit() else navigator?.pop() },
+                    onBack = {
+                        snackbar.currentSnackbarData?.dismiss()
+                        if (editing) exitEdit() else navigator?.pop()
+                    },
                     onSyncStatusMenuChange = { showSyncStatusMenu = it },
                     listView = listView,
                     onToggleView = { focusManager.clearFocus(force = true); listView = !listView },
