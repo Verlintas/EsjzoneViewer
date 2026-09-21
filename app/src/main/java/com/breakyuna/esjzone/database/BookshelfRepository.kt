@@ -408,7 +408,9 @@ object BookshelfRepository {
         val remote = try {
             // A complete, successfully parsed snapshot is required before any
             // import. An exception leaves every local row untouched.
-            EsjzoneClient.getAllFavorites(authorization, forceRefresh = true)
+            com.breakyuna.esjzone.network.cancellablePageRequest {
+                EsjzoneClient.getAllFavorites(authorization, forceRefresh = true)
+            }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {

@@ -5,6 +5,7 @@ import com.breakyuna.esjzone.network.EsjzoneClient
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.PageCacheTtl
 import com.breakyuna.esjzone.network.PageKind
+import com.breakyuna.esjzone.network.cancellablePageRequest
 import com.breakyuna.esjzone.novellibrary.data.HomeData
 import com.breakyuna.esjzone.novellibrary.data.WeeklyPopularNovel
 import com.breakyuna.esjzone.novellibrary.novel.CoveredNovel
@@ -29,17 +30,17 @@ suspend fun EsjzoneClient.getHomeData(
     AppLogger.i("GetHomeData", "Fetching home data from ${EsjzoneUrls.Home} (forceRefresh=$forceRefresh)")
 
     val homeDeferred = async {
-        getPage(
+        cancellablePageRequest { getPage(
             authorization,
             EsjzoneUrls.Home,
             PageCacheTtl.HOME,
             forceRefresh = forceRefresh,
             pageKind = PageKind.HOME
-        )
+        ) }
     }
     val weeklyUpdatesDeferred = async {
         try {
-            getWeeklyUpdates(authorization, forceRefresh = forceRefresh)
+            cancellablePageRequest { getWeeklyUpdates(authorization, forceRefresh = forceRefresh) }
         } catch (error: kotlinx.coroutines.CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -177,7 +178,7 @@ suspend fun EsjzoneClient.getHomeData(
             async {
                 semaphore.withPermit {
                     try {
-                        enrichWeeklyPopular(authorization, seed)
+                        cancellablePageRequest { enrichWeeklyPopular(authorization, seed) }
                     } catch (error: kotlinx.coroutines.CancellationException) {
                         throw error
                     } catch (error: Exception) {

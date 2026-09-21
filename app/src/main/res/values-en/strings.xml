@@ -16,6 +16,8 @@
     <string name="button_login">Login</string>
     <string name="login_success">Login Successfully</string>
     <string name="login_fail">Failed to login</string>
+    <string name="login_network_fail">Network connection failed. Check your connection and try again.</string>
+    <string name="download_image_unavailable">[Image unavailable]</string>
     <string name="screen_main_tab_home">Home</string>
     <string name="screen_main_tab_category">Category</string>
     <string name="screen_main_tab_profile">Profile</string>

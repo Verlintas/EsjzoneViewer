@@ -8,9 +8,12 @@ import com.breakyuna.esjzone.network.JsoupHtmlSelector
 import com.breakyuna.esjzone.network.PageCacheTtl
 import com.breakyuna.esjzone.network.PageKind
 import com.breakyuna.esjzone.network.PageableRequester
+import com.breakyuna.esjzone.network.LoadFailureKind
+import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.novellibrary.novel.FavoriteNovel
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import java.io.IOException
 
 private val favoriteSelector: HtmlSelector = JsoupHtmlSelector
 
@@ -50,15 +53,32 @@ fun EsjzoneClient.getAllFavorites(
     sort: String = "udate",
     forceRefresh: Boolean = true
 ): List<FavoriteNovel> {
+    fun fetchPage(url: String): String {
+        var lastFailure: IOException? = null
+        repeat(3) { attempt ->
+            try {
+                return getPage(
+                    authorization, url, PageCacheTtl.ACCOUNT_LIST,
+                    forceRefresh = forceRefresh, pageKind = PageKind.ACCOUNT,
+                    allowStaleOnError = false
+                )
+            } catch (error: IOException) {
+                if (error.loadFailureKind() != LoadFailureKind.NETWORK) throw error
+                lastFailure = error
+                if (attempt < 2) {
+                    try {
+                        Thread.sleep(400L * (attempt + 1))
+                    } catch (interrupted: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        throw IOException("Favorite page retry interrupted", interrupted)
+                    }
+                }
+            }
+        }
+        throw lastFailure ?: IOException("Favorite page unavailable")
+    }
     val firstPageUrl = favoritePageUrl(sort, 1)
-    val firstBody = getPage(
-        authorization,
-        firstPageUrl,
-        PageCacheTtl.ACCOUNT_LIST,
-        forceRefresh = forceRefresh,
-        pageKind = PageKind.ACCOUNT,
-        allowStaleOnError = false
-    )
+    val firstBody = fetchPage(firstPageUrl)
     val firstDocument = Jsoup.parse(firstBody, firstPageUrl)
     val pages = pageCount(firstDocument)
         .coerceIn(1, 200)
@@ -86,14 +106,7 @@ fun EsjzoneClient.getAllFavorites(
     addPage(firstDocument)
     for (page in 2..pages) {
         val pageUrl = favoritePageUrl(sort, page)
-        val body = getPage(
-            authorization,
-            pageUrl,
-            PageCacheTtl.ACCOUNT_LIST,
-            forceRefresh = forceRefresh,
-            pageKind = PageKind.ACCOUNT,
-            allowStaleOnError = false
-        )
+        val body = fetchPage(pageUrl)
         val document = Jsoup.parse(body, pageUrl)
         requireFavoritePage(document, body)
         addPage(document)

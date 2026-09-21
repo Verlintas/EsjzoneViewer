@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.LoadFailureKind
+import com.breakyuna.esjzone.network.cancellablePageRequest
 import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.network.features.getChapterDetail
 import com.breakyuna.esjzone.network.features.getNovelDetail
@@ -429,7 +430,7 @@ class ChapterPageModel(
         }
 
         val detail = try {
-            PresentationAccess.client.getChapterDetail(authorization, chapter)
+            cancellablePageRequest { PresentationAccess.client.getChapterDetail(authorization, chapter) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -507,7 +508,7 @@ class ChapterPageModel(
             }
             prefetchJobs[key] = viewModelScope.launch(Dispatchers.IO) {
                 val detail = try {
-                    PresentationAccess.client.getChapterDetail(authorization, chapter)
+                    cancellablePageRequest { PresentationAccess.client.getChapterDetail(authorization, chapter) }
                 } catch (e: CancellationException) {
                     synchronized(lock) {
                         prefetchJobs.remove(key)
@@ -543,7 +544,7 @@ class ChapterPageModel(
             url = "${EsjzoneUrls.Base}/detail/$novelId.html"
         )
         val fetchedOrder = try {
-            PresentationAccess.client.getNovelDetail(authorization, source)
+            cancellablePageRequest { PresentationAccess.client.getNovelDetail(authorization, source) }
                 .chapterList
                 .orderedChapters
         } catch (e: CancellationException) {

@@ -1,6 +1,7 @@
 package com.breakyuna.esjzone.offline
 
 import android.content.Context
+import com.breakyuna.esjzone.R
 import android.os.StatFs
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneClient
@@ -144,8 +145,14 @@ object NovelDownloadStore {
 
     @Volatile
     private var rootDirectory: File? = null
+    @Volatile
+    private var appContext: Context? = null
+
+    private fun missingImageLabel(): String = appContext?.getString(R.string.download_image_unavailable)
+        ?: "[Image unavailable]"
 
     fun initialize(context: Context) {
+        appContext = context.applicationContext
         val directory = File(context.applicationContext.filesDir, "downloaded_novels")
         if (directory.isDirectory || directory.mkdirs()) {
             synchronized(ioLock) { chapterIndex.clear(); inventorySnapshot = null }
@@ -550,7 +557,7 @@ object NovelDownloadStore {
                     is ImageComponent -> {
                         val image = downloadImage(
                         authorization, directory, component.url, detail.sourceUrl ?: baseUrl, writeGuard
-                        ) ?: throw IOException("Unable to download chapter image: ${component.url}")
+                        )
                         DownloadedComponent(
                             type = IMAGE_COMPONENT,
                             value = component.url
@@ -575,8 +582,6 @@ object NovelDownloadStore {
                 ?: return@synchronized null,
             DownloadedChapterContent::class.java
         ) ?: return@synchronized null
-        if (!stored.hasAllImagesOnDisk(match.directory)) return@synchronized null
-
         val previous = match.manifest.chapters.getOrNull(match.record.index - 1)
             ?.toChapter()
         val next = match.manifest.chapters.getOrNull(match.record.index + 1)
@@ -748,6 +753,10 @@ object NovelDownloadStore {
                     IMAGE_URL_ATTRIBUTES.forEach(image::removeAttr)
                     image.removeAttr("srcset")
                     image.attr("src", localImage.toURI().toString())
+                } else {
+                    image.after("<span></span>")
+                    image.nextElementSibling()?.text(missingImageLabel())
+                    image.remove()
                 }
             }
             return analyseComponents(document.body())
@@ -758,7 +767,8 @@ object NovelDownloadStore {
                 val localImage = component.localFile
                     ?.let { relative -> resolveLocalFile(novelDirectory, relative) }
                     ?.takeIf(File::isFile)
-                ImageComponent(localImage?.toURI()?.toString() ?: component.value)
+                if (localImage != null) ImageComponent(localImage.toURI().toString())
+                else TextComponent(missingImageLabel())
             } else {
                 TextComponent(component.value)
             }

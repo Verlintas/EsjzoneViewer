@@ -76,7 +76,8 @@ internal object PageResponsePolicy {
             } == true) {
             return PageValidation(false, "unexpected content type")
         }
-        if (!lower.contains("<html") || !lower.contains("<body")) {
+        if (!lower.contains("<html") || !lower.contains("<body") ||
+            !lower.contains("</body>") || !lower.contains("</html>")) {
             return PageValidation(false, "not a complete HTML document")
         }
 

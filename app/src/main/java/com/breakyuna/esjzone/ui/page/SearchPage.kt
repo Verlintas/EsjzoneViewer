@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package com.breakyuna.esjzone.ui.page
+import com.breakyuna.esjzone.network.cancellablePageRequest
 
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewModelScope
@@ -352,13 +353,13 @@ class SearchPageModel(
         requestJob = viewModelScope.launch {
             try {
                 val (requester, novels) = withContext(Dispatchers.IO) {
-                    PresentationAccess.client.search(
+                    cancellablePageRequest { PresentationAccess.client.search(
                         authorization,
                         normalizedKeyword,
                         category,
                         sort,
                         forceRefresh = forceRefresh
-                    )
+                    ) }
                 }
                 ensureActive()
                 if (token != generation) return@launch
@@ -389,7 +390,7 @@ class SearchPageModel(
         moreFailure = null
         moreJob = viewModelScope.launch {
             try {
-                val loaded = withContext(Dispatchers.IO) { requester.more(page) }
+                val loaded = cancellablePageRequest { requester.more(page) }
                 ensureActive()
                 if (token != generation) return@launch
                 val keys = pageItems.mapTo(mutableSetOf()) { novelKey(it) }

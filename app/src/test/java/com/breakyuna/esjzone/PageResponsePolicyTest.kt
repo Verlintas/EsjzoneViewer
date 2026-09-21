@@ -17,6 +17,17 @@ class PageResponsePolicyTest {
     }
 
     @Test
+    fun rejectsTruncatedHomeResponseEvenWhenItsOpeningMarkersArePresent() {
+        val complete = validHome()
+        val truncated = complete.substringBefore("</body>")
+        assertFalse(PageResponsePolicy.validate(200, truncated, url, kind = PageKind.HOME).trusted)
+        assertEquals(complete, PageResponsePolicy.selectTrustedBody(
+            PageResponsePolicy.validate(200, truncated, url, kind = PageKind.HOME),
+            truncated, complete
+        ))
+    }
+
+    @Test
     fun rejectsNonHtmlResponsesBeforeTheyCanReplaceAValidCacheEntry() {
         val json = "{\"status\":\"ok\",\"html\":\"<div>not a page</div>\"}"
         val validation = PageResponsePolicy.validate(

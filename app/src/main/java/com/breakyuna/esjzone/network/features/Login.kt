@@ -4,6 +4,7 @@ import com.breakyuna.esjzone.network.readTextBounded
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneClient
 import com.breakyuna.esjzone.network.EsjzoneUrls
+import com.breakyuna.esjzone.network.pageRequestCancellation
 import com.breakyuna.esjzone.util.AppLogger
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
@@ -14,6 +15,7 @@ import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
+import java.io.IOException
 
 fun EsjzoneClient.login(email: String, password: String): Authorization? {
     return try {
@@ -21,13 +23,13 @@ fun EsjzoneClient.login(email: String, password: String): Authorization? {
         val cookieJar = LoginCookieJar()
         val httpClient = OkHttpClient.Builder()
             .cookieJar(cookieJar)
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .writeTimeout(5, TimeUnit.SECONDS)
-            .callTimeout(10, TimeUnit.SECONDS)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .callTimeout(20, TimeUnit.SECONDS)
             .build()
 
-        val authorizationToken = httpClient.newCall(
+        val tokenCall = httpClient.newCall(
             Request.Builder()
                 .url(EsjzoneUrls.My.Login)
                 .post(
@@ -37,20 +39,23 @@ fun EsjzoneClient.login(email: String, password: String): Authorization? {
                 )
                 .headers(this.headers)
                 .build()
-        ).execute().use { response ->
+        )
+        val cancellation = pageRequestCancellation.get()
+        cancellation?.attach(tokenCall)
+        val authorizationToken = try { tokenCall.execute().use { response ->
             if (!response.isSuccessful) {
                 null
             } else {
                 parseAuthorizationToken(response.body?.readTextBounded().orEmpty())
             }
-        }
+        } } finally { cancellation?.detachCall() }
 
         if (authorizationToken.isNullOrBlank()) {
             AppLogger.w("Login", "Login token response was empty or malformed")
             return null
         }
 
-        val status = httpClient.newCall(
+        val loginCall = httpClient.newCall(
             Request.Builder()
                 .url(EsjzoneUrls.Inc.MemLogin)
                 .post(
@@ -63,14 +68,18 @@ fun EsjzoneClient.login(email: String, password: String): Authorization? {
                 .headers(this.headers)
                 .header("Authorization", authorizationToken)
                 .build()
-        ).execute().use { response ->
+        )
+        cancellation?.attach(loginCall)
+        val status = try { loginCall.execute().use { response ->
             loginResponseUrl = response.request.url
             if (!response.isSuccessful) {
                 null
             } else {
                 parseLoginStatus(response.body?.readTextBounded().orEmpty())
             }
-        }
+        } } finally { cancellation?.detachCall() }
+
+        if (cancellation?.isCancelled() == true) throw CancellationException("Login cancelled")
 
         if (status != 200) {
             return null
@@ -92,6 +101,10 @@ fun EsjzoneClient.login(email: String, password: String): Authorization? {
             markAuthorizationVerified(it)
         }
     } catch (e: CancellationException) {
+        throw e
+    } catch (e: IOException) {
+        if (pageRequestCancellation.get()?.isCancelled() == true) throw CancellationException("Login cancelled")
+        AppLogger.e("Login", "Login network request failed", e)
         throw e
     } catch (e: Exception) {
         AppLogger.e("Login", "Login request or response parsing failed", e)

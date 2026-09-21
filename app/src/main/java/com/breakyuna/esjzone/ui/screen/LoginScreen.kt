@@ -1,5 +1,8 @@
 package com.breakyuna.esjzone.ui.screen
 import com.breakyuna.esjzone.app.PresentationAccess
+import com.breakyuna.esjzone.network.LoadFailureKind
+import com.breakyuna.esjzone.network.loadFailureKind
+import com.breakyuna.esjzone.network.cancellablePageRequest
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -86,6 +89,7 @@ object LoginScreen : AppDestination {
         var loggingIn by remember { mutableStateOf(false) }
         var restoringSite by remember { mutableStateOf(false) }
         var loginFailed by remember { mutableStateOf(false) }
+        var loginNetworkFailed by remember { mutableStateOf(false) }
 
         fun submit() {
             emailError = email.trim().isBlank()
@@ -93,11 +97,14 @@ object LoginScreen : AppDestination {
             if (emailError || passwordError || loggingIn || restoringSite) return
             loggingIn = true
             loginFailed = false
+            loginNetworkFailed = false
             val selectedDomain = currentDomain
             scope.launch {
                 try {
                     val authorization = withContext(Dispatchers.IO) {
-                        val result = PresentationAccess.client.login(email.trim(), password)
+                        val result = cancellablePageRequest {
+                            PresentationAccess.client.login(email.trim(), password)
+                        }
                         if (result != null) {
                             PresentationAccess.database.runInTransaction {
                                 val dao = PresentationAccess.database.cacheDao()
@@ -117,7 +124,8 @@ object LoginScreen : AppDestination {
                     throw e
                 } catch (e: Exception) {
                     AppLogger.e("LoginScreen", "Login flow failed", e)
-                    loginFailed = true
+                    loginNetworkFailed = e.loadFailureKind() == LoadFailureKind.NETWORK
+                    loginFailed = !loginNetworkFailed
                 } finally {
                     loggingIn = false
                 }
@@ -219,7 +227,7 @@ object LoginScreen : AppDestination {
                     )
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { email = it; emailError = false; loginFailed = false },
+                        onValueChange = { email = it; emailError = false; loginFailed = false; loginNetworkFailed = false },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 6.dp),
@@ -238,7 +246,7 @@ object LoginScreen : AppDestination {
                     )
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { password = it; passwordError = false; loginFailed = false },
+                        onValueChange = { password = it; passwordError = false; loginFailed = false; loginNetworkFailed = false },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 6.dp),
@@ -274,9 +282,9 @@ object LoginScreen : AppDestination {
                         ),
                         keyboardActions = KeyboardActions(onDone = { submit() })
                     )
-                    if (loginFailed) {
+                    if (loginFailed || loginNetworkFailed) {
                         Text(
-                            text = stringResource(R.string.login_fail),
+                            text = stringResource(if (loginNetworkFailed) R.string.login_network_fail else R.string.login_fail),
                             style = AppTypography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)

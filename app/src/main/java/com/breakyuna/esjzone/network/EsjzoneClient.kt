@@ -225,15 +225,18 @@ object EsjzoneClient {
                     SocketTimeoutException("Timed out waiting for a network permit")
                 )
             }
+            val cancellation = pageRequestCancellation.get()
             val responseData = try {
                 val response = try {
-                    authenticatedClient(authorization).newCall(
+                    val call = authenticatedClient(authorization).newCall(
                         Request.Builder()
                             .url(url)
                             .get()
                             .headers(headers)
                             .build()
-                    ).execute()
+                    )
+                    cancellation?.attach(call)
+                    call.execute()
                 } catch (error: java.io.IOException) {
                     throw NetworkRequestException(url, error)
                 }
@@ -251,8 +254,10 @@ object EsjzoneClient {
                     throw NetworkRequestException(url, error)
                 }
             } finally {
+                cancellation?.detachCall()
                 networkPermits.release()
             }
+            if (cancellation?.isCancelled() == true) throw CancellationException("Page request cancelled")
             val validation = PageResponsePolicy.validate(
                 statusCode = responseData.statusCode,
                 body = responseData.body,
@@ -287,9 +292,16 @@ object EsjzoneClient {
             owner.complete(result)
             result
         } catch (error: CancellationException) {
+            inFlightPages.remove(cacheKey, owner)
             owner.completeExceptionally(error)
             throw error
         } catch (error: Throwable) {
+            if (pageRequestCancellation.get()?.isCancelled() == true) {
+                val cancelled = CancellationException("Page request cancelled")
+                inFlightPages.remove(cacheKey, owner)
+                owner.completeExceptionally(cancelled)
+                throw cancelled
+            }
             // A previously fetched page is preferable to a blank screen during a transient
             // timeout or offline period. The page remains scoped to this account and URL.
             val result = if (error is Exception) stalePage.takeIf { allowStaleOnError } else null

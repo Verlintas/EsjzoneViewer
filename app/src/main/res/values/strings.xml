@@ -16,6 +16,8 @@
     <string name="button_login">登录</string>
     <string name="login_success">登录成功</string>
     <string name="login_fail">登录失败</string>
+    <string name="login_network_fail">网络连接失败，请检查网络后重试</string>
+    <string name="download_image_unavailable">[图片暂不可用]</string>
     <string name="screen_main_tab_home">主页</string>
     <string name="screen_main_tab_category">分类</string>
     <string name="screen_main_tab_search">搜索</string>
