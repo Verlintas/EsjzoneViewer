@@ -42,7 +42,8 @@ data class BackgroundDownloadStatus(
     val running: Boolean,
     val finished: Boolean,
     val succeeded: Boolean,
-    val progress: DownloadProgress?
+    val progress: DownloadProgress?,
+    val cancelled: Boolean = false
 )
 
 /** Schedules resumable novel downloads independently from any Compose page. */
@@ -116,7 +117,8 @@ object NovelDownloadManager {
                 DownloadProgress(completed, total, chapterName)
             } else {
                 null
-            }
+            },
+            cancelled = info.state == WorkInfo.State.CANCELLED
         )
     }
 
@@ -141,7 +143,8 @@ object NovelDownloadManager {
                         DownloadProgress(completed, total, chapterName)
                     } else {
                         null
-                    }
+                    },
+                    cancelled = info.state == WorkInfo.State.CANCELLED
                 )
             }
     }

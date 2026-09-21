@@ -61,7 +61,6 @@ import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
 import com.breakyuna.esjzone.ui.navigation.rememberAppViewModel
 import com.breakyuna.esjzone.ui.navigation.AppDestination
 import com.breakyuna.esjzone.ui.navigation.encodeRouteTokenPart
-import com.breakyuna.esjzone.ui.designsystem.appAdultColors
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneUrls
@@ -581,17 +580,16 @@ private fun ForumCategoryCard(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
         ) {
-            val adultColors = appAdultColors()
             Surface(
                 modifier = Modifier.size(AppTouchTarget.minimum),
                 shape = AppShapes.standard,
-                color = if (isAdult) adultColors.container else MaterialTheme.colorScheme.surfaceContainer
+                color = MaterialTheme.colorScheme.surfaceContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = categoryIcon,
                         contentDescription = null,
-                        tint = if (isAdult) adultColors.content else MaterialTheme.colorScheme.onSurface,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
                 }

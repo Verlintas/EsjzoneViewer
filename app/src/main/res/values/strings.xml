@@ -162,6 +162,8 @@
     <string name="novel_local_copy_partial">本地已有 %1$d/%2$d 章</string>
     <string name="novel_local_copy_complete">本地已有 %1$d/%2$d 章</string>
     <string name="novel_download_continue">继续下载</string>
+    <string name="novel_download_pause">暂停下载</string>
+    <string name="novel_download_paused">下载已暂停</string>
     <string name="novel_export_title">导出本地副本</string>
     <string name="novel_download_no_chapters">没有可下载的章节。</string>
     <string name="novel_download_background_note">下载会在后台继续，任务中断后已完成的章节仍会保留。</string>

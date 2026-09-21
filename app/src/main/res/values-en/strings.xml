@@ -162,6 +162,8 @@
     <string name="novel_local_copy_partial">%1$d/%2$d chapters available locally</string>
     <string name="novel_local_copy_complete">%1$d/%2$d chapters available locally</string>
     <string name="novel_download_continue">Continue download</string>
+    <string name="novel_download_pause">Pause download</string>
+    <string name="novel_download_paused">Download paused</string>
     <string name="novel_export_title">Export local copy</string>
     <string name="novel_download_no_chapters">No chapters are available to download.</string>
     <string name="novel_download_background_note">Downloads continue in the background and keep completed chapters after an interruption.</string>

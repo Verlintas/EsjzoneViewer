@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.TextSnippet
@@ -1114,6 +1115,7 @@ private fun NovelDownloadActions(
     var downloaded by remember(novel.url) { mutableStateOf<DownloadedNovelManifest?>(null) }
     var downloadStatus by remember(novel.url) { mutableStateOf<BackgroundDownloadStatus?>(null) }
     var downloading by remember(novel.url) { mutableStateOf(false) }
+    var pausing by remember(novel.url) { mutableStateOf(false) }
     var progress by remember(novel.url) { mutableStateOf<DownloadProgress?>(null) }
     var requestedWorkId by rememberSaveable(novel.url) { mutableStateOf<String?>(null) }
     var deletingDownload by remember(novel.url) { mutableStateOf(false) }
@@ -1128,9 +1130,12 @@ private fun NovelDownloadActions(
         NovelDownloadManager.statusFlow(context, novel.url).collect { status ->
             downloadStatus = status
             status?.progress?.let { progress = it }
+            if (status?.running != true) {
+                pausing = false
+            }
             val waitingForEnqueue = requestedWorkId != null &&
                 (status == null || status.id != requestedWorkId)
-            downloading = status?.running == true || waitingForEnqueue
+            downloading = (status?.running == true && !pausing) || waitingForEnqueue
             // WorkManager keeps an already-running unique job when enqueue is
             // called again. In that case the returned request id can differ
             // from the job currently reported for this novel; the unique-job
@@ -1139,12 +1144,14 @@ private fun NovelDownloadActions(
                 downloaded = withContext(Dispatchers.IO) {
                     PresentationAccess.downloads.manifest(novel.url)
                 }
-                Toast.makeText(
-                    context,
-                    if (status.succeeded) R.string.novel_download_success
-                    else R.string.novel_download_failed,
-                    Toast.LENGTH_SHORT
-                ).show()
+                if (!status.cancelled) {
+                    Toast.makeText(
+                        context,
+                        if (status.succeeded) R.string.novel_download_success
+                        else R.string.novel_download_failed,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
                 requestedWorkId = null
                 downloading = false
             }
@@ -1153,6 +1160,7 @@ private fun NovelDownloadActions(
 
     fun enqueueDownload() {
         if (downloading || novel.chapterList.orderedChapters.isEmpty()) return
+        pausing = false
         val existingCompleted = downloaded?.chapters?.count { it.downloaded } ?: 0
         progress = DownloadProgress(
             completed = existingCompleted,
@@ -1173,6 +1181,20 @@ private fun NovelDownloadActions(
             AppLogger.e("NovelPage", "Unable to schedule background novel download", error)
             Toast.makeText(context, R.string.novel_download_failed, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    fun pauseDownload() {
+        if (!downloading || pausing) return
+        pausing = true
+        downloading = false
+        requestedWorkId = null
+        NovelDownloadManager.cancel(context, novel.url)
+        downloadScope.launch {
+            downloaded = withContext(Dispatchers.IO) {
+                PresentationAccess.downloads.manifest(novel.url)
+            }
+        }
+        Toast.makeText(context, R.string.novel_download_paused, Toast.LENGTH_SHORT).show()
     }
 
     fun deleteDownload() {
@@ -1235,6 +1257,7 @@ private fun NovelDownloadActions(
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             onDismiss = { showSheet = false },
             onDownload = ::enqueueDownload,
+            onPauseDownload = ::pauseDownload,
             onDeleteDownload = {
                 if (!downloading && !deletingDownload && downloaded != null) {
                     showDeleteDownloadDialog = true
@@ -1287,6 +1310,7 @@ private fun NovelDownloadSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onDownload: () -> Unit,
+    onPauseDownload: () -> Unit,
     onDeleteDownload: () -> Unit,
     onExportTxt: () -> Unit,
     onExportEpub: () -> Unit
@@ -1367,7 +1391,7 @@ private fun NovelDownloadSheet(
                                 }
                             }
                         }
-                        status?.finished == true && !status.succeeded -> {
+                        status?.finished == true && !status.succeeded && !status.cancelled -> {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Filled.ErrorOutline,
@@ -1438,27 +1462,43 @@ private fun NovelDownloadSheet(
                     }
                 }
             }
-            FilledTonalButton(
-                enabled = !downloading && total > 0,
-                onClick = onDownload,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-                shape = AppShapes.standard
-            ) {
-                Icon(
-                    imageVector = if (manifest?.complete == true) Icons.Filled.Refresh else Icons.Filled.Download,
-                    contentDescription = null,
-                    modifier = Modifier.size(19.dp)
-                )
-                Spacer(modifier = Modifier.width(7.dp))
-                Text(
-                    text = stringResource(
-                        when {
-                            manifest?.complete == true -> R.string.novel_download_update
-                            completed > 0 -> R.string.novel_download_continue
-                            else -> R.string.novel_download
-                        }
+            if (downloading) {
+                FilledTonalButton(
+                    onClick = onPauseDownload,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                    shape = AppShapes.standard
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Pause,
+                        contentDescription = stringResource(R.string.novel_download_pause),
+                        modifier = Modifier.size(19.dp)
                     )
-                )
+                    Spacer(modifier = Modifier.width(7.dp))
+                    Text(text = stringResource(R.string.novel_download_pause))
+                }
+            } else {
+                FilledTonalButton(
+                    enabled = total > 0,
+                    onClick = onDownload,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                    shape = AppShapes.standard
+                ) {
+                    Icon(
+                        imageVector = if (manifest?.complete == true) Icons.Filled.Refresh else Icons.Filled.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(19.dp)
+                    )
+                    Spacer(modifier = Modifier.width(7.dp))
+                    Text(
+                        text = stringResource(
+                            when {
+                                manifest?.complete == true -> R.string.novel_download_update
+                                completed > 0 -> R.string.novel_download_continue
+                                else -> R.string.novel_download
+                            }
+                        )
+                    )
+                }
             }
 
             if (manifest != null && completed > 0 && !downloading) {
