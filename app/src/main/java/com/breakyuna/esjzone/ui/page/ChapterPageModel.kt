@@ -481,7 +481,8 @@ class ChapterPageModel(
                 coverUrl = novelCoverUrl,
                 chapterOrder = orderSnapshot,
                 chapter = chapter,
-                detail = detail
+                detail = detail,
+                authorization = authorization
             )
         }.onFailure { error ->
             AppLogger.w("ChapterPageModel", "Failed to auto-save chapter ${chapter.name}", error)

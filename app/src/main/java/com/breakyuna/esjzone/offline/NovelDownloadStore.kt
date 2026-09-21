@@ -3,6 +3,8 @@ package com.breakyuna.esjzone.offline
 import android.content.Context
 import com.breakyuna.esjzone.R
 import android.os.StatFs
+import com.breakyuna.esjzone.app.PresentationAccess
+import com.breakyuna.esjzone.data.settings.SettingsDefaults
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneClient
 import com.breakyuna.esjzone.network.EsjzoneUrls
@@ -37,6 +39,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import org.jsoup.Jsoup
 
@@ -251,9 +254,9 @@ object NovelDownloadStore {
     }
 
     /**
-     * Persists one chapter loaded by the reader. This is intentionally a local
-     * write only: images retain their remote URL and are not fetched again.
-     * The operation is idempotent for an already persisted chapter.
+     * Persists one chapter loaded by the reader for offline access.
+     * Images are persisted locally (reusing Coil's disk cache or downloaded)
+     * without delaying the reader UI.
      */
     fun saveChapter(
         novelName: String,
@@ -261,16 +264,61 @@ object NovelDownloadStore {
         coverUrl: String,
         chapterOrder: List<Chapter>,
         chapter: Chapter,
-        detail: DetailedChapter
-    ): DownloadedNovelManifest? = synchronized(ioLock) {
-        saveChapterLocked(
-            novelName = novelName,
-            novelUrl = novelUrl,
-            coverUrl = coverUrl,
-            chapterOrder = chapterOrder,
-            chapter = chapter,
-            detail = detail
-        )
+        detail: DetailedChapter,
+        authorization: Authorization? = null
+    ): DownloadedNovelManifest? {
+        val normalizedNovelUrl = novelUrl.trim()
+        if (normalizedNovelUrl.isBlank()) return null
+        val directory = directoryFor(normalizedNovelUrl, create = true) ?: return null
+        requireFreeSpace(directory)
+
+        val previous = synchronized(ioLock) { readManifest(directory) }
+        val targetKey = chapterKey(chapter.url)
+        val existing = previous?.chapters?.firstOrNull { chapterKey(it.url) == targetKey }
+        val existingFile = existing?.fileName?.let { resolveLocalFile(directory, it) }
+
+        if (existing?.downloaded == true &&
+            existingFile?.isFile == true &&
+            isChapterFullyDownloaded(directory, existingFile) &&
+            previous.name == novelName && previous.coverUrl == coverUrl &&
+            chapterOrder.isNotEmpty() &&
+            previous.chapters.size == chapterOrder.size &&
+            previous.chapters.indices.all { index ->
+                val record = previous.chapters[index]
+                val current = chapterOrder[index]
+                record.index == index && record.name == current.name &&
+                    chapterKey(record.url) == chapterKey(current.url)
+            }
+        ) {
+            return previous
+        }
+
+        val auth = authorization ?: Authorization()
+        val imageComponents = detail.content.filterIsInstance<ImageComponent>()
+        val downloadedImages = imageComponents
+            .distinctBy { it.url }
+            .mapNotNull { component ->
+                val image = downloadImage(
+                    authorization = auth,
+                    novelDirectory = directory,
+                    rawUrl = component.url,
+                    baseUrl = detail.sourceUrl ?: normalizedNovelUrl,
+                    writeGuard = null
+                )
+                if (image != null) component.url to image else null
+            }.toMap()
+
+        return synchronized(ioLock) {
+            saveChapterLocked(
+                novelName = novelName,
+                novelUrl = normalizedNovelUrl,
+                coverUrl = coverUrl,
+                chapterOrder = chapterOrder,
+                chapter = chapter,
+                detail = detail,
+                downloadedImages = downloadedImages
+            )
+        }
     }
 
     private fun saveChapterLocked(
@@ -279,12 +327,13 @@ object NovelDownloadStore {
         coverUrl: String,
         chapterOrder: List<Chapter>,
         chapter: Chapter,
-        detail: DetailedChapter
+        detail: DetailedChapter,
+        downloadedImages: Map<String, DownloadedImage> = emptyMap()
     ): DownloadedNovelManifest? {
         val normalizedNovelUrl = novelUrl.trim()
         if (normalizedNovelUrl.isBlank()) return null
         val directory = directoryFor(normalizedNovelUrl, create = true) ?: return null
-        val previous = synchronized(ioLock) { readManifest(directory) }
+        val previous = readManifest(directory)
         // Prefetch and the subsequent reader load both save the same chapter. Avoid
         // rescanning every chapter file and rewriting the full manifest on that path.
         if (previous != null && chapterOrder.isNotEmpty() &&
@@ -299,8 +348,10 @@ object NovelDownloadStore {
             val existing = previous.chapters.firstOrNull {
                 chapterKey(it.url) == chapterKey(chapter.url)
             }
+            val existingFile = existing?.fileName?.let { resolveLocalFile(directory, it) }
             if (existing?.downloaded == true &&
-                resolveLocalFile(directory, existing.fileName)?.isFile == true &&
+                existingFile?.isFile == true &&
+                isChapterFullyDownloaded(directory, existingFile) &&
                 previous.name == novelName && previous.coverUrl == coverUrl
             ) return previous
         }
@@ -331,10 +382,33 @@ object NovelDownloadStore {
         val targetIndex = records.indexOfFirst { chapterKey(it.url) == targetKey }
         if (targetIndex < 0) return null
         val target = records[targetIndex]
-        if (!target.downloaded) {
-            synchronized(ioLock) {
-                writeJson(File(directory, target.fileName), detail.toStoredContent(chapter))
+        val targetFile = File(directory, target.fileName)
+        if (!target.downloaded || !isChapterFullyDownloaded(directory, targetFile)) {
+            val storedComponents = detail.content.mapNotNull { component ->
+                when (component) {
+                    is TextComponent -> DownloadedComponent(
+                        type = TEXT_COMPONENT,
+                        value = component.plainText()
+                    )
+                    is ImageComponent -> {
+                        val image = downloadedImages[component.url]
+                            ?: findExistingDownloadedImage(directory, component.url, detail.sourceUrl ?: normalizedNovelUrl)
+                        DownloadedComponent(
+                            type = IMAGE_COMPONENT,
+                            value = component.url
+                        ).withDownloadedImage(image)
+                    }
+                    else -> null
+                }
             }
+            val storedChapter = DownloadedChapterContent(
+                name = detail.name.ifBlank { chapter.name },
+                url = chapter.url,
+                components = storedComponents,
+                contentHtml = detail.contentHtml,
+                baseUrl = detail.sourceUrl ?: chapter.url
+            )
+            writeJson(targetFile, storedChapter)
             records[targetIndex] = target.copy(downloaded = true)
         }
         val complete = if (chapterOrder.isNotEmpty()) {
@@ -353,7 +427,7 @@ object NovelDownloadStore {
             downloadedAt = System.currentTimeMillis(),
             complete = complete
         )
-        synchronized(ioLock) { writeManifest(directory, current) }
+        writeManifest(directory, current)
         return current
     }
 
@@ -754,9 +828,17 @@ object NovelDownloadStore {
                     image.removeAttr("srcset")
                     image.attr("src", localImage.toURI().toString())
                 } else {
-                    image.after("<span></span>")
-                    image.nextElementSibling()?.text(missingImageLabel())
-                    image.remove()
+                    val fallbackUrl = saved?.value?.takeIf { it.isNotBlank() }
+                        ?: candidates.firstOrNull()?.let { EsjzoneUrls.resolve(it, baseUrl) }
+                    if (!fallbackUrl.isNullOrBlank()) {
+                        IMAGE_URL_ATTRIBUTES.forEach(image::removeAttr)
+                        image.removeAttr("srcset")
+                        image.attr("src", fallbackUrl)
+                    } else {
+                        image.after("<span></span>")
+                        image.nextElementSibling()?.text(missingImageLabel())
+                        image.remove()
+                    }
                 }
             }
             return analyseComponents(document.body())
@@ -766,8 +848,9 @@ object NovelDownloadStore {
             if (component.type == IMAGE_COMPONENT) {
                 val localImage = component.localFile
                     ?.let { relative -> resolveLocalFile(novelDirectory, relative) }
-                    ?.takeIf(File::isFile)
+                    ?.takeIf { it.isFile && it.length() > 0L }
                 if (localImage != null) ImageComponent(localImage.toURI().toString())
+                else if (component.value.isNotBlank()) ImageComponent(component.value)
                 else TextComponent(missingImageLabel())
             } else {
                 TextComponent(component.value)
@@ -812,12 +895,64 @@ object NovelDownloadStore {
         }
     }
 
+    private fun findCoilCachedImage(imageUrl: String, baseUrl: String?): File? {
+        val trimmed = imageUrl.trim()
+        if (trimmed.isBlank()) return null
+        val diskCache = runCatching { PresentationAccess.imageLoader.diskCache }.getOrNull() ?: return null
+
+        val parsed = trimmed.toHttpUrlOrNull()
+        val isEsj = parsed != null && EsjzoneUrls.isEsjHost(parsed.host)
+
+        val candidateKeys = buildList {
+            add(trimmed)
+            runCatching { EsjzoneUrls.resolve(trimmed, baseUrl ?: EsjzoneUrls.Base) }
+                .getOrNull()?.takeIf(String::isNotBlank)?.let(::add)
+            if (isEsj && parsed != null) {
+                SettingsDefaults.DOMAINS.forEach { domain ->
+                    runCatching {
+                        parsed.newBuilder().host(domain).build().toString()
+                    }.getOrNull()?.let(::add)
+                }
+            }
+        }.distinct()
+
+        for (key in candidateKeys) {
+            runCatching {
+                diskCache.openSnapshot(key)?.use { snapshot ->
+                    val file = File(snapshot.data.toString())
+                    if (file.isFile && file.length() > 0L) {
+                        return file
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun findExistingDownloadedImage(
+        novelDirectory: File,
+        rawUrl: String,
+        baseUrl: String?
+    ): DownloadedImage? {
+        if (rawUrl.isBlank()) return null
+        val url = EsjzoneUrls.resolve(rawUrl, baseUrl ?: EsjzoneUrls.Base)
+        val imagePrefix = "image-${digest(url)}."
+        val imagesDirectory = File(novelDirectory, "images")
+        val existing = imagesDirectory.listFiles()
+            ?.firstOrNull { it.isFile && it.length() > 0L && it.name.startsWith(imagePrefix) }
+            ?: return null
+        return DownloadedImage(
+            relativeName = "images/${existing.name}",
+            mediaType = mediaTypeFromUrl(existing.name)
+        )
+    }
+
     private fun downloadImage(
         authorization: Authorization,
         novelDirectory: File,
         rawUrl: String,
         baseUrl: String?,
-        writeGuard: DownloadWriteGuard
+        writeGuard: DownloadWriteGuard? = null
     ): DownloadedImage? {
         if (rawUrl.isBlank()) return null
         return runCatching {
@@ -832,6 +967,35 @@ object NovelDownloadStore {
                         mediaType = mediaTypeFromUrl(existing.name)
                     )
                 }
+
+            ensureWriteAllowed(writeGuard)
+            if (!imagesDirectory.isDirectory && !imagesDirectory.mkdirs()) {
+                error("Unable to create the chapter image directory")
+            }
+
+            // 1. Try to reuse cached image from Coil disk cache first (Fast, zero network)
+            val cachedFile = findCoilCachedImage(rawUrl, baseUrl)
+            if (cachedFile != null && cachedFile.isFile && cachedFile.length() > 0L) {
+                val mediaType = mediaTypeFromUrl(url)
+                val extension = extensionFor(mediaType, url)
+                val relativeName = "images/$imagePrefix$extension"
+                val destination = File(novelDirectory, relativeName)
+                if (!destination.isFile || destination.length() == 0L) {
+                    val temporary = File.createTempFile("coil_${destination.nameWithoutExtension}_", ".tmp", imagesDirectory)
+                    try {
+                        Files.copy(cachedFile.toPath(), temporary.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                        synchronized(ioLock) {
+                            ensureWriteAllowed(writeGuard)
+                            moveReplacing(temporary, destination)
+                        }
+                    } finally {
+                        if (temporary.isFile) temporary.delete()
+                    }
+                }
+                return@runCatching DownloadedImage(relativeName, mediaType)
+            }
+
+            // 2. Fall back to network download if not found in Coil disk cache
             val client = EsjzoneClient.downloadClient(authorization)
             val host = runCatching { java.net.URI(url).host }.getOrNull().orEmpty()
             val refererCandidates = listOfNotNull(
@@ -862,9 +1026,6 @@ object NovelDownloadStore {
                             ?: mediaTypeFromUrl(url)
                         val extension = extensionFor(mediaType, url)
                         ensureWriteAllowed(writeGuard)
-                        if (!imagesDirectory.isDirectory && !imagesDirectory.mkdirs()) {
-                            error("Unable to create the chapter image directory")
-                        }
                         val relativeName = "images/$imagePrefix$extension"
                         val destination = File(novelDirectory, relativeName)
                         if (!destination.isFile || destination.length() == 0L) {
