@@ -777,7 +777,7 @@ private fun CommentComposer(
                 }
                 Button(
                     onClick = onSubmit,
-                    enabled = !isSubmitting && draft.isNotBlank() && error != CommentSubmitError.TIMEOUT,
+                    enabled = !isSubmitting && draft.isNotBlank() && (error == null || error == CommentSubmitError.EMPTY),
                     modifier = Modifier.size(AppTouchTarget.minimum),
                     shape = AppShapes.pill,
                     contentPadding = PaddingValues(0.dp),
@@ -801,22 +801,44 @@ private fun CommentComposer(
                     }
                 }
             }
-            error?.let {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+            error?.let { err ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp)
                 ) {
                     Text(
-                        text = it.message(context = LocalContext.current),
+                        text = err.message(context = LocalContext.current),
                         style = AppTypography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(top = 6.dp)
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    if (it == CommentSubmitError.NOT_VERIFIED || it == CommentSubmitError.TIMEOUT) {
-                        TextButton(onClick = onRefresh, enabled = !isSubmitting) {
-                            Text(text = stringResource(id = R.string.comment_refresh))
+                    if (err != CommentSubmitError.EMPTY) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.comment_check_before_retry_hint),
+                                style = AppTypography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
+                            )
+                            TextButton(
+                                onClick = onRefresh,
+                                enabled = !isSubmitting,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(id = R.string.comment_action_refresh),
+                                    style = AppTypography.labelMedium
+                                )
+                            }
                         }
                     }
                 }
@@ -1161,7 +1183,8 @@ internal class CommentPageModel(
         }
     }
 
-    private var lastSubmitTimeoutTime: Long = 0L
+    private var lastSubmittedContent: String? = null
+    private var lastSubmitAttemptTime: Long = 0L
 
     fun clearSubmitError() {
         submitError.value = null
@@ -1175,12 +1198,17 @@ internal class CommentPageModel(
         }
         if (isSubmitting.value) return
 
-        // Cooldown protection after a timeout to prevent accidental double-posting
-        if (submitError.value == CommentSubmitError.TIMEOUT &&
-            System.currentTimeMillis() - lastSubmitTimeoutTime < 8_000L
+        // Deduplication protection: If the exact same content is resubmitted within 10s after an error,
+        // prevent redundant network calls to avoid accidental duplicate comments.
+        if (submitted == lastSubmittedContent &&
+            System.currentTimeMillis() - lastSubmitAttemptTime < 10_000L &&
+            submitError.value != null && submitError.value != CommentSubmitError.EMPTY
         ) {
             return
         }
+
+        lastSubmittedContent = submitted
+        lastSubmitAttemptTime = System.currentTimeMillis()
 
         isSubmitting.value = true
         submitError.value = null
@@ -1196,6 +1224,7 @@ internal class CommentPageModel(
                 mutableState.value = CommunityState.Result(submission.comments, isSyncSuccess = true)
                 lastCreatedCommentId.value = submission.createdComment.id
                 draft.value = ""
+                lastSubmittedContent = null
                 this@CommentPageModel.replyToken.value = null
                 this@CommentPageModel.replyAuthor.value = null
                 viewModelScope.launch(Dispatchers.IO) { refreshProfileSnapshot() }
@@ -1204,7 +1233,6 @@ internal class CommentPageModel(
             } catch (error: CommentSubmissionTimeoutException) {
                 mutableState.value = CommunityState.Result(error.comments, isSyncSuccess = false)
                 submitError.value = CommentSubmitError.TIMEOUT
-                lastSubmitTimeoutTime = System.currentTimeMillis()
                 AppLogger.w("CommentPageModel", "Comment submit timed out; attempting silent recovery", error)
                 viewModelScope.launch(Dispatchers.IO) {
                     silentVerifySubmission(submitted)
@@ -1248,6 +1276,7 @@ internal class CommentPageModel(
                     }
                     lastCreatedCommentId.value = found.id
                     draft.value = ""
+                    lastSubmittedContent = null
                     this@CommentPageModel.replyToken.value = null
                     this@CommentPageModel.replyAuthor.value = null
                     submitError.value = null
