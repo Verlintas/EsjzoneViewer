@@ -90,6 +90,7 @@ import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.LoadFailureKind
 import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.network.features.CommentSubmissionNotVerifiedException
+import com.breakyuna.esjzone.network.features.CommentSubmissionTimeoutException
 import com.breakyuna.esjzone.network.features.ForumReplyBusinessException
 import com.breakyuna.esjzone.network.features.getPageComments
 import com.breakyuna.esjzone.network.features.getUserProfile
@@ -115,8 +116,10 @@ import com.breakyuna.esjzone.util.AppLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -774,7 +777,7 @@ private fun CommentComposer(
                 }
                 Button(
                     onClick = onSubmit,
-                    enabled = !isSubmitting && draft.isNotBlank(),
+                    enabled = !isSubmitting && draft.isNotBlank() && error != CommentSubmitError.TIMEOUT,
                     modifier = Modifier.size(AppTouchTarget.minimum),
                     shape = AppShapes.pill,
                     contentPadding = PaddingValues(0.dp),
@@ -811,7 +814,7 @@ private fun CommentComposer(
                             .weight(1f)
                             .padding(top = 6.dp)
                     )
-                    if (it == CommentSubmitError.NOT_VERIFIED) {
+                    if (it == CommentSubmitError.NOT_VERIFIED || it == CommentSubmitError.TIMEOUT) {
                         TextButton(onClick = onRefresh, enabled = !isSubmitting) {
                             Text(text = stringResource(id = R.string.comment_refresh))
                         }
@@ -1158,6 +1161,8 @@ internal class CommentPageModel(
         }
     }
 
+    private var lastSubmitTimeoutTime: Long = 0L
+
     fun clearSubmitError() {
         submitError.value = null
     }
@@ -1169,6 +1174,13 @@ internal class CommentPageModel(
             return
         }
         if (isSubmitting.value) return
+
+        // Cooldown protection after a timeout to prevent accidental double-posting
+        if (submitError.value == CommentSubmitError.TIMEOUT &&
+            System.currentTimeMillis() - lastSubmitTimeoutTime < 8_000L
+        ) {
+            return
+        }
 
         isSubmitting.value = true
         submitError.value = null
@@ -1189,6 +1201,14 @@ internal class CommentPageModel(
                 viewModelScope.launch(Dispatchers.IO) { refreshProfileSnapshot() }
             } catch (error: CancellationException) {
                 throw error
+            } catch (error: CommentSubmissionTimeoutException) {
+                mutableState.value = CommunityState.Result(error.comments, isSyncSuccess = false)
+                submitError.value = CommentSubmitError.TIMEOUT
+                lastSubmitTimeoutTime = System.currentTimeMillis()
+                AppLogger.w("CommentPageModel", "Comment submit timed out; attempting silent recovery", error)
+                viewModelScope.launch(Dispatchers.IO) {
+                    silentVerifySubmission(submitted)
+                }
             } catch (error: CommentSubmissionNotVerifiedException) {
                 mutableState.value = CommunityState.Result(error.comments, isSyncSuccess = false)
                 submitError.value = CommentSubmitError.NOT_VERIFIED
@@ -1203,6 +1223,41 @@ internal class CommentPageModel(
             } finally {
                 isSubmitting.value = false
             }
+        }
+    }
+
+    private suspend fun silentVerifySubmission(submittedContent: String) {
+        try {
+            delay(3000L)
+            val comments = PresentationAccess.client.getPageComments(
+                authorization,
+                pageUrl,
+                forceRefresh = true
+            )
+            val normalized = submittedContent.trim().replace(Regex("\\s+"), " ")
+            val found = comments.firstOrNull { comment ->
+                val rendered = comment.contentText.trim().replace(Regex("\\s+"), " ")
+                rendered == normalized || rendered.endsWith(normalized)
+            }
+            if (found != null) {
+                withContext(Dispatchers.Main) {
+                    mutableState.value = if (comments.isEmpty()) {
+                        CommunityState.Empty(isSyncSuccess = true)
+                    } else {
+                        CommunityState.Result(comments, isSyncSuccess = true)
+                    }
+                    lastCreatedCommentId.value = found.id
+                    draft.value = ""
+                    this@CommentPageModel.replyToken.value = null
+                    this@CommentPageModel.replyAuthor.value = null
+                    submitError.value = null
+                }
+                refreshProfileSnapshot()
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            AppLogger.d("CommentPageModel", "Silent recovery check completed without finding comment")
         }
     }
 
@@ -1226,12 +1281,14 @@ internal sealed class CommentSubmitError {
     data object EMPTY : CommentSubmitError()
     data object FAILED : CommentSubmitError()
     data object NOT_VERIFIED : CommentSubmitError()
+    data object TIMEOUT : CommentSubmitError()
     data class Server(val serverMessage: String) : CommentSubmitError()
 
     fun message(context: android.content.Context): String = when (this) {
         EMPTY -> context.getString(R.string.comment_empty_error)
         FAILED -> context.getString(R.string.comment_submit_failed)
         NOT_VERIFIED -> context.getString(R.string.comment_submit_unverified)
+        TIMEOUT -> context.getString(R.string.comment_submit_timeout)
         is Server -> serverMessage.ifBlank { context.getString(R.string.comment_submit_failed) }
     }
 }

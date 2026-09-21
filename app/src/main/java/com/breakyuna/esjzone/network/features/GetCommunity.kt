@@ -25,6 +25,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import okhttp3.Headers
 import okhttp3.FormBody
 import okhttp3.Request
@@ -72,6 +73,11 @@ data class ForumReplyResponse(
 class CommentSubmissionNotVerifiedException(val comments: List<Comment>) : IOException(
     "The server accepted the request but the new comment could not be verified after refresh"
 )
+
+class CommentSubmissionTimeoutException(
+    val comments: List<Comment>,
+    cause: Throwable? = null
+) : IOException("Comment submission timed out; it may have been posted", cause)
 
 class ForumReplyBusinessException(val serverMessage: String) : IOException(serverMessage)
 
@@ -160,120 +166,144 @@ fun EsjzoneClient.submitForumComment(
     // same ESJ reply endpoint.  A detail form uses `data=books` and
     // `forum_id=0`, but it still requires the page-scoped dynamic token.
     val forumReply = data == "forum" || data == "books"
-    val responseBody: String = try {
-        if (forumReply) {
-            // ESJ issues a single-use dynamic token from the page being commented on.
-            // Request it and submit through the same authenticated client so the two
-            // calls share the existing login CookieJar/session.
-            val client = authenticatedClient(authorization)
-            val token = requestForumReplyAuthToken(client, targetUrl)
-            val bodyBuilder = FormBody.Builder()
-                .add("content", submittedContent)
-                .add("data", data ?: throw ForumReplyProtocolException(
-                    "Forum comment form did not provide data"
-                ))
-                .add("forum_id", forumId ?: throw ForumReplyProtocolException(
-                    "Forum comment form did not provide forum_id"
-                ))
-            replyToken?.trim()?.takeIf { it.isNotBlank() }?.let { tokenValue ->
-                bodyBuilder.add("reply", tokenValue)
-            }
-            val request = Request.Builder()
-                .url(EsjzoneUrls.resolve("/inc/forum_reply.php"))
-                .post(bodyBuilder.build())
-                .headers(
-                    Headers.Builder()
-                        .addAll(headers)
-                        .set("authorization", token)
-                        .set("X-Requested-With", "XMLHttpRequest")
-                        .set("Origin", EsjzoneUrls.Base)
-                        .set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-                        .build()
-                )
-                .build()
-            try {
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        throw NetworkHttpException(targetUrl, response.code)
-                    }
-                    parseForumReplyResponse(response.body?.readTextBounded().orEmpty()).also { parsed ->
-                        if (parsed.status != 200) throw ForumReplyBusinessException(parsed.msg)
-                    }
-                    ""
+    if (forumReply) {
+        // ESJ issues a single-use dynamic token from the page being commented on.
+        // Request it and submit through a scoped client with an 8-second read timeout
+        // so writes fail fast instead of blocking UI.
+        val client = authenticatedClient(authorization)
+        val writeClient = client.newBuilder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .callTimeout(12, TimeUnit.SECONDS)
+            .build()
+        val token = requestForumReplyAuthToken(writeClient, targetUrl)
+        val bodyBuilder = FormBody.Builder()
+            .add("content", submittedContent)
+            .add("data", data ?: throw ForumReplyProtocolException(
+                "Forum comment form did not provide data"
+            ))
+            .add("forum_id", forumId ?: throw ForumReplyProtocolException(
+                "Forum comment form did not provide forum_id"
+            ))
+        replyToken?.trim()?.takeIf { it.isNotBlank() }?.let { tokenValue ->
+            bodyBuilder.add("reply", tokenValue)
+        }
+        val request = Request.Builder()
+            .url(EsjzoneUrls.resolve("/inc/forum_reply.php"))
+            .post(bodyBuilder.build())
+            .headers(
+                Headers.Builder()
+                    .addAll(headers)
+                    .set("authorization", token)
+                    .set("X-Requested-With", "XMLHttpRequest")
+                    .set("Origin", EsjzoneUrls.Base)
+                    .set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                    .build()
+            )
+            .build()
+        val replyResponse = try {
+            writeClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw NetworkHttpException(targetUrl, response.code)
                 }
-            } catch (error: IOException) {
-                if (error is NetworkHttpException || error is ForumReplyBusinessException ||
-                    error is ForumReplyProtocolException || error is NetworkRequestException
-                ) throw error
-                throw NetworkRequestException(targetUrl, error)
+                parseForumReplyResponse(response.body?.readTextBounded().orEmpty()).also { parsed ->
+                    if (parsed.status != 200) throw ForumReplyBusinessException(parsed.msg)
+                }
             }
-        } else {
-            // Guestbook and novel-detail comment forms are separate protocols. Keep
-            // their existing form submission behavior rather than guessing forum fields.
-            val bodyBuilder = FormBody.Builder().add("content", submittedContent)
-            form.select("input[type=hidden][name]").forEach { input ->
-                val name = input.attr("name").trim()
-                if (name.isNotBlank() && name != "content" && name != "data" &&
-                    name != "forum_id" && !(name == "reply" && !replyToken.isNullOrBlank())
-                ) bodyBuilder.add(name, input.attr("value"))
+        } catch (error: IOException) {
+            if (error is NetworkHttpException || error is ForumReplyBusinessException ||
+                error is ForumReplyProtocolException
+            ) {
+                throw error
             }
-            data?.let { bodyBuilder.add("data", it) }
-            forumId?.let { bodyBuilder.add("forum_id", it) }
-            replyToken?.trim()?.takeIf { it.isNotBlank() }?.let { bodyBuilder.add("reply", it) }
-            val actionUrl = EsjzoneUrls.resolve(
-                form.absUrl("action").ifBlank { targetUrl }, targetUrl
-            ).ifBlank { targetUrl }.substringBefore('#')
-            authenticatedClient(authorization).newCall(
+            throw CommentSubmissionTimeoutException(previousComments, error)
+        }
+
+        // Fast-path: On status 200, the server accepted and committed the comment.
+        // Invalidate the local page cache so subsequent loads fetch fresh HTML.
+        invalidatePage(authorization, targetUrl)
+
+        val createdCommentId = replyResponse.anchor
+            ?.removePrefix("#comment-")
+            ?.removePrefix("#")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: replyResponse.id?.trim()?.takeIf { it.isNotBlank() }
+            ?: "$parentId-${System.currentTimeMillis()}"
+
+        val currentUserName = initialDocument.selectFirst("nav a[href*='/my/profile']")?.text()?.trim()?.takeIf { it.isNotBlank() }
+        val currentUserAvatar = initialDocument.selectFirst("nav a[href*='/my/profile'] img")?.let(::resolveImageUrl)
+
+        val createdComment = Comment(
+            id = createdCommentId,
+            parentPostId = parentId,
+            authorId = null,
+            authorName = currentUserName,
+            authorUrl = null,
+            floor = "#${previousComments.size + 1}",
+            createdAt = null,
+            contentHtml = submittedContent,
+            contentText = submittedContent,
+            quotedContentText = null,
+            pageGroup = (previousComments.size / COMMENT_PAGE_SIZE) + 1,
+            replyToken = replyToken,
+            authorAvatarUrl = currentUserAvatar
+        )
+        return CommentSubmission(previousComments + createdComment, createdComment)
+    } else {
+        // Guestbook and non-forum forms
+        val writeClient = authenticatedClient(authorization).newBuilder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .callTimeout(12, TimeUnit.SECONDS)
+            .build()
+        val bodyBuilder = FormBody.Builder().add("content", submittedContent)
+        form.select("input[type=hidden][name]").forEach { input ->
+            val name = input.attr("name").trim()
+            if (name.isNotBlank() && name != "content" && name != "data" &&
+                name != "forum_id" && !(name == "reply" && !replyToken.isNullOrBlank())
+            ) bodyBuilder.add(name, input.attr("value"))
+        }
+        data?.let { bodyBuilder.add("data", it) }
+        forumId?.let { bodyBuilder.add("forum_id", it) }
+        replyToken?.trim()?.takeIf { it.isNotBlank() }?.let { bodyBuilder.add("reply", it) }
+        val actionUrl = EsjzoneUrls.resolve(
+            form.absUrl("action").ifBlank { targetUrl }, targetUrl
+        ).ifBlank { targetUrl }.substringBefore('#')
+        val responseBody = try {
+            writeClient.newCall(
                 Request.Builder().url(actionUrl).post(bodyBuilder.build()).headers(headers).build()
             ).execute().use { response ->
                 if (!response.isSuccessful) throw NetworkHttpException(targetUrl, response.code)
                 response.body?.readTextBounded().orEmpty()
             }
+        } catch (error: IOException) {
+            if (error is NetworkHttpException) throw error
+            throw CommentSubmissionTimeoutException(previousComments, error)
         }
-    } catch (error: IOException) {
-        // A business response (for example status=214) must not look successful
-        // and must not refresh the list, otherwise a failed write is misleading.
-        if (error is ForumReplyBusinessException || error is ForumReplyProtocolException ||
-            error is NetworkHttpException || error is NetworkRequestException
-        ) throw error
+        if (looksLikeLoginDocument(responseBody)) {
+            throw IOException("Comment request was redirected to login")
+        }
         invalidatePage(authorization, targetUrl)
-        val recoveredComments = runCatching {
-            val refreshed = getPage(
-                authorization,
-                targetUrl,
-                PageCacheTtl.COMMUNITY,
-                pageKind = PageKind.COMMUNITY
+        val refreshedDocument = try {
+            Jsoup.parse(
+                getPage(
+                    authorization,
+                    targetUrl,
+                    PageCacheTtl.COMMUNITY,
+                    pageKind = PageKind.COMMUNITY
+                ),
+                targetUrl
             )
-            parseComments(Jsoup.parse(refreshed, targetUrl), parentId)
-        }.getOrDefault(previousComments)
-        findCreatedComment(recoveredComments, previousIds, submittedContent)?.let { created ->
-            return CommentSubmission(recoveredComments, created)
+        } catch (error: IOException) {
+            throw CommentSubmissionNotVerifiedException(previousComments)
         }
-        throw CommentSubmissionNotVerifiedException(recoveredComments)
-    }
-    if (!forumReply && looksLikeLoginDocument(responseBody)) {
-        throw IOException("Comment request was redirected to login")
-    }
+        val comments = parseComments(refreshedDocument, parentId)
+        val createdComment = findCreatedComment(comments, previousIds, submittedContent)
+            ?: throw CommentSubmissionNotVerifiedException(comments)
 
-    invalidatePage(authorization, targetUrl)
-    val refreshedDocument = try {
-        Jsoup.parse(
-            getPage(
-                authorization,
-                targetUrl,
-                PageCacheTtl.COMMUNITY,
-                pageKind = PageKind.COMMUNITY
-            ),
-            targetUrl
-        )
-    } catch (error: IOException) {
-        throw CommentSubmissionNotVerifiedException(previousComments)
+        return CommentSubmission(comments, createdComment)
     }
-    val comments = parseComments(refreshedDocument, parentId)
-    val createdComment = findCreatedComment(comments, previousIds, submittedContent)
-        ?: throw CommentSubmissionNotVerifiedException(comments)
-
-    return CommentSubmission(comments, createdComment)
 }
 
 internal fun parseForumReplyResponse(body: String): ForumReplyResponse {
