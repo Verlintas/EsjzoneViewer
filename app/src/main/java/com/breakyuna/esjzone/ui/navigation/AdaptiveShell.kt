@@ -196,7 +196,6 @@ fun AdaptiveAppShell(
     }
 
     var lastHistoryTabClickTime by remember { mutableStateOf(0L) }
-    val readerSettings by PresentationAccess.readerSettings.settings.collectAsStateWithLifecycle()
     var autoResumeHandled by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {

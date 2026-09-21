@@ -494,6 +494,7 @@ private fun CloudHistoryContent(
     authorization: Authorization,
     navigator: com.breakyuna.esjzone.ui.navigation.AppNavigator?
 ) {
+    val detailLoader = rememberAppViewModel { NovelDetailLoader(authorization) }
     when (state) {
         HistoryPageModel.State.Loading -> CloudHistoryLoadingState()
         is HistoryPageModel.State.Error -> if (state.failure == LoadFailureKind.NETWORK) {
@@ -511,7 +512,6 @@ private fun CloudHistoryContent(
         )
         is HistoryPageModel.State.Result -> {
             val rows = state.historyNovels.distinctBy { it.url.ifBlank { it.name } }.filter { it.name.contains(query, true) || it.chapter.name.contains(query, true) || query.isBlank() }
-            val detailLoader = rememberAppViewModel { NovelDetailLoader(authorization) }
             if (rows.isEmpty()) {
                 EmptyState(stringResource(if (query.isBlank()) R.string.history_cloud_empty else R.string.history_search_empty), stringResource(R.string.history_cloud_separate), Modifier.fillMaxSize())
             } else {

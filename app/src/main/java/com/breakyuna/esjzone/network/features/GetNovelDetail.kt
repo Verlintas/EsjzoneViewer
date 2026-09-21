@@ -142,7 +142,7 @@ fun EsjzoneClient.getNovelDetail(
         author,
         forumUrl,
         tags,
-        tags.contains("R18"),
+        tags.any { it.equals("R18", ignoreCase = true) },
         favorite == "已收藏",
         description,
         chapterList,

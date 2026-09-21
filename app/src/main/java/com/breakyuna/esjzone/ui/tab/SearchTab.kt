@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,6 +58,7 @@ import com.breakyuna.esjzone.ui.page.SearchPageModel
 import com.breakyuna.esjzone.util.formattedDate
 
 object SearchTab : AppTab {
+    override val key: String = "SearchTab"
     private fun readResolve(): Any = SearchTab
 
     override val options: AppTabOptions
@@ -194,7 +196,9 @@ private fun SearchHistoryList(
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                     verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                 ) {
-                    val sortedHistories = state.histories.sortedByDescending { it.time.formattedDate() }
+                    val sortedHistories = remember(state.histories) {
+                        state.histories.sortedByDescending { it.time }
+                    }
                     sortedHistories.forEach { history ->
                         key("history:${history.index}") {
                             SearchHistoryChip(

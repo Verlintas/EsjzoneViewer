@@ -6,12 +6,15 @@ import com.breakyuna.esjzone.novellibrary.user.UserProfile
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 /** Persists the account-scoped profile snapshot shared by profile refreshes and remote writes. */
 suspend fun cacheUserProfile(
     authorization: Authorization,
     domain: String,
     profile: UserProfile
-) {
+) = withContext(Dispatchers.IO) {
     val prefix = profileCachePrefix(authorization, domain)
     val dao = PresentationAccess.database.cacheDao()
     dao.put("${prefix}name", profile.name)
