@@ -11,6 +11,7 @@ import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.features.ChapterPasswordRequiredException
 import com.breakyuna.esjzone.network.features.getChapterDetail
 import com.breakyuna.esjzone.network.features.isPasswordProtectedChapterHtml
+import com.breakyuna.esjzone.network.features.unlockPasswordProtectedChapter
 import com.breakyuna.esjzone.novellibrary.component.ChapterItem
 import com.breakyuna.esjzone.novellibrary.component.Component
 import com.breakyuna.esjzone.novellibrary.component.ImageComponent
