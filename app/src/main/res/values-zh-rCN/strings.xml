@@ -452,6 +452,10 @@
     <string name="external_link_not_supported">暂不支持站外链接</string>
     <string name="external_link_not_supported_desc">该章节为站外网页链接，当前暂不支持直接阅读。</string>
     <string name="reader_loading">正在加载正文…</string>
+    <string name="reader_password_title">此章节需要密码</string>
+    <string name="reader_password_message">请输入作者设置的章节密码。密码只会用于本次验证，不会保存。</string>
+    <string name="reader_password_label">章节密码</string>
+    <string name="reader_password_submit">验证</string>
     <string name="bookmarks">本地书签</string>
     <string name="bookmarks_description">将章节保存在本机，方便快速访问</string>
     <string name="bookmarks_empty">暂时还没有本地书签</string>

@@ -7,15 +7,29 @@ import com.breakyuna.esjzone.network.HtmlSelector
 import com.breakyuna.esjzone.network.JsoupHtmlSelector
 import com.breakyuna.esjzone.network.PageCacheTtl
 import com.breakyuna.esjzone.network.PageKind
+import com.breakyuna.esjzone.network.readTextBounded
 import com.breakyuna.esjzone.offline.NovelDownloadStore
 import com.breakyuna.esjzone.novellibrary.component.analyseComponents
 import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.novellibrary.novel.DetailedChapter
 import com.breakyuna.esjzone.util.AppLogger
+import com.google.gson.JsonParser
+import okhttp3.FormBody
+import okhttp3.Request
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.io.IOException
 
 private val chapterSelector: HtmlSelector = JsoupHtmlSelector
+
+/** A server-side ESJ chapter gate; this is not client-side encryption. */
+class ChapterPasswordRequiredException : IOException("This chapter requires an ESJ password")
+
+/** The password is accepted only as an argument to one request and is never persisted. */
+class ChapterPasswordRejectedException(message: String? = null) : IOException(
+    message?.takeIf { it.isNotBlank() } ?: "Incorrect chapter password"
+)
 
 fun EsjzoneClient.getChapterDetail(
     authorization: Authorization,
@@ -28,7 +42,9 @@ fun EsjzoneClient.getChapterDetail(
         ?: EsjzoneUrls.resolve(chapter.url)
 
     if (preferDownloaded) {
-        NovelDownloadStore.readChapter(targetUrl)?.let { downloaded ->
+        NovelDownloadStore.readChapter(targetUrl)
+            ?.takeUnless { isPasswordProtectedChapterHtml(it.contentHtml.orEmpty(), targetUrl) }
+            ?.let { downloaded ->
             AppLogger.i("GetChapterDetail", "Using downloaded chapter: $targetUrl")
             return downloaded
         }
@@ -56,8 +72,75 @@ fun EsjzoneClient.getChapterDetail(
     }
 
     val document = Jsoup.parse(responseBody, targetUrl)
+    if (isPasswordProtectedChapterHtml(responseBody, targetUrl)) throw ChapterPasswordRequiredException()
+    return document.toDetailedChapter(chapter, targetUrl)
+}
 
-    val contentElement = chapterSelector.first(document, ".forum-content.mt-3, .forum-content")
+/**
+ * Exchanges a user-entered password for the chapter HTML in the current ESJ cookie session.
+ * Neither this function nor its callers retain the password after the request completes.
+ */
+fun EsjzoneClient.unlockPasswordProtectedChapter(
+    authorization: Authorization,
+    chapter: Chapter,
+    password: String,
+    baseUrl: String? = null
+): DetailedChapter {
+    val targetUrl = baseUrl?.let { EsjzoneUrls.resolve(chapter.url, it) }
+        ?: EsjzoneUrls.resolve(chapter.url)
+    val page = getPage(
+        authorization, targetUrl, PageCacheTtl.CHAPTER, forceRefresh = true, pageKind = PageKind.CHAPTER,
+        allowStaleOnError = false
+    )
+    val document = Jsoup.parse(page, targetUrl)
+    if (!isPasswordProtectedChapterHtml(page, targetUrl)) return document.toDetailedChapter(chapter, targetUrl)
+
+    val token = requestAuthToken(authorization, targetUrl)
+        .takeIf { it.isNotBlank() }
+        ?: throw IOException("Unable to request chapter authorization")
+    val response = authenticatedClient(authorization).newCall(
+        Request.Builder()
+            .url(EsjzoneUrls.resolve("/inc/forum_pw.php", targetUrl))
+            .post(FormBody.Builder().add("pw", password).build())
+            .headers(headers.newBuilder()
+                .add("Authorization", token)
+                .add("X-Requested-With", "XMLHttpRequest")
+                .build())
+            .build()
+    ).execute().use { reply ->
+        if (!reply.isSuccessful) throw IOException("Chapter password request failed: HTTP ${reply.code}")
+        reply.body?.readTextBounded().orEmpty()
+    }
+    val payload = runCatching { JsonParser.parseString(response).asJsonObject }.getOrNull()
+        ?: throw IOException("Invalid chapter password response")
+    when (payload.get("status")?.asInt) {
+        206 -> throw ChapterPasswordRejectedException(payload.get("msg")?.asString)
+        200 -> Unit
+        else -> throw IOException("Chapter password request was rejected")
+    }
+    val unlockedHtml = payload.get("html")?.asString?.takeIf { it.isNotBlank() }
+        ?: throw IOException("Unlocked chapter response was empty")
+    val content = chapterSelector.first(document, ".forum-content.mt-3, .forum-content")
+        ?: throw IOException("Chapter content container was missing")
+    content.html(unlockedHtml)
+    if (isPasswordProtectedChapterHtml(document.outerHtml(), targetUrl)) {
+        throw IOException("Chapter remained password protected")
+    }
+    // A previously cached password gate must not keep masking the new ESJ cookie grant.
+    invalidatePage(authorization, targetUrl)
+    return document.toDetailedChapter(chapter, targetUrl)
+}
+
+internal fun isPasswordProtectedChapterHtml(html: String, baseUrl: String = ""): Boolean {
+    val document = Jsoup.parse(html, baseUrl)
+    val content = chapterSelector.first(document, ".forum-content.mt-3, .forum-content") ?: return false
+    return content.selectFirst("#oops") != null &&
+        content.selectFirst("input#pw[name=pw]") != null &&
+        content.selectFirst(".btn-send-pw") != null
+}
+
+private fun Document.toDetailedChapter(chapter: Chapter, targetUrl: String): DetailedChapter {
+    val contentElement = chapterSelector.first(this, ".forum-content.mt-3, .forum-content")
     val components = if (contentElement != null) {
         analyseComponents(contentElement)
     } else {
@@ -66,11 +149,11 @@ fun EsjzoneClient.getChapterDetail(
     }
 
     val previousChapter = chapterSelector.first(
-        document,
+        this,
         "a.btn-prev, a[rel='prev'], a[data-direction='previous']"
     )
     val nextChapter = chapterSelector.first(
-        document,
+        this,
         "a.btn-next, a[rel='next'], a[data-direction='next']"
     )
 

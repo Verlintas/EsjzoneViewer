@@ -55,12 +55,14 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -106,6 +108,8 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -269,6 +273,52 @@ class ChapterPage(
                 )
             }
         val state by chapterPageModel.state.collectAsState()
+        var chapterPassword by remember { mutableStateOf("") }
+        val passwordRequired = state as? ChapterPageModel.State.PasswordRequired
+
+        if (passwordRequired != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    chapterPassword = ""
+                    navigator?.pop()
+                },
+                title = { Text(stringResource(R.string.reader_password_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                        Text(stringResource(R.string.reader_password_message))
+                        OutlinedTextField(
+                            value = chapterPassword,
+                            onValueChange = { chapterPassword = it },
+                            label = { Text(stringResource(R.string.reader_password_label)) },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = KeyboardType.Password
+                            )
+                        )
+                        passwordRequired.message?.takeIf { it.isNotBlank() }?.let { message ->
+                            Text(message, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = chapterPassword.isNotBlank(),
+                        onClick = {
+                            val submittedPassword = chapterPassword
+                            chapterPassword = ""
+                            chapterPageModel.submitChapterPassword(submittedPassword)
+                        }
+                    ) { Text(stringResource(R.string.reader_password_submit)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        chapterPassword = ""
+                        navigator?.pop()
+                    }) { Text(stringResource(R.string.cancel)) }
+                }
+            )
+        }
 
         var showToolbar by rememberSaveable {
             mutableStateOf(false)
@@ -1057,6 +1107,11 @@ class ChapterPage(
                                     onAction = { chapterPageModel.openChapter(requestedChapter.value) }
                                 )
                             }
+                        }
+
+                        is ChapterPageModel.State.PasswordRequired -> item(key = "reader-password-required") {
+                            // The modal above owns the interaction; keep the reader shell stable behind it.
+                            Spacer(Modifier.height(1.dp))
                         }
 
                         is ChapterPageModel.State.Result -> {

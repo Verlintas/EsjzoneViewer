@@ -452,6 +452,10 @@
     <string name="external_link_not_supported">External links are not supported yet</string>
     <string name="external_link_not_supported_desc">This chapter is an external web link and cannot be read directly in the app.</string>
     <string name="reader_loading">Loading chapter…</string>
+    <string name="reader_password_title">This chapter requires a password</string>
+    <string name="reader_password_message">Enter the password set by the author. It is used only for this verification and is not saved.</string>
+    <string name="reader_password_label">Chapter password</string>
+    <string name="reader_password_submit">Verify</string>
     <string name="bookmarks">Bookmarks</string>
     <string name="bookmarks_description">Save chapters locally for quick access</string>
     <string name="bookmarks_empty">No local bookmarks yet</string>

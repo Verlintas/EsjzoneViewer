@@ -17,6 +17,9 @@ import com.breakyuna.esjzone.network.LoadFailureKind
 import com.breakyuna.esjzone.network.cancellablePageRequest
 import com.breakyuna.esjzone.network.loadFailureKind
 import com.breakyuna.esjzone.network.features.getChapterDetail
+import com.breakyuna.esjzone.network.features.unlockPasswordProtectedChapter
+import com.breakyuna.esjzone.network.features.ChapterPasswordRejectedException
+import com.breakyuna.esjzone.network.features.ChapterPasswordRequiredException
 import com.breakyuna.esjzone.network.features.getNovelDetail
 import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.novellibrary.novel.DetailedChapter
@@ -54,6 +57,7 @@ class ChapterPageModel(
     sealed class State {
         data object Loading : State()
         data object Empty : State()
+        data class PasswordRequired(val chapter: Chapter, val message: String? = null) : State()
         data object UnsupportedExternalLink : State()
         data class Error(val failure: LoadFailureKind) : State()
         data class Result(
@@ -159,6 +163,11 @@ class ChapterPageModel(
                 loadDetail(chapter)
             } catch (error: CancellationException) {
                 throw error
+            } catch (error: ChapterPasswordRequiredException) {
+                if (isCurrentSession(currentSession)) {
+                    mutableState.value = State.PasswordRequired(chapter)
+                }
+                return@launch
             } catch (error: Exception) {
                 if (isCurrentSession(currentSession)) {
                     mutableState.value = State.Error(error.loadFailureKind())
@@ -200,6 +209,52 @@ class ChapterPageModel(
             } else {
                 requestChapterOrder(currentSession, chapter, detail.next)
             }
+        }
+    }
+
+    /** Submits a password once; it is not kept in state, storage, logs, or navigation. */
+    fun submitChapterPassword(password: String) {
+        val protected = mutableState.value as? State.PasswordRequired ?: return
+        if (password.isBlank()) {
+            mutableState.value = protected
+            return
+        }
+        val target = protected.chapter
+        val currentSession = synchronized(lock) { sessionId }
+        mutableState.value = State.Loading
+        initialJob = viewModelScope.launch(Dispatchers.IO) {
+            val detail = try {
+                cancellablePageRequest {
+                    PresentationAccess.client.unlockPasswordProtectedChapter(authorization, target, password)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: ChapterPasswordRejectedException) {
+                if (isCurrentSession(currentSession)) {
+                    mutableState.value = State.PasswordRequired(target, error.message)
+                }
+                return@launch
+            } catch (error: Exception) {
+                if (isCurrentSession(currentSession)) {
+                    mutableState.value = State.Error(error.loadFailureKind())
+                }
+                AppLogger.e("ChapterPageModel", "Failed to unlock password-protected chapter", error)
+                return@launch
+            }
+            if (!isCurrentSession(currentSession)) return@launch
+            synchronized(lock) {
+                if (isCurrentSessionLocked(currentSession)) {
+                    loadedChapters += ReaderChapter(
+                        chapter = target,
+                        document = detail.toReaderDocument(target),
+                        fallbackPrevious = detail.previous,
+                        fallbackNext = detail.next
+                    )
+                }
+            }
+            queueChapterPersistence(target, detail)
+            publish(currentSession)
+            prefetchNext(target, detail.next)
         }
     }
 
