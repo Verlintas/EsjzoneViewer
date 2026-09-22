@@ -86,7 +86,7 @@
 ## 📷 界面预览
 
 <p align="center">
-  <img src="docs/images/preview.webp" width="1200" alt="EsjzoneViewer 首页、历史记录、书架与个人资料界面展示">
+  <img src="docs/images/preview.jpg" width="1200" alt="EsjzoneViewer 首页、历史记录、书架与个人资料界面展示">
 </p>
 
 ## 🛠️ 技术栈
