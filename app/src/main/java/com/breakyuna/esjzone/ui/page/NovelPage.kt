@@ -1,6 +1,7 @@
 package com.breakyuna.esjzone.ui.page
 import com.breakyuna.esjzone.app.PresentationAccess
 
+import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -1144,6 +1145,7 @@ private suspend fun exportNovel(
     }
 }
 
+@SuppressLint("LocalContextGetResourceValueCall")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NovelDownloadActions(
@@ -1156,6 +1158,8 @@ private fun NovelDownloadActions(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val appContext = context.applicationContext
+    val defaultUnlockFailedText = stringResource(R.string.novel_download_unlock_failed, "")
     var showSheet by rememberSaveable(novel.url) { mutableStateOf(false) }
     var unlockingRecord by remember(novel.url) { mutableStateOf<DownloadedChapterRecord?>(null) }
     var downloadStatus by remember(novel.url) { mutableStateOf<BackgroundDownloadStatus?>(null) }
@@ -1196,7 +1200,7 @@ private fun NovelDownloadActions(
                     if (status.succeeded && pendingPasswordCount > 0) {
                         Toast.makeText(
                             context,
-                            context.getString(R.string.novel_download_completed_with_passwords, pendingPasswordCount),
+                            appContext.getString(R.string.novel_download_completed_with_passwords, pendingPasswordCount),
                             Toast.LENGTH_LONG
                         ).show()
                     } else {
@@ -1417,7 +1421,7 @@ private fun NovelDownloadActions(
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
                                     unlocking = false
-                                    unlockError = e.message ?: context.getString(R.string.novel_download_unlock_failed, "")
+                                    unlockError = e.message ?: defaultUnlockFailedText
                                 }
                             }
                         }
