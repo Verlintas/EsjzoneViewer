@@ -76,6 +76,22 @@ interface BookshelfDao {
     suspend fun markFailed(scope: String, bookKey: String, version: Long, lastError: String?): Int
 
     @Query(
+        "UPDATE bookshelf SET sync_state = CASE WHEN visible = 1 THEN 'PENDING_ADD' ELSE 'PENDING_REMOVE' END, " +
+            "retry_count = 0, last_error = NULL " +
+            "WHERE scope = :scope AND sync_state = 'FAILED'"
+    )
+    suspend fun resetFailedIntents(scope: String): Int
+
+    @Query("SELECT COUNT(*) FROM bookshelf WHERE scope = :scope AND sync_state = 'FAILED'")
+    suspend fun countFailed(scope: String): Int
+
+    @Query("SELECT COUNT(*) FROM bookshelf WHERE scope = :scope")
+    suspend fun count(scope: String): Int
+
+    @Query("UPDATE OR IGNORE bookshelf SET scope = :newScope WHERE scope = :oldScope")
+    suspend fun migrateScope(oldScope: String, newScope: String): Int
+
+    @Query(
         "UPDATE bookshelf SET title = CASE WHEN title = '' THEN :title ELSE title END, " +
             "author = CASE WHEN author = '' THEN :author ELSE author END, " +
             "cover_url = CASE WHEN cover_url = '' THEN :coverUrl ELSE cover_url END, " +

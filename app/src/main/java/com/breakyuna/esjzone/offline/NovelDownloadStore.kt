@@ -270,9 +270,13 @@ object NovelDownloadStore {
         val normalizedNovelUrl = novelUrl.trim()
         if (normalizedNovelUrl.isBlank()) return null
         val directory = directoryFor(normalizedNovelUrl, create = true) ?: return null
+        val writeGuard = newWriteGuard(directory)
         requireFreeSpace(directory)
 
-        val previous = synchronized(ioLock) { readManifest(directory) }
+        val previous = synchronized(ioLock) {
+            ensureWriteAllowed(writeGuard)
+            readManifest(directory)
+        }
         val targetKey = chapterKey(chapter.url)
         val existing = previous?.chapters?.firstOrNull { chapterKey(it.url) == targetKey }
         val existingFile = existing?.fileName?.let { resolveLocalFile(directory, it) }
@@ -298,17 +302,19 @@ object NovelDownloadStore {
         val downloadedImages = imageComponents
             .distinctBy { it.url }
             .mapNotNull { component ->
+                ensureWriteAllowed(writeGuard)
                 val image = downloadImage(
                     authorization = auth,
                     novelDirectory = directory,
                     rawUrl = component.url,
                     baseUrl = detail.sourceUrl ?: normalizedNovelUrl,
-                    writeGuard = null
+                    writeGuard = writeGuard
                 )
                 if (image != null) component.url to image else null
             }.toMap()
 
         return synchronized(ioLock) {
+            ensureWriteAllowed(writeGuard)
             saveChapterLocked(
                 novelName = novelName,
                 novelUrl = normalizedNovelUrl,
@@ -316,7 +322,8 @@ object NovelDownloadStore {
                 chapterOrder = chapterOrder,
                 chapter = chapter,
                 detail = detail,
-                downloadedImages = downloadedImages
+                downloadedImages = downloadedImages,
+                writeGuard = writeGuard
             )
         }
     }
@@ -328,11 +335,15 @@ object NovelDownloadStore {
         chapterOrder: List<Chapter>,
         chapter: Chapter,
         detail: DetailedChapter,
-        downloadedImages: Map<String, DownloadedImage> = emptyMap()
+        downloadedImages: Map<String, DownloadedImage> = emptyMap(),
+        writeGuard: DownloadWriteGuard
     ): DownloadedNovelManifest? {
+        ensureWriteAllowed(writeGuard)
         val normalizedNovelUrl = novelUrl.trim()
         if (normalizedNovelUrl.isBlank()) return null
-        val directory = directoryFor(normalizedNovelUrl, create = true) ?: return null
+        val directory = directoryFor(normalizedNovelUrl, create = false)
+            ?: return null.also { ensureWriteAllowed(writeGuard) }
+        ensureWriteAllowed(writeGuard)
         val previous = readManifest(directory)
         // Prefetch and the subsequent reader load both save the same chapter. Avoid
         // rescanning every chapter file and rewriting the full manifest on that path.
@@ -408,7 +419,7 @@ object NovelDownloadStore {
                 contentHtml = detail.contentHtml,
                 baseUrl = detail.sourceUrl ?: chapter.url
             )
-            writeJson(targetFile, storedChapter)
+            writeJson(targetFile, storedChapter, writeGuard)
             records[targetIndex] = target.copy(downloaded = true)
         }
         val complete = if (chapterOrder.isNotEmpty()) {
@@ -427,7 +438,7 @@ object NovelDownloadStore {
             downloadedAt = System.currentTimeMillis(),
             complete = complete
         )
-        writeManifest(directory, current)
+        writeManifest(directory, current, writeGuard)
         return current
     }
 

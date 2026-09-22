@@ -32,7 +32,10 @@ class SettingsPageModel : AppStateViewModel<SettingsPageModel.State>(State()) {
             try {
                 when (key) {
                     "adult", "show_adult" -> PresentationAccess.settings.setAdult(value.toBooleanStrictOrNull() ?: return@launch)
-                    "domain" -> PresentationAccess.settings.setDomain(value)
+                    "domain" -> {
+                        PresentationAccess.settings.setDomain(value)
+                        com.breakyuna.esjzone.network.features.HistoryDataCache.clearMemory()
+                    }
                     "language" -> PresentationAccess.settings.setLanguage(AppLanguage.fromCode(value))
                     PresentationAccess.settings.READER_AUTO_SAVE_KEY ->
                         PresentationAccess.settings.setReaderAutoSave(value.toBooleanStrictOrNull() ?: return@launch)
@@ -125,6 +128,8 @@ class SettingsPageModel : AppStateViewModel<SettingsPageModel.State>(State()) {
                 dao.getAll()
                     .filter { it.key.startsWith("profile:") }
                     .forEach { dao.delete(it) }
+                com.breakyuna.esjzone.network.features.HistoryDataCache.clearSnapshot(authorization)
+                com.breakyuna.esjzone.network.features.HistoryDataCache.clearMemory()
             } catch (e: CancellationException) {
                 cancelled = true
                 throw e

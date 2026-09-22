@@ -21,4 +21,6 @@
     <exclude domain="file" path="novel_page_cache" />
     <exclude domain="file" path="image_cache" />
     <exclude domain="file" path="downloaded_novels" />
+    <exclude domain="file" path="history_cache" />
+    <exclude domain="file" path="history_data_snapshot.json" />
 </full-backup-content>
