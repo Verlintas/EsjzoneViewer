@@ -1079,7 +1079,7 @@ private fun RebuiltChapterRow(
                         if (isPasswordRequired) {
                             Text(
                                 text = stringResource(R.string.chapter_password_required_badge),
-                                style = AppTypography.labelSmall,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier
                                     .background(
