@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +60,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -1162,6 +1164,9 @@ private fun NovelDownloadActions(
     val defaultUnlockFailedText = stringResource(R.string.novel_download_unlock_failed, "")
     var showSheet by rememberSaveable(novel.url) { mutableStateOf(false) }
     var unlockingRecord by remember(novel.url) { mutableStateOf<DownloadedChapterRecord?>(null) }
+    var showCommonPasswordDialog by rememberSaveable(novel.url) { mutableStateOf(false) }
+    var batchUnlocking by remember(novel.url) { mutableStateOf(false) }
+    var batchProgress by remember(novel.url) { mutableStateOf<Pair<Int, Int>?>(null) }
     var downloadStatus by remember(novel.url) { mutableStateOf<BackgroundDownloadStatus?>(null) }
     var downloading by remember(novel.url) { mutableStateOf(false) }
     var pausing by remember(novel.url) { mutableStateOf(false) }
@@ -1308,6 +1313,54 @@ private fun NovelDownloadActions(
         )
     }
 
+    fun triggerBatchUnlock(password: String) {
+        val trimmed = password.trim()
+        if (trimmed.isBlank() || batchUnlocking) return
+        batchUnlocking = true
+        downloadScope.launch(Dispatchers.IO) {
+            val result = PresentationAccess.downloads.unlockChaptersWithCommonPassword(
+                authorization = authorization,
+                novel = novel,
+                commonPassword = trimmed,
+                onProgress = { cur, tot -> batchProgress = Pair(cur, tot) }
+            )
+            withContext(Dispatchers.Main) {
+                batchUnlocking = false
+                batchProgress = null
+                onDownloadedChange(result.updatedManifest)
+                if (result.unlockedCount > 0 && result.failedCount == 0) {
+                    Toast.makeText(
+                        context,
+                        appContext.getString(R.string.novel_download_batch_unlock_success, result.unlockedCount),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else if (result.unlockedCount > 0) {
+                    Toast.makeText(
+                        context,
+                        appContext.getString(R.string.novel_download_batch_unlock_partial, result.unlockedCount, result.failedCount),
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else if (result.failedCount > 0) {
+                    Toast.makeText(
+                        context,
+                        R.string.novel_download_batch_unlock_failed,
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    fun clearCommonPassword() {
+        downloadScope.launch(Dispatchers.IO) {
+            val updated = PresentationAccess.downloads.updateCommonPassword(novel, null)
+            withContext(Dispatchers.Main) {
+                onDownloadedChange(updated)
+                Toast.makeText(context, R.string.novel_download_common_password_cleared, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     if (showSheet) {
         NovelDownloadSheet(
             novel = novel,
@@ -1315,6 +1368,8 @@ private fun NovelDownloadActions(
             status = downloadStatus,
             progress = progress,
             downloading = downloading,
+            batchUnlocking = batchUnlocking,
+            batchProgress = batchProgress,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             onDismiss = { showSheet = false },
             onDownload = ::enqueueDownload,
@@ -1332,7 +1387,17 @@ private fun NovelDownloadActions(
                 showSheet = false
                 onExportEpub()
             },
-            onUnlockChapter = { unlockingRecord = it }
+            onUnlockChapter = { unlockingRecord = it },
+            onSetCommonPassword = { showCommonPasswordDialog = true },
+            onBatchUnlock = {
+                val common = downloaded?.commonPassword
+                if (common.isNullOrBlank()) {
+                    showCommonPasswordDialog = true
+                } else {
+                    triggerBatchUnlock(common)
+                }
+            },
+            onClearCommonPassword = ::clearCommonPassword
         )
     }
 
@@ -1360,8 +1425,54 @@ private fun NovelDownloadActions(
         )
     }
 
+    if (showCommonPasswordDialog) {
+        var passwordInput by rememberSaveable(novel.url) { mutableStateOf(downloaded?.commonPassword.orEmpty()) }
+        AlertDialog(
+            onDismissRequest = { if (!batchUnlocking) showCommonPasswordDialog = false },
+            title = { Text(stringResource(R.string.novel_download_common_password_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                    Text(
+                        text = stringResource(R.string.novel_download_common_password_hint),
+                        style = AppTypography.bodySmall,
+                        color = appStateColors().contentMuted
+                    )
+                    OutlinedTextField(
+                        value = passwordInput,
+                        onValueChange = { passwordInput = it },
+                        label = { Text(stringResource(R.string.reader_password_label)) },
+                        singleLine = true,
+                        enabled = !batchUnlocking
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = passwordInput.isNotBlank() && !batchUnlocking,
+                    onClick = {
+                        val submitted = passwordInput.trim()
+                        showCommonPasswordDialog = false
+                        triggerBatchUnlock(submitted)
+                    }
+                ) {
+                    Text(stringResource(R.string.novel_download_save_and_unlock))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !batchUnlocking,
+                    onClick = { showCommonPasswordDialog = false }
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     if (unlockingRecord != null) {
-        var passwordInput by remember { mutableStateOf("") }
+        val defaultPassword = remember(unlockingRecord) { downloaded?.commonPassword.orEmpty() }
+        var passwordInput by remember(unlockingRecord) { mutableStateOf(defaultPassword) }
+        var saveAsCommon by remember(unlockingRecord) { mutableStateOf(false) }
         var unlocking by remember { mutableStateOf(false) }
         var unlockError by remember { mutableStateOf<String?>(null) }
         val record = unlockingRecord!!
@@ -1381,6 +1492,21 @@ private fun NovelDownloadActions(
                         singleLine = true,
                         enabled = !unlocking
                     )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable(enabled = !unlocking) { saveAsCommon = !saveAsCommon }
+                    ) {
+                        Checkbox(
+                            checked = saveAsCommon,
+                            onCheckedChange = { saveAsCommon = it },
+                            enabled = !unlocking
+                        )
+                        Spacer(modifier = Modifier.width(AppSpacing.xs))
+                        Text(
+                            text = stringResource(R.string.novel_download_save_as_common_password),
+                            style = AppTypography.bodySmall
+                        )
+                    }
                     unlockError?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = AppTypography.bodySmall)
                     }
@@ -1395,7 +1521,8 @@ private fun NovelDownloadActions(
                     onClick = {
                         unlocking = true
                         unlockError = null
-                        val submittedPassword = passwordInput
+                        val submittedPassword = passwordInput.trim()
+                        val shouldSaveCommon = saveAsCommon
                         downloadScope.launch(Dispatchers.IO) {
                             try {
                                 val detail = PresentationAccess.client.unlockPasswordProtectedChapter(
@@ -1412,6 +1539,9 @@ private fun NovelDownloadActions(
                                     detail = detail,
                                     authorization = authorization
                                 )
+                                if (shouldSaveCommon) {
+                                    PresentationAccess.downloads.updateCommonPassword(novel, submittedPassword)
+                                }
                                 val updated = PresentationAccess.downloads.manifest(novel.url)
                                 withContext(Dispatchers.Main) {
                                     onDownloadedChange(updated)
@@ -1450,6 +1580,8 @@ private fun NovelDownloadSheet(
     status: BackgroundDownloadStatus?,
     progress: DownloadProgress?,
     downloading: Boolean,
+    batchUnlocking: Boolean,
+    batchProgress: Pair<Int, Int>?,
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onDownload: () -> Unit,
@@ -1457,7 +1589,10 @@ private fun NovelDownloadSheet(
     onDeleteDownload: () -> Unit,
     onExportTxt: () -> Unit,
     onExportEpub: () -> Unit,
-    onUnlockChapter: (DownloadedChapterRecord) -> Unit = {}
+    onUnlockChapter: (DownloadedChapterRecord) -> Unit = {},
+    onSetCommonPassword: () -> Unit = {},
+    onBatchUnlock: () -> Unit = {},
+    onClearCommonPassword: () -> Unit = {}
 ) {
     val completed = manifest?.chapters?.count { it.downloaded } ?: 0
     val total = novel.chapterList.orderedChapters.size
@@ -1624,32 +1759,110 @@ private fun NovelDownloadSheet(
                 ) {
                     Column(
                         modifier = Modifier.padding(AppSpacing.md),
-                        verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)
+                        verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
-                        Text(
-                            text = stringResource(R.string.novel_download_pending_passwords_title, pendingPasswords.size),
-                            style = AppTypography.labelLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        pendingPasswords.take(3).forEach { record ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = stringResource(R.string.novel_download_pending_passwords_title, pendingPasswords.size),
+                                style = AppTypography.labelLarge,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (batchUnlocking) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                            }
+                        }
+                        if (batchUnlocking && batchProgress != null) {
+                            Text(
+                                text = stringResource(R.string.novel_download_batch_unlocking, batchProgress.first, batchProgress.second),
+                                style = AppTypography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        } else {
+                            val hasCommon = !manifest?.commonPassword.isNullOrBlank()
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
                             ) {
-                                Text(
-                                    text = record.name,
-                                    style = AppTypography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
                                 TextButton(
-                                    onClick = { onUnlockChapter(record) }
+                                    onClick = onBatchUnlock,
+                                    enabled = !batchUnlocking
                                 ) {
-                                    Text(stringResource(R.string.novel_download_unlock_chapter))
+                                    Text(
+                                        if (hasCommon) {
+                                            stringResource(R.string.novel_download_batch_unlock_action, pendingPasswords.size)
+                                        } else {
+                                            stringResource(R.string.novel_download_set_common_password)
+                                        }
+                                    )
+                                }
+                                if (hasCommon) {
+                                    TextButton(
+                                        onClick = onClearCommonPassword,
+                                        enabled = !batchUnlocking
+                                    ) {
+                                        Text(stringResource(R.string.novel_download_clear_common_password))
+                                    }
                                 }
                             }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 220.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)
+                        ) {
+                            pendingPasswords.forEach { record ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = record.name,
+                                        style = AppTypography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(
+                                        onClick = { onUnlockChapter(record) },
+                                        enabled = !batchUnlocking
+                                    ) {
+                                        Text(stringResource(R.string.novel_download_unlock_chapter))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (!manifest?.commonPassword.isNullOrBlank()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AppShapes.standard,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.novel_download_common_password_active),
+                            style = AppTypography.bodySmall,
+                            color = appStateColors().contentMuted
+                        )
+                        TextButton(onClick = onClearCommonPassword) {
+                            Text(stringResource(R.string.novel_download_clear_common_password))
                         }
                     }
                 }

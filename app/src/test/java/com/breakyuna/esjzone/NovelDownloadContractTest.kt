@@ -168,4 +168,66 @@ class NovelDownloadContractTest {
         assertEquals(false, restored.chapters.first().requiresPassword)
         assertTrue(restored.pendingPasswordChapters.isEmpty())
     }
+
+    @Test
+    fun manifestRoundTrip_preservesCommonPassword() {
+        val manifest = DownloadedNovelManifest(
+            name = "Fixture novel",
+            url = "https://www.esjzone.cc/detail/9001.html",
+            coverUrl = "",
+            views = 12,
+            likes = 3,
+            words = 400,
+            type = "原创",
+            author = "Fixture author",
+            forumUrl = "/forum/9001/1.html",
+            tags = listOf("tag"),
+            isAdult = false,
+            description = "fixture",
+            sourceUrl = null,
+            updatedAt = null,
+            chapters = listOf(
+                DownloadedChapterRecord(
+                    index = 0,
+                    name = "Chapter 1",
+                    url = "/forum/9001/1.html",
+                    fileName = "chapter-a.json",
+                    downloaded = false,
+                    requiresPassword = true
+                )
+            ),
+            downloadedAt = 1234L,
+            complete = false,
+            commonPassword = "test_common_secret"
+        )
+
+        val restored = Gson().fromJson(Gson().toJson(manifest), DownloadedNovelManifest::class.java)
+        assertEquals(manifest, restored)
+        assertEquals("test_common_secret", restored.commonPassword)
+    }
+
+    @Test
+    fun legacyManifestWithoutCommonPassword_defaultsToNull() {
+        val legacyJson = """
+            {
+                "name": "Legacy Novel",
+                "url": "https://www.esjzone.cc/detail/9001.html",
+                "coverUrl": "",
+                "views": 0,
+                "likes": 0,
+                "words": 0,
+                "type": "",
+                "author": "",
+                "tags": [],
+                "isAdult": false,
+                "description": "",
+                "chapters": [],
+                "downloadedAt": 0,
+                "complete": false
+            }
+        """.trimIndent()
+
+        val restored = Gson().fromJson(legacyJson, DownloadedNovelManifest::class.java)
+        org.junit.Assert.assertNull(restored.commonPassword)
+    }
 }

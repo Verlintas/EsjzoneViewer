@@ -69,7 +69,8 @@ data class DownloadedNovelManifest(
     val updatedAt: String?,
     val chapters: List<DownloadedChapterRecord>,
     val downloadedAt: Long,
-    val complete: Boolean
+    val complete: Boolean,
+    val commonPassword: String? = null
 ) {
     val pendingPasswordChapters: List<DownloadedChapterRecord>
         get() = chapters.filter { it.requiresPassword && !it.downloaded }
@@ -257,6 +258,118 @@ object NovelDownloadStore {
             val context = com.breakyuna.esjzone.EsjzoneApplication.instance
             NovelDownloadManager.cancel(context, novelUrl)
         }
+    }
+
+    data class BatchUnlockResult(
+        val totalCount: Int,
+        val unlockedCount: Int,
+        val failedCount: Int,
+        val updatedManifest: DownloadedNovelManifest?
+    )
+
+    fun updateCommonPassword(
+        novel: DetailedNovel,
+        commonPassword: String?
+    ): DownloadedNovelManifest? {
+        val directory = directoryFor(novel.url, create = true) ?: return null
+        val writeGuard = newWriteGuard(directory)
+        val trimmed = commonPassword?.trim()?.ifBlank { null }
+        return synchronized(ioLock) {
+            val manifest = readManifest(directory)
+            val updated = manifest?.copy(commonPassword = trimmed)
+                ?: manifestFrom(
+                    novel = novel,
+                    records = emptyList(),
+                    downloadedAt = System.currentTimeMillis(),
+                    complete = false,
+                    commonPassword = trimmed
+                )
+            writeManifest(directory, updated, writeGuard)
+            inventorySnapshot = null
+            updated
+        }
+    }
+
+    fun updateCommonPassword(
+        novelUrl: String,
+        commonPassword: String?
+    ): DownloadedNovelManifest? {
+        val directory = directoryFor(novelUrl, create = false) ?: return null
+        val writeGuard = newWriteGuard(directory)
+        val trimmed = commonPassword?.trim()?.ifBlank { null }
+        return synchronized(ioLock) {
+            val manifest = readManifest(directory) ?: return null
+            val updated = manifest.copy(commonPassword = trimmed)
+            writeManifest(directory, updated, writeGuard)
+            inventorySnapshot = null
+            updated
+        }
+    }
+
+    suspend fun unlockChaptersWithCommonPassword(
+        authorization: Authorization,
+        novel: DetailedNovel,
+        commonPassword: String,
+        onProgress: (current: Int, total: Int) -> Unit = { _, _ -> }
+    ): BatchUnlockResult {
+        val trimmed = commonPassword.trim()
+        val directory = directoryFor(novel.url, create = true)
+            ?: return BatchUnlockResult(0, 0, 0, null)
+        val writeGuard = newWriteGuard(directory)
+
+        val initialManifest = synchronized(ioLock) {
+            val existing = readManifest(directory)
+            val withPw = (existing ?: manifestFrom(
+                novel = novel,
+                records = emptyList(),
+                downloadedAt = System.currentTimeMillis(),
+                complete = false
+            )).copy(commonPassword = trimmed)
+            writeManifest(directory, withPw, writeGuard)
+            inventorySnapshot = null
+            withPw
+        }
+
+        val pending = initialManifest.pendingPasswordChapters
+        if (pending.isEmpty()) {
+            return BatchUnlockResult(0, 0, 0, initialManifest)
+        }
+
+        var unlocked = 0
+        var failed = 0
+        val total = pending.size
+
+        for ((idx, record) in pending.withIndex()) {
+            onProgress(idx + 1, total)
+            try {
+                val detail = EsjzoneClient.unlockPasswordProtectedChapter(
+                    authorization = authorization,
+                    chapter = Chapter(record.name, record.url, false),
+                    password = trimmed
+                )
+                saveChapter(
+                    novelName = novel.name,
+                    novelUrl = novel.url,
+                    coverUrl = novel.coverUrl,
+                    chapterOrder = novel.chapterList.orderedChapters,
+                    chapter = Chapter(record.name, record.url, false),
+                    detail = detail,
+                    authorization = authorization
+                )
+                unlocked++
+            } catch (e: Exception) {
+                AppLogger.w("NovelDownloadStore", "Common password unlock failed for chapter ${record.name}", e)
+                failed++
+            }
+        }
+
+        val finalManifest = synchronized(ioLock) { readManifest(directory) }
+        return BatchUnlockResult(
+            totalCount = total,
+            unlockedCount = unlocked,
+            failedCount = failed,
+            updatedManifest = finalManifest
+        )
     }
 
     /**
@@ -470,6 +583,7 @@ object NovelDownloadStore {
         requireFreeSpace(directory)
         val writeGuard = newWriteGuard(directory)
         val previousManifest = synchronized(ioLock) { readManifest(directory) }
+        val previousCommonPassword = previousManifest?.commonPassword?.takeIf(String::isNotBlank)
         val previousByUrl = previousManifest?.chapters
             .orEmpty()
             .associateBy { chapterKey(it.url) }
@@ -496,7 +610,8 @@ object NovelDownloadStore {
             novel = novel,
             records = currentRecords.toList(),
             downloadedAt = previousManifest?.downloadedAt ?: 0L,
-            complete = currentRecords.all { it.downloaded }
+            complete = currentRecords.all { it.downloaded },
+            commonPassword = previousCommonPassword
         )
         synchronized(ioLock) { writeManifest(directory, currentManifest, writeGuard) }
 
@@ -550,9 +665,31 @@ object NovelDownloadStore {
                                     } catch (ce: CancellationException) {
                                         throw ce
                                     } catch (error: ChapterPasswordRequiredException) {
-                                        isPasswordProtected = true
-                                        lastError = error
-                                        break
+                                        if (!previousCommonPassword.isNullOrBlank()) {
+                                            try {
+                                                downloadSingleChapter(
+                                                    authorization = authorization,
+                                                    record = record,
+                                                    directory = directory,
+                                                    baseUrl = baseUrl,
+                                                    writeGuard = writeGuard,
+                                                    password = previousCommonPassword
+                                                )
+                                                success = true
+                                                isPasswordProtected = false
+                                                break
+                                            } catch (ce2: CancellationException) {
+                                                throw ce2
+                                            } catch (fallbackError: Throwable) {
+                                                isPasswordProtected = true
+                                                lastError = fallbackError
+                                                break
+                                            }
+                                        } else {
+                                            isPasswordProtected = true
+                                            lastError = error
+                                            break
+                                        }
                                     } catch (error: Throwable) {
                                         lastError = error
                                         if (attempt < CHAPTER_MAX_ATTEMPTS) {
@@ -571,7 +708,8 @@ object NovelDownloadStore {
                                                 novel = novel,
                                                 records = currentRecords.toList(),
                                                 downloadedAt = System.currentTimeMillis(),
-                                                complete = finished == totalCount
+                                                complete = finished == totalCount,
+                                                commonPassword = previousCommonPassword
                                             )
                                             writeManifest(directory, currentManifest, writeGuard)
                                         }
@@ -608,7 +746,8 @@ object NovelDownloadStore {
                             novel = novel,
                             records = currentRecords.toList(),
                             downloadedAt = System.currentTimeMillis(),
-                            complete = completedCounter.get() == totalCount
+                            complete = completedCounter.get() == totalCount,
+                            commonPassword = previousCommonPassword
                         )
                         writeManifest(directory, currentManifest, writeGuard)
                     }
@@ -632,7 +771,8 @@ object NovelDownloadStore {
                     novel = novel,
                     records = currentRecords.toList(),
                     downloadedAt = System.currentTimeMillis(),
-                    complete = true
+                    complete = true,
+                    commonPassword = previousCommonPassword
                 )
                 writeManifest(directory, currentManifest, writeGuard)
             }
@@ -645,15 +785,24 @@ object NovelDownloadStore {
         record: DownloadedChapterRecord,
         directory: File,
         baseUrl: String?,
-        writeGuard: DownloadWriteGuard
+        writeGuard: DownloadWriteGuard,
+        password: String? = null
     ): DownloadedChapterContent {
-        val detail = EsjzoneClient.getChapterDetail(
-            authorization = authorization,
-            chapter = Chapter(record.name, record.url, false),
-            preferDownloaded = false,
-            forceRefresh = false,
-            baseUrl = baseUrl
-        )
+        val detail = if (!password.isNullOrBlank()) {
+            EsjzoneClient.unlockPasswordProtectedChapter(
+                authorization = authorization,
+                chapter = Chapter(record.name, record.url, false),
+                password = password
+            )
+        } else {
+            EsjzoneClient.getChapterDetail(
+                authorization = authorization,
+                chapter = Chapter(record.name, record.url, false),
+                preferDownloaded = false,
+                forceRefresh = false,
+                baseUrl = baseUrl
+            )
+        }
         val storedChapter = DownloadedChapterContent(
             name = detail.name.ifBlank { record.name },
             url = record.url,
@@ -759,7 +908,8 @@ object NovelDownloadStore {
         novel: DetailedNovel,
         records: List<DownloadedChapterRecord>,
         downloadedAt: Long,
-        complete: Boolean
+        complete: Boolean,
+        commonPassword: String? = null
     ) = DownloadedNovelManifest(
         name = novel.name,
         url = novel.url,
@@ -783,7 +933,8 @@ object NovelDownloadStore {
         updatedAt = novel.updatedAt,
         chapters = records,
         downloadedAt = downloadedAt,
-        complete = complete
+        complete = complete,
+        commonPassword = commonPassword
     )
 
     private fun manifestFromMetadata(
@@ -793,7 +944,8 @@ object NovelDownloadStore {
         coverUrl: String,
         records: List<DownloadedChapterRecord>,
         downloadedAt: Long,
-        complete: Boolean
+        complete: Boolean,
+        commonPassword: String? = previous?.commonPassword
     ) = DownloadedNovelManifest(
         version = previous?.version ?: 1,
         name = name.trim().ifBlank { previous?.name.orEmpty() },
@@ -812,7 +964,8 @@ object NovelDownloadStore {
         updatedAt = previous?.updatedAt,
         chapters = records,
         downloadedAt = downloadedAt,
-        complete = complete
+        complete = complete,
+        commonPassword = commonPassword
     )
 
     private fun findChapter(chapterUrl: String): ChapterMatch? {
