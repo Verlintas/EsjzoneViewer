@@ -1,6 +1,7 @@
 package com.breakyuna.esjzone
 
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
@@ -75,6 +76,14 @@ class MainActivity : ComponentActivity() {
 
     companion object {
 
+        const val EXTRA_NOVEL_URL = "com.breakyuna.esjzone.extra.NOVEL_URL"
+        private val pendingNovelUrlState = MutableStateFlow<String?>(null)
+        val pendingTargetNovel = pendingNovelUrlState.asStateFlow()
+
+        fun setPendingNovelUrl(url: String?) {
+            pendingNovelUrlState.value = url
+        }
+
         private val startupState = MutableStateFlow<StartupState>(StartupState.Starting)
         val startup = startupState.asStateFlow()
         private val initMutex = Mutex()
@@ -103,6 +112,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleNovelIntent(intent)
 
         enableEdgeToEdge()
         val appContext = applicationContext
@@ -136,6 +146,19 @@ class MainActivity : ComponentActivity() {
         }
         initScope.launch { initializeOnce(appContext) }
         ReleaseUpdateChecker.checkOnce(appContext)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNovelIntent(intent)
+    }
+
+    private fun handleNovelIntent(intent: Intent?) {
+        val novelUrl = intent?.getStringExtra(EXTRA_NOVEL_URL)
+        if (!novelUrl.isNullOrBlank()) {
+            setPendingNovelUrl(novelUrl)
+        }
     }
 
 }

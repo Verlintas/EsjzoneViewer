@@ -8,7 +8,9 @@ import com.breakyuna.esjzone.data.settings.SettingsDefaults
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneClient
 import com.breakyuna.esjzone.network.EsjzoneUrls
+import com.breakyuna.esjzone.network.features.ChapterPasswordRequiredException
 import com.breakyuna.esjzone.network.features.getChapterDetail
+import com.breakyuna.esjzone.network.features.isPasswordProtectedChapterHtml
 import com.breakyuna.esjzone.novellibrary.component.ChapterItem
 import com.breakyuna.esjzone.novellibrary.component.Component
 import com.breakyuna.esjzone.novellibrary.component.ImageComponent
@@ -68,14 +70,18 @@ data class DownloadedNovelManifest(
     val chapters: List<DownloadedChapterRecord>,
     val downloadedAt: Long,
     val complete: Boolean
-)
+) {
+    val pendingPasswordChapters: List<DownloadedChapterRecord>
+        get() = chapters.filter { it.requiresPassword && !it.downloaded }
+}
 
 data class DownloadedChapterRecord(
     val index: Int,
     val name: String,
     val url: String,
     val fileName: String,
-    val downloaded: Boolean
+    val downloaded: Boolean,
+    val requiresPassword: Boolean = false
 )
 
 data class DownloadedChapterContent(
@@ -380,7 +386,8 @@ object NovelDownloadStore {
                 url = item.url,
                 fileName = old?.fileName ?: chapterFileName(item.url),
                 downloaded = old?.downloaded == true &&
-                    resolveLocalFile(directory, old.fileName)?.isFile == true
+                    resolveLocalFile(directory, old.fileName)?.isFile == true,
+                requiresPassword = old?.requiresPassword == true
             )
         }.toMutableList()
         // Preserve old records absent from a temporarily incomplete TOC. A
@@ -420,7 +427,7 @@ object NovelDownloadStore {
                 baseUrl = detail.sourceUrl ?: chapter.url
             )
             writeJson(targetFile, storedChapter, writeGuard)
-            records[targetIndex] = target.copy(downloaded = true)
+            records[targetIndex] = target.copy(downloaded = true, requiresPassword = false)
         }
         val complete = if (chapterOrder.isNotEmpty()) {
             records.all { it.downloaded }
@@ -471,6 +478,7 @@ object NovelDownloadStore {
             val previous = previousByUrl[chapterKey(chapter.url)]
             val fileName = previous?.fileName ?: chapterFileName(chapter.url)
             val chapterFile = File(directory, fileName)
+            val isDownloaded = isChapterFullyDownloaded(directory, chapterFile)
             DownloadedChapterRecord(
                 index = index,
                 name = chapter.name,
@@ -478,7 +486,8 @@ object NovelDownloadStore {
                 fileName = fileName,
                 // Chapter files are atomically renamed. A process stopped between
                 // checkpoints can safely recover a completed file on the next run.
-                downloaded = isChapterFullyDownloaded(directory, chapterFile)
+                downloaded = isDownloaded,
+                requiresPassword = if (isDownloaded) false else (previous?.requiresPassword == true)
             )
         }
 
@@ -511,6 +520,7 @@ object NovelDownloadStore {
         if (pendingChapters.isNotEmpty()) {
             val semaphore = Semaphore(concurrency.coerceAtLeast(1))
             val failedErrors = ConcurrentLinkedQueue<Throwable>()
+            val skippedPasswordChapters = ConcurrentLinkedQueue<DownloadedChapterRecord>()
 
             try {
                 supervisorScope {
@@ -522,6 +532,7 @@ object NovelDownloadStore {
 
                                 var attempt = 0
                                 var success = false
+                                var isPasswordProtected = false
                                 var lastError: Throwable? = null
 
                                 while (attempt < CHAPTER_MAX_ATTEMPTS && !success) {
@@ -538,6 +549,10 @@ object NovelDownloadStore {
                                         success = true
                                     } catch (ce: CancellationException) {
                                         throw ce
+                                    } catch (error: ChapterPasswordRequiredException) {
+                                        isPasswordProtected = true
+                                        lastError = error
+                                        break
                                     } catch (error: Throwable) {
                                         lastError = error
                                         if (attempt < CHAPTER_MAX_ATTEMPTS) {
@@ -549,7 +564,7 @@ object NovelDownloadStore {
                                 if (success) {
                                     val finished = completedCounter.incrementAndGet()
                                     synchronized(ioLock) {
-                                        currentRecords[record.index] = record.copy(downloaded = true)
+                                        currentRecords[record.index] = record.copy(downloaded = true, requiresPassword = false)
                                         if (finished % MANIFEST_CHECKPOINT_INTERVAL == 0 ||
                                             finished == totalCount) {
                                             currentManifest = manifestFrom(
@@ -562,6 +577,16 @@ object NovelDownloadStore {
                                         }
                                     }
                                     reportProgress(record.name)
+                                } else if (isPasswordProtected) {
+                                    AppLogger.i(
+                                        "NovelDownloadStore",
+                                        "Chapter requires password, skipped for background download: ${record.name} (${record.url})"
+                                    )
+                                    val updated = record.copy(downloaded = false, requiresPassword = true)
+                                    synchronized(ioLock) {
+                                        currentRecords[record.index] = updated
+                                    }
+                                    skippedPasswordChapters.add(updated)
                                 } else {
                                     AppLogger.w(
                                         "NovelDownloadStore",
@@ -1082,6 +1107,7 @@ object NovelDownloadStore {
     private fun isChapterFullyDownloaded(directory: File, chapterFile: File): Boolean {
         if (!chapterFile.isFile || chapterFile.length() == 0L) return false
         val content = readJson(chapterFile, DownloadedChapterContent::class.java) ?: return false
+        if (isPasswordProtectedChapterHtml(content.contentHtml.orEmpty())) return false
         return content.hasAllImagesOnDisk(directory)
     }
 
@@ -1177,7 +1203,7 @@ object NovelDownloadStore {
         EsjzoneUrls.canonicalPageKey(url).ifBlank { url.trim() }
 
     /** Host aliases are equivalent, but a fragment can identify a distinct TOC entry. */
-    private fun chapterKey(url: String): String {
+    internal fun chapterKey(url: String): String {
         val resolved = EsjzoneUrls.resolve(url).trim()
         val fragment = resolved.substringAfter('#', "").trim()
         val page = canonicalKey(resolved)

@@ -153,6 +153,14 @@
     <string name="novel_download_channel">Novel downloads</string>
     <string name="novel_download_notification_title">Downloading %1$s</string>
     <string name="novel_download_notification_waiting">Preparing download…</string>
+    <string name="novel_download_completed_with_passwords">Download completed; %1$d password-protected chapter(s) were skipped</string>
+    <string name="novel_download_password_required_title">%1$s downloaded (%2$d chapter(s) need password)</string>
+    <string name="novel_download_password_required_desc">Some chapters are password-protected. Tap to enter password and complete download.</string>
+    <string name="novel_download_pending_passwords_title">%1$d chapter(s) require password to complete download</string>
+    <string name="novel_download_unlock_chapter">Enter password and download</string>
+    <string name="novel_download_unlock_success">Chapter unlocked and downloaded</string>
+    <string name="novel_download_unlock_failed">Failed to unlock: %1$s</string>
+    <string name="chapter_password_required_badge">Password</string>
     <string name="novel_export_txt">Export TXT</string>
     <string name="novel_export_epub">Export EPUB</string>
     <string name="novel_export_success">Export complete</string>

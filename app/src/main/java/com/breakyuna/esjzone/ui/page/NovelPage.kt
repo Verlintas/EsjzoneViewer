@@ -51,26 +51,30 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.foundation.background
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.breakyuna.esjzone.network.features.unlockPasswordProtectedChapter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -421,6 +425,17 @@ private fun NovelDetailContent(
     modifier: Modifier = Modifier
 ) {
     val orderedChapters = detailed.chapterList.orderedChapters
+    var downloaded by remember(detailed.url) { mutableStateOf<com.breakyuna.esjzone.offline.DownloadedNovelManifest?>(null) }
+    LaunchedEffect(detailed.url) {
+        downloaded = kotlinx.coroutines.withContext(Dispatchers.IO) {
+            PresentationAccess.downloads.manifest(detailed.url)
+        }
+    }
+    val passwordRequiredChapterKeys = remember(downloaded) {
+        downloaded?.pendingPasswordChapters.orEmpty()
+            .map { com.breakyuna.esjzone.offline.NovelDownloadStore.chapterKey(it.url) }
+            .toSet()
+    }
     val localChapter = localReading?.let { activity ->
         orderedChapters.firstOrNull {
             EsjzoneUrls.canonicalPageKey(it.url) == EsjzoneUrls.canonicalPageKey(activity.chapterUrl)
@@ -614,6 +629,8 @@ private fun NovelDetailContent(
                         NovelDownloadActions(
                             novel = detailed,
                             authorization = authorization,
+                            downloaded = downloaded,
+                            onDownloadedChange = { downloaded = it },
                             onExportTxt = onExportTxt,
                             onExportEpub = onExportEpub,
                             modifier = if (detailed.forumUrl.isBlank()) {
@@ -779,6 +796,9 @@ private fun NovelDetailContent(
                                             )
                                         }
                                     }
+                                    val isPw = passwordRequiredChapterKeys.contains(
+                                        com.breakyuna.esjzone.offline.NovelDownloadStore.chapterKey(chapter.url)
+                                    )
                                     RebuiltChapterRow(
                                         row = VisibleChapterItem(
                                             item = ChapterItem(chapter),
@@ -788,7 +808,8 @@ private fun NovelDetailContent(
                                         currentChapter = historyState.value,
                                         hasHistory = hasHistory.value,
                                         onChapterOpen = onChapterOpen,
-                                        onGroupToggle = {}
+                                        onGroupToggle = {},
+                                        isPasswordRequired = isPw
                                     )
                                 }
                             }
@@ -806,12 +827,20 @@ private fun NovelDetailContent(
                         }
                     }
                 ) { row ->
+                    val isPw = (row as? VisibleChapterItem)?.let { item ->
+                        (item.item as? ChapterItem)?.let { ci ->
+                            passwordRequiredChapterKeys.contains(
+                                com.breakyuna.esjzone.offline.NovelDownloadStore.chapterKey(ci.chapter.url)
+                            )
+                        }
+                    } == true
                     RebuiltChapterRow(
                         row = row,
                         currentChapter = historyState.value,
                         hasHistory = hasHistory.value,
                         onChapterOpen = onChapterOpen,
-                        onGroupToggle = onGroupToggle
+                        onGroupToggle = onGroupToggle,
+                        isPasswordRequired = isPw
                     )
                 }
                 item(key = "detail-chapters-collapse", contentType = "chapter-collapse") {
@@ -994,7 +1023,8 @@ private fun RebuiltChapterRow(
     currentChapter: Chapter?,
     hasHistory: Boolean,
     onChapterOpen: (Chapter) -> Unit,
-    onGroupToggle: (String) -> Unit
+    onGroupToggle: (String) -> Unit,
+    isPasswordRequired: Boolean = false
 ) {
     when (row) {
         is VisibleChapterGroup -> Card(
@@ -1046,6 +1076,19 @@ private fun RebuiltChapterRow(
                         horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                     ) {
                         if (current) Icon(Icons.Filled.CheckCircle, contentDescription = stringResource(R.string.chapter_current), tint = MaterialTheme.colorScheme.primary)
+                        if (isPasswordRequired) {
+                            Text(
+                                text = stringResource(R.string.chapter_password_required_badge),
+                                style = AppTypography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier
+                                    .background(
+                                        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                                        shape = AppShapes.compact
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                         Text(
                             chapter.chapter.name.ifBlank { stringResource(R.string.untitled_chapter) },
                             style = AppTypography.bodyMedium,
@@ -1106,13 +1149,15 @@ private suspend fun exportNovel(
 private fun NovelDownloadActions(
     novel: DetailedNovel,
     authorization: Authorization,
+    downloaded: DownloadedNovelManifest?,
+    onDownloadedChange: (DownloadedNovelManifest?) -> Unit,
     onExportTxt: () -> Unit,
     onExportEpub: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var showSheet by rememberSaveable(novel.url) { mutableStateOf(false) }
-    var downloaded by remember(novel.url) { mutableStateOf<DownloadedNovelManifest?>(null) }
+    var unlockingRecord by remember(novel.url) { mutableStateOf<DownloadedChapterRecord?>(null) }
     var downloadStatus by remember(novel.url) { mutableStateOf<BackgroundDownloadStatus?>(null) }
     var downloading by remember(novel.url) { mutableStateOf(false) }
     var pausing by remember(novel.url) { mutableStateOf(false) }
@@ -1123,7 +1168,8 @@ private fun NovelDownloadActions(
     val downloadScope = rememberCoroutineScope()
 
     LaunchedEffect(novel.url) {
-        downloaded = withContext(Dispatchers.IO) { PresentationAccess.downloads.manifest(novel.url) }
+        val current = withContext(Dispatchers.IO) { PresentationAccess.downloads.manifest(novel.url) }
+        onDownloadedChange(current)
     }
 
     LaunchedEffect(novel.url, requestedWorkId) {
@@ -1141,16 +1187,26 @@ private fun NovelDownloadActions(
             // from the job currently reported for this novel; the unique-job
             // status is still the source of truth for this page.
             if (status?.finished == true && requestedWorkId != null) {
-                downloaded = withContext(Dispatchers.IO) {
+                val updated = withContext(Dispatchers.IO) {
                     PresentationAccess.downloads.manifest(novel.url)
                 }
+                onDownloadedChange(updated)
                 if (!status.cancelled) {
-                    Toast.makeText(
-                        context,
-                        if (status.succeeded) R.string.novel_download_success
-                        else R.string.novel_download_failed,
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    val pendingPasswordCount = updated?.pendingPasswordChapters?.size ?: 0
+                    if (status.succeeded && pendingPasswordCount > 0) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.novel_download_completed_with_passwords, pendingPasswordCount),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        Toast.makeText(
+                            context,
+                            if (status.succeeded) R.string.novel_download_success
+                            else R.string.novel_download_failed,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
                 requestedWorkId = null
                 downloading = false
@@ -1190,9 +1246,10 @@ private fun NovelDownloadActions(
         requestedWorkId = null
         NovelDownloadManager.cancel(context, novel.url)
         downloadScope.launch {
-            downloaded = withContext(Dispatchers.IO) {
+            val updated = withContext(Dispatchers.IO) {
                 PresentationAccess.downloads.manifest(novel.url)
             }
+            onDownloadedChange(updated)
         }
         Toast.makeText(context, R.string.novel_download_paused, Toast.LENGTH_SHORT).show()
     }
@@ -1205,7 +1262,7 @@ private fun NovelDownloadActions(
             val deleted = withContext(Dispatchers.IO) {
                 PresentationAccess.downloads.delete(novel.url)
             }
-            downloaded = null
+            onDownloadedChange(null)
             deletingDownload = false
             if (deleted) {
                 Toast.makeText(context, R.string.novel_download_deleted, Toast.LENGTH_SHORT).show()
@@ -1270,7 +1327,8 @@ private fun NovelDownloadActions(
             onExportEpub = {
                 showSheet = false
                 onExportEpub()
-            }
+            },
+            onUnlockChapter = { unlockingRecord = it }
         )
     }
 
@@ -1297,6 +1355,87 @@ private fun NovelDownloadActions(
             }
         )
     }
+
+    if (unlockingRecord != null) {
+        var passwordInput by remember { mutableStateOf("") }
+        var unlocking by remember { mutableStateOf(false) }
+        var unlockError by remember { mutableStateOf<String?>(null) }
+        val record = unlockingRecord!!
+
+        AlertDialog(
+            onDismissRequest = {
+                if (!unlocking) unlockingRecord = null
+            },
+            title = { Text(record.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                    Text(stringResource(R.string.reader_password_message))
+                    OutlinedTextField(
+                        value = passwordInput,
+                        onValueChange = { passwordInput = it },
+                        label = { Text(stringResource(R.string.reader_password_label)) },
+                        singleLine = true,
+                        enabled = !unlocking
+                    )
+                    unlockError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = AppTypography.bodySmall)
+                    }
+                    if (unlocking) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = passwordInput.isNotBlank() && !unlocking,
+                    onClick = {
+                        unlocking = true
+                        unlockError = null
+                        val submittedPassword = passwordInput
+                        downloadScope.launch(Dispatchers.IO) {
+                            try {
+                                val detail = PresentationAccess.client.unlockPasswordProtectedChapter(
+                                    authorization,
+                                    Chapter(record.name, record.url, false),
+                                    submittedPassword
+                                )
+                                PresentationAccess.downloads.saveChapter(
+                                    novelName = novel.name,
+                                    novelUrl = novel.url,
+                                    coverUrl = novel.coverUrl,
+                                    chapterOrder = novel.chapterList.orderedChapters,
+                                    chapter = Chapter(record.name, record.url, false),
+                                    detail = detail,
+                                    authorization = authorization
+                                )
+                                val updated = PresentationAccess.downloads.manifest(novel.url)
+                                withContext(Dispatchers.Main) {
+                                    onDownloadedChange(updated)
+                                    unlockingRecord = null
+                                    Toast.makeText(context, R.string.novel_download_unlock_success, Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    unlocking = false
+                                    unlockError = e.message ?: context.getString(R.string.novel_download_unlock_failed, "")
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.reader_password_submit))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !unlocking,
+                    onClick = { unlockingRecord = null }
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1313,7 +1452,8 @@ private fun NovelDownloadSheet(
     onPauseDownload: () -> Unit,
     onDeleteDownload: () -> Unit,
     onExportTxt: () -> Unit,
-    onExportEpub: () -> Unit
+    onExportEpub: () -> Unit,
+    onUnlockChapter: (DownloadedChapterRecord) -> Unit = {}
 ) {
     val completed = manifest?.chapters?.count { it.downloaded } ?: 0
     val total = novel.chapterList.orderedChapters.size
@@ -1440,6 +1580,15 @@ private fun NovelDownloadSheet(
                                 text = stringResource(R.string.novel_local_copy_partial, completed, actualTotal),
                                 style = AppTypography.titleMedium
                             )
+                            val pendingPasswords = manifest.pendingPasswordChapters
+                            if (pendingPasswords.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(AppSpacing.xs))
+                                Text(
+                                    text = stringResource(R.string.novel_download_pending_passwords_title, pendingPasswords.size),
+                                    style = AppTypography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                         total == 0 -> {
                             Text(
@@ -1458,6 +1607,45 @@ private fun NovelDownloadSheet(
                                 style = AppTypography.bodyMedium,
                                 color = appStateColors().contentMuted
                             )
+                        }
+                    }
+                }
+            }
+            val pendingPasswords = manifest?.pendingPasswordChapters.orEmpty()
+            if (pendingPasswords.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AppShapes.standard,
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(AppSpacing.md),
+                        verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.novel_download_pending_passwords_title, pendingPasswords.size),
+                            style = AppTypography.labelLarge,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        pendingPasswords.take(3).forEach { record ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = record.name,
+                                    style = AppTypography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(
+                                    onClick = { onUnlockChapter(record) }
+                                ) {
+                                    Text(stringResource(R.string.novel_download_unlock_chapter))
+                                }
+                            }
                         }
                     }
                 }

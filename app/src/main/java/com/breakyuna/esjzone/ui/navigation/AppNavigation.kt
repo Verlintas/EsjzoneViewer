@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -557,6 +558,15 @@ fun AppNavigation() {
     LaunchedEffect(Unit) {
         registry["LoadingScreen"] = LoadingScreen()
         registry["LoginScreen"] = LoginScreen
+    }
+
+    val pendingNovelUrl by com.breakyuna.esjzone.MainActivity.pendingTargetNovel.collectAsState()
+    LaunchedEffect(pendingNovelUrl, authorization) {
+        val target = pendingNovelUrl
+        if (!target.isNullOrBlank() && authorization != null) {
+            com.breakyuna.esjzone.MainActivity.setPendingNovelUrl(null)
+            navigator.pushIfNotCurrent(NovelPage(FavoriteNovel(name = "", url = target)))
+        }
     }
 
     CompositionLocalProvider(

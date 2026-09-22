@@ -5,8 +5,11 @@ import android.Manifest
 import android.os.Build
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ServiceInfo
+import com.breakyuna.esjzone.MainActivity
 import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -214,7 +217,7 @@ class NovelDownloadWorker(
                 forceRefresh = true,
                 baseUrl = actualBaseUrl
             )
-            NovelDownloadStore.download(authorization, detail, actualBaseUrl, concurrency) { next ->
+            val manifest = NovelDownloadStore.download(authorization, detail, actualBaseUrl, concurrency) { next ->
                 setProgressAsync(next.toWorkData())
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                     ContextCompat.checkSelfPermission(
@@ -225,6 +228,9 @@ class NovelDownloadWorker(
                     applicationContext.getSystemService(NotificationManager::class.java)
                         .notify(notificationId(), createNotification(name, next))
                 }
+            }
+            if (manifest.pendingPasswordChapters.isNotEmpty()) {
+                sendPasswordRequiredNotification(name, rawUrl, manifest.pendingPasswordChapters.size)
             }
             Result.success()
         } catch (error: CancellationException) {
@@ -298,6 +304,52 @@ class NovelDownloadWorker(
 
     private fun notificationId(): Int =
         (id.hashCode() and Int.MAX_VALUE).coerceAtLeast(1)
+
+    private fun sendPasswordRequiredNotification(
+        novelName: String,
+        novelUrl: String,
+        passwordCount: Int
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                applicationContext,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
+        ensureNotificationChannel()
+
+        val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_NOVEL_URL, novelUrl)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            applicationContext,
+            notificationId() + 1,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle(
+                applicationContext.getString(
+                    R.string.novel_download_password_required_title,
+                    novelName,
+                    passwordCount
+                )
+            )
+            .setContentText(
+                applicationContext.getString(R.string.novel_download_password_required_desc)
+            )
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+
+        notificationManager.notify(notificationId() + 1, notification)
+    }
 
     companion object {
         internal const val KEY_NAME = "novel_name"

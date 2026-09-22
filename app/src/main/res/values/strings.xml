@@ -153,6 +153,14 @@
     <string name="novel_download_channel">小说下载</string>
     <string name="novel_download_notification_title">正在下载《%1$s》</string>
     <string name="novel_download_notification_waiting">正在准备下载…</string>
+    <string name="novel_download_completed_with_passwords">下载完成，有 %1$d 个加密章节已跳过</string>
+    <string name="novel_download_password_required_title">《%1$s》下载完成（%2$d 个章节需要密码）</string>
+    <string name="novel_download_password_required_desc">部分章节受密码保护已跳过，点击输入密码补全下载。</string>
+    <string name="novel_download_pending_passwords_title">有 %1$d 个章节需要密码以补全下载</string>
+    <string name="novel_download_unlock_chapter">输入密码并下载</string>
+    <string name="novel_download_unlock_success">章节已解锁并下载到本地</string>
+    <string name="novel_download_unlock_failed">解锁失败：%1$s</string>
+    <string name="chapter_password_required_badge">需密码</string>
     <string name="novel_export_txt">导出 TXT</string>
     <string name="novel_export_epub">导出 EPUB</string>
     <string name="novel_export_success">导出完成</string>

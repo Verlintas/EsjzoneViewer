@@ -108,8 +108,6 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -290,11 +288,7 @@ class ChapterPage(
                             value = chapterPassword,
                             onValueChange = { chapterPassword = it },
                             label = { Text(stringResource(R.string.reader_password_label)) },
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = KeyboardType.Password
-                            )
+                            singleLine = true
                         )
                         passwordRequired.message?.takeIf { it.isNotBlank() }?.let { message ->
                             Text(message, color = MaterialTheme.colorScheme.error)
