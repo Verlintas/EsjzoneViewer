@@ -385,6 +385,22 @@ object EsjzoneClient {
         persistentCookieJar?.markVerified(authorization)
     }
 
+    fun accountScope(authorization: Authorization): String {
+        val host = authorization.domain.ifBlank { EsjzoneUrls.BaseWithoutProtocol }
+        return if (authorization.hasCredentials()) {
+            val accountId = persistentCookieJar?.cacheScopeFor(host) ?: MessageDigest.getInstance("SHA-256")
+                .digest(
+                    "${authorization.ewsKey}:${authorization.ewsToken}"
+                        .toByteArray(StandardCharsets.UTF_8)
+                )
+                .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+                .take(16)
+            "account:$host:$accountId"
+        } else {
+            "guest:$host"
+        }
+    }
+
     internal fun novelDetailCacheKey(authorization: Authorization, url: String): String =
         pageCacheKey(authorization, url)
 

@@ -134,15 +134,15 @@ class FavoritePageModel(private val authorization: Authorization) :
     private val _deleteState = MutableStateFlow<DeleteState>(DeleteState.Idle)
     val deleteState: StateFlow<DeleteState> = _deleteState
 
-    fun sync() {
+    fun sync(manualRetry: Boolean = true) {
         viewModelScope.launch(Dispatchers.IO) {
             mutableState.value = State.Syncing
             try {
-                val result = BookshelfRepository.sync(authorization)
+                val result = BookshelfRepository.sync(authorization, manualRetry = manualRetry)
                 mutableState.value = if (result.success) {
                     State.Completed(result)
                 } else {
-                    State.Failed(result.loadFailure)
+                    State.Failed(result.loadFailure ?: LoadFailureKind.NETWORK)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -156,6 +156,9 @@ class FavoritePageModel(private val authorization: Authorization) :
     fun initShelf() {
         if (initialized) return
         initialized = true
+        viewModelScope.launch(Dispatchers.IO) {
+            BookshelfRepository.migrateLegacyScopeIfNeeded(authorization)
+        }
         scheduleMetadataSupplement()
         refreshDownloaded()
         autoCheck()

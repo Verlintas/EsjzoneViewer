@@ -56,10 +56,10 @@ private data class MetadataSupplementItem(
  * Single owner of the local-first shelf state machine. UI reads only its Room
  * flow; all remote work is serialized here and writes back into Room.
  *
- * Authorization currently exposes no stable user id, so rows are scoped by
- * domain only. This intentionally preserves offline data across cookie/session
- * rotation; account switching on one domain remains a known trade-off until a
- * stable account identifier is available.
+ * Rows are scoped by account cache identity and domain, providing complete
+ * isolation across account switches while preserving offline data across
+ * transparent cookie rotations. Legacy domain-only scopes are smoothly migrated
+ * on first access for single-account upgrades.
  */
 object BookshelfRepository {
     private lateinit var database: GeneralDatabase
@@ -96,8 +96,24 @@ object BookshelfRepository {
     }
 
     fun scopeFor(authorization: Authorization): String {
+        return EsjzoneClient.accountScope(authorization)
+    }
+
+    suspend fun migrateLegacyScopeIfNeeded(authorization: Authorization) {
         val domain = authorization.domain.ifBlank { EsjzoneUrls.BaseWithoutProtocol }
-        return "domain:$domain"
+        val legacyScope = "domain:$domain"
+        val targetScope = scopeFor(authorization)
+        if (legacyScope == targetScope) return
+
+        val dao = requireDao()
+        val targetCount = dao.count(targetScope)
+        if (targetCount == 0) {
+            val legacyCount = dao.count(legacyScope)
+            if (legacyCount > 0) {
+                dao.migrateScope(oldScope = legacyScope, newScope = targetScope)
+                AppLogger.i("BookshelfRepository", "Migrated $legacyCount legacy bookshelf items to $targetScope")
+            }
+        }
     }
 
     fun keyFor(url: String): String =
@@ -402,9 +418,13 @@ object BookshelfRepository {
         }
     }
 
-    suspend fun sync(authorization: Authorization): BookshelfSyncResult = syncMutex.withLock {
+    suspend fun sync(authorization: Authorization, manualRetry: Boolean = false): BookshelfSyncResult = syncMutex.withLock {
+        migrateLegacyScopeIfNeeded(authorization)
         val dao = requireDao()
         val scope = scopeFor(authorization)
+        if (manualRetry) {
+            dao.resetFailedIntents(scope)
+        }
         val remote = try {
             // A complete, successfully parsed snapshot is required before any
             // import. An exception leaves every local row untouched.
@@ -569,6 +589,12 @@ object BookshelfRepository {
             }
         }
         scheduleMetadataSupplement(authorization)
-        BookshelfSyncResult(success = !operationFailed, added = added)
+        val hasRemainingFailed = dao.countFailed(scope) > 0
+        val isSuccess = !operationFailed && !hasRemainingFailed
+        BookshelfSyncResult(
+            success = isSuccess,
+            added = added,
+            loadFailure = if (!isSuccess) LoadFailureKind.NETWORK else null
+        )
     }
 }
