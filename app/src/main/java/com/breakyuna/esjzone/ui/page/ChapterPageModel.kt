@@ -24,7 +24,6 @@ import com.breakyuna.esjzone.network.features.ChapterPasswordRejectedException
 import com.breakyuna.esjzone.network.features.ChapterPasswordRequiredException
 import com.breakyuna.esjzone.network.features.getNovelDetail
 import com.breakyuna.esjzone.network.external.CloudflareChallengeRequiredException
-import com.breakyuna.esjzone.network.external.CloudflareClearanceRejectedException
 import com.breakyuna.esjzone.network.external.CloudflareWebViewUnavailableException
 import com.breakyuna.esjzone.network.external.ExternalChapterParseException
 import com.breakyuna.esjzone.network.external.WenkuCookieStoreUnavailableException
@@ -53,6 +52,11 @@ class ChapterPageModel(
     private val novelCoverUrl: String = ""
 ) : AppStateViewModel<ChapterPageModel.State>(State.Loading) {
 
+    override fun onCleared() {
+        com.breakyuna.esjzone.network.EsjzoneClient.closeWenkuBrowserSession()
+        super.onCleared()
+    }
+
     private companion object {
         /** Keep a small bidirectional reading window instead of the whole book in RAM. */
         const val MAX_LOADED_CHAPTERS = 9
@@ -68,7 +72,7 @@ class ChapterPageModel(
         data object Empty : State()
         data class PasswordRequired(val chapter: Chapter, val message: String? = null) : State()
         data object UnsupportedExternalLink : State()
-        data class VerificationRequired(val rejected: Boolean = false) : State()
+        data object VerificationRequired : State()
         data object WebViewUnavailable : State()
         data object ExternalParseError : State()
         data object ExternalStorageUnavailable : State()
@@ -82,7 +86,6 @@ class ChapterPageModel(
             val chapterOrder: List<Chapter> = emptyList(),
             val isOffline: Boolean = false,
             val verificationChapter: Chapter? = null,
-            val verificationRejected: Boolean = false,
             val verificationWebViewUnavailable: Boolean = false,
             val verificationStorageUnavailable: Boolean = false,
             val verificationOffset: Int = 0
@@ -114,7 +117,6 @@ class ChapterPageModel(
     private var failedPrependAtMillis = 0L
     private var verificationChapter: Chapter? = null
     private var verificationOffset = 0
-    private var verificationRejected = false
     private var verificationWebViewUnavailable = false
     private var verificationStorageUnavailable = false
     /** Latest completed reader layout anchor; null means no safe trim point. */
@@ -172,7 +174,6 @@ class ChapterPageModel(
             failedPrependAtMillis = 0L
             verificationChapter = null
             verificationOffset = 0
-            verificationRejected = false
             verificationWebViewUnavailable = false
             verificationStorageUnavailable = false
             windowAnchor = null
@@ -199,10 +200,7 @@ class ChapterPageModel(
                 }
                 return@launch
             } catch (error: CloudflareChallengeRequiredException) {
-                if (isCurrentSession(currentSession)) mutableState.value = State.VerificationRequired()
-                return@launch
-            } catch (error: CloudflareClearanceRejectedException) {
-                if (isCurrentSession(currentSession)) mutableState.value = State.VerificationRequired(rejected = true)
+                if (isCurrentSession(currentSession)) mutableState.value = State.VerificationRequired
                 return@launch
             } catch (error: CloudflareWebViewUnavailableException) {
                 if (isCurrentSession(currentSession)) mutableState.value = State.WebViewUnavailable
@@ -363,8 +361,6 @@ class ChapterPageModel(
                 throw e
             } catch (e: CloudflareChallengeRequiredException) {
                 rememberVerification(session, chapterToLoad, 1)
-            } catch (e: CloudflareClearanceRejectedException) {
-                rememberVerification(session, chapterToLoad, 1, rejected = true)
             } catch (e: CloudflareWebViewUnavailableException) {
                 rememberVerification(session, chapterToLoad, 1, unavailable = true)
             } catch (e: WenkuCookieStoreUnavailableException) {
@@ -455,8 +451,6 @@ class ChapterPageModel(
                 throw e
             } catch (e: CloudflareChallengeRequiredException) {
                 rememberVerification(session, chapterToLoad, -1)
-            } catch (e: CloudflareClearanceRejectedException) {
-                rememberVerification(session, chapterToLoad, -1, rejected = true)
             } catch (e: CloudflareWebViewUnavailableException) {
                 rememberVerification(session, chapterToLoad, -1, unavailable = true)
             } catch (e: WenkuCookieStoreUnavailableException) {
@@ -724,7 +718,6 @@ class ChapterPageModel(
                 chapterOrder = orderedChapters.toList(),
                 isOffline = snapshot.any(ReaderChapter::isOffline),
                 verificationChapter = verificationChapter,
-                verificationRejected = verificationRejected,
                 verificationWebViewUnavailable = verificationWebViewUnavailable,
                 verificationStorageUnavailable = verificationStorageUnavailable,
                 verificationOffset = verificationOffset
@@ -734,14 +727,13 @@ class ChapterPageModel(
 
     private fun rememberVerification(
         session: Long, chapter: Chapter, offset: Int,
-        rejected: Boolean = false, unavailable: Boolean = false,
+        unavailable: Boolean = false,
         storageUnavailable: Boolean = false
     ) {
         synchronized(lock) {
             if (!isCurrentSessionLocked(session)) return
             verificationChapter = chapter
             verificationOffset = offset
-            verificationRejected = rejected
             verificationWebViewUnavailable = unavailable
             verificationStorageUnavailable = storageUnavailable
         }
@@ -750,7 +742,6 @@ class ChapterPageModel(
     private fun clearVerificationLocked() {
         verificationChapter = null
         verificationOffset = 0
-        verificationRejected = false
         verificationWebViewUnavailable = false
         verificationStorageUnavailable = false
     }

@@ -690,10 +690,6 @@ object NovelDownloadStore {
                                         wenkuBlocked.set(true)
                                         lastError = error
                                         break
-                                    } catch (error: com.breakyuna.esjzone.network.external.CloudflareClearanceRejectedException) {
-                                        wenkuBlocked.set(true)
-                                        lastError = error
-                                        break
                                     } catch (error: ChapterPasswordRequiredException) {
                                         if (!previousCommonPassword.isNullOrBlank()) {
                                             try {

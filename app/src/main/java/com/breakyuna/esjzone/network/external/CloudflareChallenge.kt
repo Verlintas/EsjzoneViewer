@@ -4,8 +4,8 @@ import java.io.IOException
 import org.jsoup.Jsoup
 
 class CloudflareChallengeRequiredException : IOException("Site security verification is required")
-class CloudflareClearanceRejectedException : IOException("Site security verification was rejected")
-class CloudflareWebViewUnavailableException : IOException("Android System WebView is unavailable")
+class CloudflareWebViewUnavailableException(cause: Throwable? = null) :
+    IOException("Android System WebView is unavailable", cause)
 class WenkuCookieStoreUnavailableException : IOException("Wenku cookie storage is unavailable")
 
 internal object CloudflareChallenge {

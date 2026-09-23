@@ -48,8 +48,6 @@ internal class WenkuCookieJar(context: Context) : CookieJar {
         edit.apply()
     }
 
-    fun clearance(): String? = loadForRequest(origin).firstOrNull { it.name == "cf_clearance" }?.value
-
     fun importBrowserCookies(raw: String?) {
         if (raw.isNullOrBlank()) return
         val cookies = raw.split(';').mapNotNull { item ->

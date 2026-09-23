@@ -1258,10 +1258,6 @@ private fun NovelDownloadActions(
                 preflighting = false
                 downloading = false
                 wenkuVerificationUrl = probe?.url
-            } catch (error: com.breakyuna.esjzone.network.external.CloudflareClearanceRejectedException) {
-                preflighting = false
-                downloading = false
-                wenkuVerificationUrl = probe?.url
             } catch (error: com.breakyuna.esjzone.network.external.WenkuCookieStoreUnavailableException) {
                 preflighting = false
                 downloading = false

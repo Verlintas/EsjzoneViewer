@@ -126,6 +126,7 @@ object EsjzoneClient {
         wenkuClient?.let { runCatching { it.importBrowserChapter(chapter, url, html) }.getOrDefault(false) }
             ?: false
     fun wenkuUserAgent(): String = wenkuClient?.userAgent() ?: headers["User-Agent"].orEmpty()
+    fun closeWenkuBrowserSession() { wenkuClient?.closeBrowserSession() }
     fun wenkuImageClient(): OkHttpClient =
         (wenkuClient ?: throw WenkuCookieStoreUnavailableException()).imageClient()
 

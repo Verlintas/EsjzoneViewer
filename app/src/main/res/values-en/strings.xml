@@ -285,7 +285,6 @@
     <string name="retry">Retry</string>
     <string name="wenku_verification_title">Wenku8 needs a security check</string>
     <string name="wenku_verification_message">Complete the site check to reload this chapter automatically.</string>
-    <string name="wenku_verification_rejected">The verification cookie was rejected. Verify again or retry later.</string>
     <string name="wenku_verification_timeout">Verification is still pending. Complete it, then tap Retry verification.</string>
     <string name="wenku_verification_retry">Retry verification</string>
     <string name="wenku_verification_open">Open verification</string>

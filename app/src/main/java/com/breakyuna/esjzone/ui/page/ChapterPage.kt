@@ -286,8 +286,6 @@ class ChapterPage(
                         R.string.wenku_webview_unavailable_desc
                     else if (pendingWenkuResult?.verificationStorageUnavailable == true)
                         R.string.wenku_cookie_store_unavailable_desc
-                    else if (pendingWenkuResult?.verificationRejected == true)
-                        R.string.wenku_verification_rejected
                     else R.string.wenku_verification_message
                 )) },
                 confirmButton = {
@@ -1161,10 +1159,7 @@ class ChapterPage(
                                 ReaderChapterHeading(currentChapterName, readerSettings, readerContentColor, readerTextTransform)
                                 ReaderFeedbackState(
                                     title = stringResource(R.string.wenku_verification_title),
-                                    message = stringResource(
-                                        if ((state as ChapterPageModel.State.VerificationRequired).rejected)
-                                            R.string.wenku_verification_rejected else R.string.wenku_verification_message
-                                    ),
+                                    message = stringResource(R.string.wenku_verification_message),
                                     isError = false,
                                     actionLabel = stringResource(R.string.wenku_verification_open),
                                     onAction = { wenkuVerificationChapter = requestedChapter.value }
@@ -1271,7 +1266,6 @@ class ChapterPage(
                             if (readerResult.verificationChapter != null && readerResult.verificationOffset < 0) {
                                 item(key = "reader-verification-previous") {
                                     ReaderWenkuVerificationState(
-                                        rejected = readerResult.verificationRejected,
                                         unavailable = readerResult.verificationWebViewUnavailable,
                                         storageUnavailable = readerResult.verificationStorageUnavailable,
                                         onVerify = { wenkuVerificationChapter = readerResult.verificationChapter },
@@ -1304,7 +1298,6 @@ class ChapterPage(
                             if (readerResult.verificationChapter != null && readerResult.verificationOffset > 0) {
                                 item(key = "reader-verification-next") {
                                     ReaderWenkuVerificationState(
-                                        rejected = readerResult.verificationRejected,
                                         unavailable = readerResult.verificationWebViewUnavailable,
                                         storageUnavailable = readerResult.verificationStorageUnavailable,
                                         onVerify = { wenkuVerificationChapter = readerResult.verificationChapter },
@@ -2188,7 +2181,6 @@ private fun ReaderProgressRail(
 
 @Composable
 private fun ReaderWenkuVerificationState(
-    rejected: Boolean,
     unavailable: Boolean,
     storageUnavailable: Boolean,
     onVerify: () -> Unit,
@@ -2201,7 +2193,6 @@ private fun ReaderWenkuVerificationState(
             message = stringResource(
                 if (storageUnavailable) R.string.wenku_cookie_store_unavailable_desc
                 else if (unavailable) R.string.wenku_webview_unavailable_desc
-                else if (rejected) R.string.wenku_verification_rejected
                 else R.string.wenku_verification_message
             ),
             isError = false,

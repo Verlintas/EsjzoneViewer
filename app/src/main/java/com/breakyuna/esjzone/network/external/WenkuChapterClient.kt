@@ -21,7 +21,7 @@ import okhttp3.Request
 
 internal class WenkuChapterClient(context: Context, userAgent: String) {
     private val jar = WenkuCookieJar(context)
-    private val shield = WenkuShield(context, jar, userAgent)
+    private val browser = WenkuWebViewSession(context, userAgent)
     private val client = OkHttpClient.Builder()
         .cookieJar(jar)
         .dns(Dns { host ->
@@ -50,6 +50,8 @@ internal class WenkuChapterClient(context: Context, userAgent: String) {
 
     fun userAgent(): String = userAgentHeader
 
+    fun closeBrowserSession() = browser.close()
+
     private val readerImageClient: OkHttpClient by lazy {
         client.newBuilder()
             .addInterceptor { chain ->
@@ -73,13 +75,29 @@ internal class WenkuChapterClient(context: Context, userAgent: String) {
             runCatching { validateAndParse(cached, chapter, url) }.getOrNull()?.let { return it }
             PageCache.remove(key)
         }
-        var result = request(url)
+        if (allowAutoSolve && browser.isReady()) {
+            try {
+                val detail = validateAndParse(browser.fetch(url), chapter, url)
+                syncBrowserCookies(url)
+                cacheChapter(url, detail)
+                return detail
+            } catch (error: CloudflareChallengeRequiredException) {
+                throw error
+            } catch (error: WenkuBrowserSessionClosedException) {
+                throw error
+            } catch (error: java.io.IOException) {
+                if (pageRequestCancellation.get()?.isCancelled() == true) throw error
+            }
+        }
+        val result = request(url)
         if (result.challenge) {
             if (!allowAutoSolve) throw CloudflareChallengeRequiredException()
             onSecurityCheck?.invoke()
-            if (!shield.solve(url)) throw CloudflareChallengeRequiredException()
-            result = request(url)
-            if (result.challenge) throw CloudflareClearanceRejectedException()
+            val html = browser.fetch(url)
+            val detail = validateAndParse(html, chapter, url)
+            syncBrowserCookies(url)
+            cacheChapter(url, detail)
+            return detail
         }
         if (result.status !in 200..299) throw NetworkHttpException("https://www.wenku8.net/", result.status)
         val detail = validateAndParse(result.html, chapter, url)
@@ -88,6 +106,17 @@ internal class WenkuChapterClient(context: Context, userAgent: String) {
     }
 
     private fun cacheKey(url: String): String = "wenku8|${EsjzoneUrls.canonicalPageKey(url)}"
+
+    private fun syncBrowserCookies(url: String) {
+        try {
+            browser.cookies(url)?.let(jar::importBrowserCookies)
+        } catch (error: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw java.io.IOException("Browser request cancelled", error)
+        } catch (_: Exception) {
+            // Browser HTML remains usable if optional cookie sharing fails.
+        }
+    }
 
     private fun cacheChapter(url: String, detail: DetailedChapter): String =
         ExternalChapterHtml.cacheDocument(detail, url).also { PageCache.write(cacheKey(url), it) }

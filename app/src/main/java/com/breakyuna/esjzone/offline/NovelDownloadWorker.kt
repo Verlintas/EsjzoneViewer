@@ -32,7 +32,6 @@ import com.breakyuna.esjzone.network.EsjzoneClient
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.features.getNovelDetail
 import com.breakyuna.esjzone.network.external.CloudflareChallengeRequiredException
-import com.breakyuna.esjzone.network.external.CloudflareClearanceRejectedException
 import com.breakyuna.esjzone.novellibrary.novel.CategoryNovel
 import com.breakyuna.esjzone.novellibrary.novel.DetailedNovel
 import com.breakyuna.esjzone.util.AppLogger
@@ -240,7 +239,7 @@ class NovelDownloadWorker(
         } catch (error: Exception) {
             AppLogger.e("NovelDownloadWorker", "Background novel download failed", error)
             if (generateSequence<Throwable>(error) { it.cause }.any {
-                    it is CloudflareChallengeRequiredException || it is CloudflareClearanceRejectedException
+                    it is CloudflareChallengeRequiredException
                 }) {
                 sendWenkuVerificationNotification(name, rawUrl)
                 return Result.failure()
