@@ -3,6 +3,8 @@ import com.breakyuna.esjzone.app.PresentationAccess
 
 import android.app.Activity
 import android.content.ContextWrapper
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -270,6 +272,17 @@ class ChapterPage(
                 )
             }
         val state by chapterPageModel.state.collectAsState()
+        var showWenkuVerification by remember { mutableStateOf(false) }
+        if (showWenkuVerification) {
+            WenkuVerificationDialog(
+                url = com.breakyuna.esjzone.network.EsjzoneUrls.resolve(requestedChapter.value.url),
+                onVerified = {
+                    showWenkuVerification = false
+                    chapterPageModel.openChapter(requestedChapter.value)
+                },
+                onDismiss = { showWenkuVerification = false }
+            )
+        }
         var chapterPassword by remember { mutableStateOf("") }
         val passwordRequired = state as? ChapterPageModel.State.PasswordRequired
 
@@ -1021,8 +1034,10 @@ class ChapterPage(
                         )
                     ) {
                     when (state) {
-                        is ChapterPageModel.State.Loading -> item(key = "reader-loading") {
-                            val loadingDescription = stringResource(R.string.reader_loading)
+                        is ChapterPageModel.State.Loading, is ChapterPageModel.State.SecurityCheck -> item(key = "reader-loading") {
+                            val loadingDescription = stringResource(
+                                if (state is ChapterPageModel.State.SecurityCheck) R.string.wenku_security_check
+                                else R.string.reader_loading)
                             Column {
                                 ReaderChapterHeading(
                                     currentChapterName,
@@ -1044,7 +1059,7 @@ class ChapterPage(
                                             strokeWidth = 2.5.dp
                                         )
                                         Text(
-                                            text = stringResource(R.string.reader_loading),
+                                            text = loadingDescription,
                                             style = MaterialTheme.typography.labelLarge,
                                             color = readerContentColor.copy(alpha = 0.7f),
                                             modifier = Modifier.padding(top = AppSpacing.md)
@@ -1070,6 +1085,55 @@ class ChapterPage(
                                     onAction = null
                                 )
                             }
+                        }
+
+                        is ChapterPageModel.State.VerificationRequired -> item(key = "reader-verification") {
+                            Column {
+                                ReaderChapterHeading(currentChapterName, readerSettings, readerContentColor, readerTextTransform)
+                                ReaderFeedbackState(
+                                    title = stringResource(R.string.wenku_verification_title),
+                                    message = stringResource(
+                                        if ((state as ChapterPageModel.State.VerificationRequired).rejected)
+                                            R.string.wenku_verification_rejected else R.string.wenku_verification_message
+                                    ),
+                                    isError = false,
+                                    actionLabel = stringResource(R.string.wenku_verification_open),
+                                    onAction = { showWenkuVerification = true }
+                                )
+                                TextButton(onClick = { chapterPageModel.openChapter(requestedChapter.value) }) {
+                                    Text(stringResource(R.string.retry))
+                                }
+                                TextButton(onClick = {
+                                    val url = EsjzoneUrls.resolve(requestedChapter.value.url)
+                                    if (url.startsWith("https://www.wenku8.net/")) {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    }
+                                }) { Text(stringResource(R.string.wenku_open_browser)) }
+                            }
+                        }
+
+                        is ChapterPageModel.State.WebViewUnavailable -> item(key = "reader-webview-unavailable") {
+                            ReaderFeedbackState(
+                                title = stringResource(R.string.wenku_webview_unavailable),
+                                message = stringResource(R.string.wenku_webview_unavailable_desc),
+                                isError = true,
+                                actionLabel = stringResource(R.string.wenku_open_browser),
+                                onAction = {
+                                    val url = EsjzoneUrls.resolve(requestedChapter.value.url)
+                                    if (url.startsWith("https://www.wenku8.net/")) {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    }
+                                }
+                            )
+                        }
+
+                        is ChapterPageModel.State.ExternalParseError -> item(key = "reader-external-parse-error") {
+                            ReaderFeedbackState(
+                                title = stringResource(R.string.wenku_parse_failed),
+                                message = stringResource(R.string.wenku_parse_failed_desc),
+                                isError = true,
+                                onAction = { chapterPageModel.openChapter(requestedChapter.value) }
+                            )
                         }
 
                         is ChapterPageModel.State.Error -> item(key = "reader-error") {
@@ -1385,7 +1449,8 @@ class ChapterPage(
                                 ReaderToolButton(
                                     contentDescription = stringResource(R.string.comments),
                                     icon = Icons.Filled.Forum,
-                                    enabled = state is ChapterPageModel.State.Result,
+                                    enabled = state is ChapterPageModel.State.Result &&
+                                        commentChapter.source == com.breakyuna.esjzone.novellibrary.novel.ChapterSource.ESJ_ZONE,
                                     onClick = {
                                         dismissProgressPreview()
                                         val visible = scrollState.layoutInfo.visibleItemsInfo

@@ -31,6 +31,8 @@ import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneClient
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.features.getNovelDetail
+import com.breakyuna.esjzone.network.external.CloudflareChallengeRequiredException
+import com.breakyuna.esjzone.network.external.CloudflareClearanceRejectedException
 import com.breakyuna.esjzone.novellibrary.novel.CategoryNovel
 import com.breakyuna.esjzone.novellibrary.novel.DetailedNovel
 import com.breakyuna.esjzone.util.AppLogger
@@ -237,8 +239,36 @@ class NovelDownloadWorker(
             throw error
         } catch (error: Exception) {
             AppLogger.e("NovelDownloadWorker", "Background novel download failed", error)
+            if (generateSequence<Throwable>(error) { it.cause }.any {
+                    it is CloudflareChallengeRequiredException || it is CloudflareClearanceRejectedException
+                }) {
+                sendWenkuVerificationNotification(name, rawUrl)
+                return Result.failure()
+            }
             if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun sendWenkuVerificationNotification(novelName: String, novelUrl: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        ensureNotificationChannel()
+        val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_NOVEL_URL, novelUrl)
+        }
+        val pending = PendingIntent.getActivity(applicationContext, notificationId() + 2, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setContentTitle(applicationContext.getString(R.string.wenku_download_verification_title))
+            .setContentText(novelName)
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build().let { applicationContext.getSystemService(NotificationManager::class.java)
+                .notify(notificationId() + 2, it) }
     }
 
     private fun DownloadProgress.toWorkData(): Data = workDataOf(

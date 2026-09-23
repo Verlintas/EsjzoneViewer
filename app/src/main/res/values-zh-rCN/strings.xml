@@ -283,6 +283,17 @@
     <string name="favorites_recently_update">最新更新</string>
     <string name="delete_history">删除</string>
     <string name="retry">重试</string>
+    <string name="wenku_verification_title">轻小说文库需要完成一次安全验证</string>
+    <string name="wenku_verification_message">站点安全检查尚未完成。完成验证后将自动重新加载章节。</string>
+    <string name="wenku_verification_rejected">验证 Cookie 尚未生效，请重新完成验证或稍后重试。</string>
+    <string name="wenku_verification_open">打开验证页</string>
+    <string name="wenku_download_verification_title">需要完成轻小说文库安全验证</string>
+    <string name="wenku_open_browser">使用系统浏览器打开</string>
+    <string name="wenku_webview_unavailable">Android System WebView 不可用</string>
+    <string name="wenku_webview_unavailable_desc">请更新或启用系统 WebView，然后重试。</string>
+    <string name="wenku_parse_failed">无法识别轻小说文库正文</string>
+    <string name="wenku_parse_failed_desc">页面结构可能已变化，请稍后重试。</string>
+    <string name="wenku_security_check">正在通过站点安全检查…</string>
     <string name="loading_content">正在加载内容…</string>
     <string name="adult_badge">18+</string>
     <string name="home_discover">发现</string>

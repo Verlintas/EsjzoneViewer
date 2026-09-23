@@ -1,5 +1,7 @@
 package com.breakyuna.esjzone.ui.page
 import com.breakyuna.esjzone.app.PresentationAccess
+import com.breakyuna.esjzone.network.features.getChapterDetail
+import com.breakyuna.esjzone.network.cancellablePageRequest
 
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
@@ -472,7 +474,7 @@ private fun NovelDetailContent(
     val onChapterOpen: (Chapter) -> Unit = remember(detailed, history, orderedChapters, navigator, context) {
         { chapter: Chapter ->
             if (chapter.isExternal) {
-                Toast.makeText(context, R.string.external_link_not_supported, Toast.LENGTH_SHORT).show()
+                openExternal(context, EsjzoneUrls.resolve(chapter.url))
             } else {
                 historyState.value = chapter
                 hasHistory.value = true
@@ -544,7 +546,7 @@ private fun NovelDetailContent(
                             onClick = {
                                 targetChapter?.let { chapter ->
                                     if (chapter.isExternal) {
-                                        Toast.makeText(context, R.string.external_link_not_supported, Toast.LENGTH_SHORT).show()
+                                        openExternal(context, EsjzoneUrls.resolve(chapter.url))
                                     } else {
                                         navigator?.pushIfNotCurrent(
                                             ChapterPage(
@@ -1169,6 +1171,8 @@ private fun NovelDownloadActions(
     var batchProgress by remember(novel.url) { mutableStateOf<Pair<Int, Int>?>(null) }
     var downloadStatus by remember(novel.url) { mutableStateOf<BackgroundDownloadStatus?>(null) }
     var downloading by remember(novel.url) { mutableStateOf(false) }
+    var preflighting by remember(novel.url) { mutableStateOf(false) }
+    var wenkuVerificationUrl by remember(novel.url) { mutableStateOf<String?>(null) }
     var pausing by remember(novel.url) { mutableStateOf(false) }
     var progress by remember(novel.url) { mutableStateOf<DownloadProgress?>(null) }
     var requestedWorkId by rememberSaveable(novel.url) { mutableStateOf<String?>(null) }
@@ -1190,7 +1194,7 @@ private fun NovelDownloadActions(
             }
             val waitingForEnqueue = requestedWorkId != null &&
                 (status == null || status.id != requestedWorkId)
-            downloading = (status?.running == true && !pausing) || waitingForEnqueue
+            downloading = preflighting || (status?.running == true && !pausing) || waitingForEnqueue
             // WorkManager keeps an already-running unique job when enqueue is
             // called again. In that case the returned request id can differ
             // from the job currently reported for this novel; the unique-job
@@ -1224,7 +1228,7 @@ private fun NovelDownloadActions(
     }
 
     fun enqueueDownload() {
-        if (downloading || novel.chapterList.orderedChapters.isEmpty()) return
+        if (downloading || preflighting || novel.chapterList.orderedChapters.isEmpty()) return
         pausing = false
         val existingCompleted = downloaded?.chapters?.count { it.downloaded } ?: 0
         progress = DownloadProgress(
@@ -1233,19 +1237,46 @@ private fun NovelDownloadActions(
             chapterName = ""
         )
         downloading = true
-        runCatching {
-            NovelDownloadManager.enqueue(
-                context = context,
-                authorization = authorization,
-                novel = novel
-            )
-        }.onSuccess { requestId ->
-            requestedWorkId = requestId.toString()
-        }.onFailure { error ->
-            downloading = false
-            AppLogger.e("NovelPage", "Unable to schedule background novel download", error)
-            Toast.makeText(context, R.string.novel_download_failed, Toast.LENGTH_SHORT).show()
+        preflighting = true
+        downloadScope.launch {
+            val probe = novel.chapterList.orderedChapters.firstOrNull {
+                it.source == com.breakyuna.esjzone.novellibrary.novel.ChapterSource.WENKU8
+            }
+            try {
+                if (probe != null) cancellablePageRequest {
+                    com.breakyuna.esjzone.network.EsjzoneClient.getChapterDetail(
+                        authorization, probe, preferDownloaded = false, forceRefresh = true
+                    )
+                }
+                requestedWorkId = NovelDownloadManager.enqueue(context, authorization, novel).toString()
+                preflighting = false
+            } catch (error: CancellationException) {
+                preflighting = false
+                downloading = false
+                throw error
+            } catch (error: com.breakyuna.esjzone.network.external.CloudflareChallengeRequiredException) {
+                preflighting = false
+                downloading = false
+                wenkuVerificationUrl = probe?.url
+            } catch (error: com.breakyuna.esjzone.network.external.CloudflareClearanceRejectedException) {
+                preflighting = false
+                downloading = false
+                wenkuVerificationUrl = probe?.url
+            } catch (error: Exception) {
+                preflighting = false
+                downloading = false
+                AppLogger.e("NovelPage", "Unable to schedule background novel download", error)
+                Toast.makeText(context, R.string.novel_download_failed, Toast.LENGTH_SHORT).show()
+            }
         }
+    }
+
+    wenkuVerificationUrl?.let { url ->
+        WenkuVerificationDialog(
+            url = EsjzoneUrls.resolve(url),
+            onVerified = { wenkuVerificationUrl = null; enqueueDownload() },
+            onDismiss = { wenkuVerificationUrl = null }
+        )
     }
 
     fun pauseDownload() {

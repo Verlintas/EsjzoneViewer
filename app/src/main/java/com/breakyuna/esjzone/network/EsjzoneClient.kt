@@ -10,6 +10,9 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicLong
+import com.breakyuna.esjzone.network.external.WenkuChapterClient
+import com.breakyuna.esjzone.novellibrary.novel.Chapter
+import com.breakyuna.esjzone.novellibrary.novel.DetailedChapter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,11 +79,16 @@ object EsjzoneClient {
     @Volatile
     private var initialized = false
 
+    @Volatile private var wenkuClient: WenkuChapterClient? = null
+
     /** Initializes the shared connection pool and page cache during app startup. */
     @Synchronized
     fun initialize(context: Context) {
         if (initialized) return
         persistentCookieJar = PersistentCookieJar(context.applicationContext)
+        wenkuClient = runCatching {
+            WenkuChapterClient(context.applicationContext, headers["User-Agent"].orEmpty())
+        }.getOrNull()
         PageCache.initialize(context.applicationContext)
         // PageCache owns response persistence. The shared client is intentionally kept
         // without OkHttp's URL-only HTTP cache so one account can never receive another
@@ -99,6 +107,16 @@ object EsjzoneClient {
         sharedHttpClient.newBuilder()
             .cookieJar(AuthorizationCookieJar(authorization))
             .build()
+
+    fun getWenkuChapter(chapter: Chapter, url: String, forceRefresh: Boolean, allowAutoSolve: Boolean,
+                        onSecurityCheck: (() -> Unit)? = null): DetailedChapter =
+        (wenkuClient ?: throw IllegalStateException("External chapter client is not initialized"))
+            .load(chapter, url, forceRefresh, allowAutoSolve, onSecurityCheck)
+
+    fun importWenkuBrowserCookies(raw: String?) { wenkuClient?.importBrowserCookies(raw) }
+    fun wenkuUserAgent(): String = wenkuClient?.userAgent() ?: headers["User-Agent"].orEmpty()
+    fun wenkuImageClient(): OkHttpClient =
+        (wenkuClient ?: throw IllegalStateException("External chapter client is not initialized")).imageClient()
 
     /**
      * Download requests stream potentially large responses and therefore receive a

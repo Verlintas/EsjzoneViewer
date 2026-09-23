@@ -283,6 +283,17 @@
     <string name="favorites_recently_update">Recently Update</string>
     <string name="delete_history">Delete</string>
     <string name="retry">Retry</string>
+    <string name="wenku_verification_title">Wenku8 needs a security check</string>
+    <string name="wenku_verification_message">Complete the site check to reload this chapter automatically.</string>
+    <string name="wenku_verification_rejected">The verification cookie was rejected. Verify again or retry later.</string>
+    <string name="wenku_verification_open">Open verification</string>
+    <string name="wenku_download_verification_title">Wenku8 security verification required</string>
+    <string name="wenku_open_browser">Open in browser</string>
+    <string name="wenku_webview_unavailable">Android System WebView is unavailable</string>
+    <string name="wenku_webview_unavailable_desc">Update or enable System WebView, then retry.</string>
+    <string name="wenku_parse_failed">Could not read Wenku8 chapter content</string>
+    <string name="wenku_parse_failed_desc">The page structure may have changed. Try again later.</string>
+    <string name="wenku_security_check">Completing the site security check…</string>
     <string name="loading_content">Loading content…</string>
     <string name="adult_badge">18+</string>
     <string name="home_discover">Discover</string>

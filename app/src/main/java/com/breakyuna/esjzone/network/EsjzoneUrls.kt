@@ -131,6 +131,20 @@ object EsjzoneUrls {
     fun canonicalPageKey(rawUrl: String): String {
         if (rawUrl.isBlank()) return ""
         val resolved = resolve(rawUrl).substringBefore('#')
+        val parsed = resolved.toHttpUrlOrNull()
+        if (parsed != null && !isEsjHost(parsed.host)) {
+            val stable = parsed.newBuilder().fragment(null)
+                .query(null)
+                .build()
+            val allowedQuery = parsed.queryParameterNames.filterNot {
+                it.startsWith("__cf_chl_", ignoreCase = true)
+            }
+            val builder = stable.newBuilder()
+            allowedQuery.sorted().forEach { name ->
+                parsed.queryParameterValues(name).forEach { value -> builder.addQueryParameter(name, value) }
+            }
+            return builder.build().toString()
+        }
         return runCatching {
             val uri = URI(resolved)
             val path = uri.path

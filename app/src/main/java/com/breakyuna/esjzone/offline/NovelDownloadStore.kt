@@ -644,7 +644,9 @@ object NovelDownloadStore {
 
         val pendingChapters = currentRecords.filter { !it.downloaded }
         if (pendingChapters.isNotEmpty()) {
+            val wenkuBlocked = java.util.concurrent.atomic.AtomicBoolean(false)
             val semaphore = Semaphore(concurrency.coerceAtLeast(1))
+            val wenkuSemaphore = Semaphore(minOf(2, concurrency.coerceAtLeast(1)))
             val failedErrors = ConcurrentLinkedQueue<Throwable>()
             val skippedPasswordChapters = ConcurrentLinkedQueue<DownloadedChapterRecord>()
 
@@ -654,6 +656,9 @@ object NovelDownloadStore {
                         launch(Dispatchers.IO) {
                             semaphore.withPermit {
                                 currentCoroutineContext().ensureActive()
+                                if (wenkuBlocked.get() &&
+                                    com.breakyuna.esjzone.novellibrary.novel.resolveChapterSource(record.url) ==
+                                    com.breakyuna.esjzone.novellibrary.novel.ChapterSource.WENKU8) return@withPermit
                                 reportProgress(record.name)
 
                                 var attempt = 0
@@ -665,16 +670,30 @@ object NovelDownloadStore {
                                     currentCoroutineContext().ensureActive()
                                     attempt++
                                     try {
-                                        downloadSingleChapter(
-                                            authorization = authorization,
-                                            record = record,
-                                            directory = directory,
-                                            baseUrl = baseUrl,
-                                            writeGuard = writeGuard
-                                        )
+                                        val download: suspend () -> Unit = {
+                                            downloadSingleChapter(
+                                                authorization = authorization,
+                                                record = record,
+                                                directory = directory,
+                                                baseUrl = baseUrl,
+                                                writeGuard = writeGuard
+                                            )
+                                        }
+                                        if (com.breakyuna.esjzone.novellibrary.novel.resolveChapterSource(record.url) ==
+                                            com.breakyuna.esjzone.novellibrary.novel.ChapterSource.WENKU8) {
+                                            wenkuSemaphore.withPermit { download() }
+                                        } else download()
                                         success = true
                                     } catch (ce: CancellationException) {
                                         throw ce
+                                    } catch (error: com.breakyuna.esjzone.network.external.CloudflareChallengeRequiredException) {
+                                        wenkuBlocked.set(true)
+                                        lastError = error
+                                        break
+                                    } catch (error: com.breakyuna.esjzone.network.external.CloudflareClearanceRejectedException) {
+                                        wenkuBlocked.set(true)
+                                        lastError = error
+                                        break
                                     } catch (error: ChapterPasswordRequiredException) {
                                         if (!previousCommonPassword.isNullOrBlank()) {
                                             try {
@@ -800,7 +819,8 @@ object NovelDownloadStore {
                 chapter = Chapter(record.name, record.url, false),
                 preferDownloaded = false,
                 forceRefresh = false,
-                baseUrl = baseUrl
+                baseUrl = baseUrl,
+                allowAutoSolve = false
             )
         }
         val storedChapter = DownloadedChapterContent(
@@ -836,11 +856,19 @@ object NovelDownloadStore {
     /** Returns a downloaded chapter without touching the network. */
     fun readChapter(chapterUrl: String): DetailedChapter? = synchronized(ioLock) {
         val match = findChapter(chapterUrl) ?: return@synchronized null
+        val chapterFile = resolveLocalFile(match.directory, match.record.fileName)
+            ?: return@synchronized null
         val stored = readJson(
-            resolveLocalFile(match.directory, match.record.fileName)
-                ?: return@synchronized null,
+            chapterFile,
             DownloadedChapterContent::class.java
         ) ?: return@synchronized null
+        if (com.breakyuna.esjzone.novellibrary.novel.resolveChapterSource(chapterUrl) ==
+            com.breakyuna.esjzone.novellibrary.novel.ChapterSource.WENKU8 &&
+            com.breakyuna.esjzone.network.external.CloudflareChallenge.isChallenge(
+                200, null, "cloudflare", stored.contentHtml.orEmpty())) {
+            chapterFile.delete()
+            return@synchronized null
+        }
         val previous = match.manifest.chapters.getOrNull(match.record.index - 1)
             ?.toChapter()
         val next = match.manifest.chapters.getOrNull(match.record.index + 1)
@@ -1185,7 +1213,10 @@ object NovelDownloadStore {
             }
 
             // 2. Fall back to network download if not found in Coil disk cache
-            val client = EsjzoneClient.downloadClient(authorization)
+            val client = if (com.breakyuna.esjzone.novellibrary.novel.resolveChapterSource(baseUrl.orEmpty()) ==
+                com.breakyuna.esjzone.novellibrary.novel.ChapterSource.WENKU8) {
+                EsjzoneClient.wenkuImageClient()
+            } else EsjzoneClient.downloadClient(authorization)
             val host = runCatching { java.net.URI(url).host }.getOrNull().orEmpty()
             val refererCandidates = listOfNotNull(
                 baseUrl?.takeIf(String::isNotBlank),

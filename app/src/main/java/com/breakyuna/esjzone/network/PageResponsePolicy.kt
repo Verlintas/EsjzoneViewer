@@ -1,6 +1,8 @@
 package com.breakyuna.esjzone.network
 
 import org.jsoup.Jsoup
+import com.breakyuna.esjzone.novellibrary.novel.ChapterSource
+import com.breakyuna.esjzone.novellibrary.novel.resolveChapterSource
 
 /** The broad shape expected from each server-rendered ESJ page family. */
 /**
@@ -16,6 +18,7 @@ enum class PageKind {
     ACCOUNT,
     DETAIL,
     CHAPTER,
+    EXTERNAL_CHAPTER,
     LIST,
     WEEKLY_UPDATE,
     SEARCH,
@@ -62,6 +65,19 @@ internal object PageResponsePolicy {
         if (statusCode !in 200..299) return PageValidation(false, "HTTP $statusCode")
         if (body.isBlank()) return PageValidation(false, "empty response body")
 
+        if (kind == PageKind.EXTERNAL_CHAPTER) {
+            if (resolveChapterSource(finalUrl) != ChapterSource.WENKU8) {
+                return PageValidation(false, "external chapter redirect outside allowed host")
+            }
+            if (com.breakyuna.esjzone.network.external.CloudflareChallenge.isChallenge(
+                    statusCode, null, "cloudflare", body)) {
+                return PageValidation(false, "access challenge or block page")
+            }
+            val content = Jsoup.parse(body, finalUrl).selectFirst("#content")
+            return if (content != null && content.text().trim().length >= 20) PageValidation(true)
+            else PageValidation(false, "missing external chapter content")
+        }
+
         val lower = body.lowercase()
         val lowerFinalUrl = finalUrl.lowercase()
         val lowerRequestedUrl = requestedUrl.lowercase()
@@ -86,6 +102,7 @@ internal object PageResponsePolicy {
 
         val familyValid = when (kind) {
             PageKind.GENERIC -> true
+            PageKind.EXTERNAL_CHAPTER -> false
             // Route markers are more stable than a particular section/table nesting.
             // Some current ESJ pages are intentionally empty or use a different
             // template while retaining the same URL family.

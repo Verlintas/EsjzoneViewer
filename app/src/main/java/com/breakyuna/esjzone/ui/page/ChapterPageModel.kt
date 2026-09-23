@@ -23,6 +23,10 @@ import com.breakyuna.esjzone.network.features.unlockPasswordProtectedChapter
 import com.breakyuna.esjzone.network.features.ChapterPasswordRejectedException
 import com.breakyuna.esjzone.network.features.ChapterPasswordRequiredException
 import com.breakyuna.esjzone.network.features.getNovelDetail
+import com.breakyuna.esjzone.network.external.CloudflareChallengeRequiredException
+import com.breakyuna.esjzone.network.external.CloudflareClearanceRejectedException
+import com.breakyuna.esjzone.network.external.CloudflareWebViewUnavailableException
+import com.breakyuna.esjzone.network.external.ExternalChapterParseException
 import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.novellibrary.novel.DetailedChapter
 import com.breakyuna.esjzone.novellibrary.novel.FavoriteNovel
@@ -59,9 +63,13 @@ class ChapterPageModel(
 
     sealed class State {
         data object Loading : State()
+        data object SecurityCheck : State()
         data object Empty : State()
         data class PasswordRequired(val chapter: Chapter, val message: String? = null) : State()
         data object UnsupportedExternalLink : State()
+        data class VerificationRequired(val rejected: Boolean = false) : State()
+        data object WebViewUnavailable : State()
+        data object ExternalParseError : State()
         data class Error(val failure: LoadFailureKind) : State()
         data class Result(
             val chapters: List<ReaderChapter>,
@@ -165,13 +173,25 @@ class ChapterPageModel(
 
         initialJob = viewModelScope.launch(Dispatchers.IO) {
             val detail = try {
-                loadDetail(chapter)
+                loadDetail(chapter, showSecurityCheck = true)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: ChapterPasswordRequiredException) {
                 if (isCurrentSession(currentSession)) {
                     mutableState.value = State.PasswordRequired(chapter)
                 }
+                return@launch
+            } catch (error: CloudflareChallengeRequiredException) {
+                if (isCurrentSession(currentSession)) mutableState.value = State.VerificationRequired()
+                return@launch
+            } catch (error: CloudflareClearanceRejectedException) {
+                if (isCurrentSession(currentSession)) mutableState.value = State.VerificationRequired(rejected = true)
+                return@launch
+            } catch (error: CloudflareWebViewUnavailableException) {
+                if (isCurrentSession(currentSession)) mutableState.value = State.WebViewUnavailable
+                return@launch
+            } catch (error: ExternalChapterParseException) {
+                if (isCurrentSession(currentSession)) mutableState.value = State.ExternalParseError
                 return@launch
             } catch (error: Exception) {
                 if (isCurrentSession(currentSession)) {
@@ -464,7 +484,7 @@ class ChapterPageModel(
         }
     }
 
-    private suspend fun loadDetail(chapter: Chapter): DetailedChapter? {
+    private suspend fun loadDetail(chapter: Chapter, showSecurityCheck: Boolean = false): DetailedChapter? {
         val key = chapterKey(chapter)
         val prefetched = synchronized(lock) { prefetchedDetails.remove(key) }
         if (prefetched != null) {
@@ -493,7 +513,12 @@ class ChapterPageModel(
         }
 
         val detail = try {
-            cancellablePageRequest { PresentationAccess.client.getChapterDetail(authorization, chapter) }
+            cancellablePageRequest {
+                PresentationAccess.client.getChapterDetail(authorization, chapter,
+                    onSecurityCheck = if (showSecurityCheck) {
+                        { mutableState.value = State.SecurityCheck }
+                    } else null)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

@@ -12,3 +12,11 @@ internal fun ResponseBody.readTextBounded(maxBytes: Long = 8L * 1024 * 1024): St
     // OkHttp still owns BOM/charset decoding. At this point EOF was reached within the limit.
     string()
 }
+
+internal fun ResponseBody.readBytesBounded(maxBytes: Long = 8L * 1024 * 1024): ByteArray = use {
+    require(maxBytes in 1 until Long.MAX_VALUE)
+    if (contentLength() > maxBytes || source().request(maxBytes + 1)) {
+        throw IOException("Text response exceeds the allowed size")
+    }
+    bytes()
+}

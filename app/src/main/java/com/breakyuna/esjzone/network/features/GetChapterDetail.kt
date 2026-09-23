@@ -12,6 +12,9 @@ import com.breakyuna.esjzone.offline.NovelDownloadStore
 import com.breakyuna.esjzone.novellibrary.component.analyseComponents
 import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.novellibrary.novel.DetailedChapter
+import com.breakyuna.esjzone.novellibrary.novel.ChapterSource
+import com.breakyuna.esjzone.novellibrary.novel.resolveChapterSource
+import com.breakyuna.esjzone.network.external.UnsupportedExternalChapterException
 import com.breakyuna.esjzone.util.AppLogger
 import com.google.gson.JsonParser
 import okhttp3.FormBody
@@ -36,21 +39,35 @@ fun EsjzoneClient.getChapterDetail(
     chapter: Chapter,
     preferDownloaded: Boolean = true,
     forceRefresh: Boolean = false,
-    baseUrl: String? = null
+    baseUrl: String? = null,
+    allowAutoSolve: Boolean = true,
+    onSecurityCheck: (() -> Unit)? = null
 ): DetailedChapter {
     val targetUrl = baseUrl?.let { EsjzoneUrls.resolve(chapter.url, it) }
         ?: EsjzoneUrls.resolve(chapter.url)
+    val source = resolveChapterSource(targetUrl)
+    if (source == ChapterSource.UNSUPPORTED_EXTERNAL) throw UnsupportedExternalChapterException()
 
     if (preferDownloaded) {
         NovelDownloadStore.readChapter(targetUrl)
-            ?.takeUnless { isPasswordProtectedChapterHtml(it.contentHtml.orEmpty(), targetUrl) }
+            ?.takeUnless { source == ChapterSource.ESJ_ZONE && isPasswordProtectedChapterHtml(it.contentHtml.orEmpty(), targetUrl) }
             ?.let { downloaded ->
-            AppLogger.i("GetChapterDetail", "Using downloaded chapter: $targetUrl")
+            AppLogger.i("GetChapterDetail", "Using downloaded ${source.name} chapter")
             return downloaded
         }
     }
 
-    AppLogger.i("GetChapterDetail", "Fetching chapter: ${chapter.name} at $targetUrl")
+    if (source == ChapterSource.WENKU8) {
+        AppLogger.i("GetChapterDetail", "Fetching WENKU8 chapter")
+        return try {
+            getWenkuChapter(chapter, targetUrl, forceRefresh, allowAutoSolve, onSecurityCheck)
+        } catch (error: Exception) {
+            NovelDownloadStore.readChapter(targetUrl)?.let { return it }
+            throw error
+        }
+    }
+
+    AppLogger.i("GetChapterDetail", "Fetching ESJ chapter: ${chapter.name} at $targetUrl")
     val responseBody = try {
         getPage(
             authorization,

@@ -32,8 +32,8 @@ data class NovelChapterList(
             if (item is ChapterItem) {
                 if (toRead == null && !item.chapter.isExternal)
                     toRead = item.chapter
-                if (item.chapter.isHistory) {
-                    if (toRead?.isHistory != true)
+                if (item.chapter.isHistory && !item.chapter.isExternal) {
+                    if (!item.chapter.isExternal && toRead?.isHistory != true)
                         toRead = item.chapter
                     hasHistory = true
                     break
@@ -42,21 +42,12 @@ data class NovelChapterList(
                 for (chapter in item.chapters) {
                     if (toRead == null && !chapter.isExternal)
                         toRead = chapter
-                    if (chapter.isHistory) {
-                        if (toRead?.isHistory != true)
+                    if (chapter.isHistory && !chapter.isExternal) {
+                        if (!chapter.isExternal && toRead?.isHistory != true)
                             toRead = chapter
                         hasHistory = true
                         break
                     }
-                }
-            }
-        }
-        if (toRead == null) {
-            toRead = items.firstNotNullOfOrNull { item ->
-                when (item) {
-                    is ChapterItem -> item.chapter
-                    is ChapterListItem -> item.chapters.firstOrNull()
-                    else -> null
                 }
             }
         }

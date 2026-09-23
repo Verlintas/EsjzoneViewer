@@ -183,6 +183,14 @@ URL：/forum/{novelId}/{postId}.html
 
 前后导航表示论坛帖子顺序，不等于目录章节序号。
 
+### 6.3 wenku8 站外章节
+
+ESJ 目录中形如 `https://www.wenku8.net/novel/{bookGroup}/{bookId}/{chapterId}.htm` 的 HTTPS 链接由原生阅读器处理。来源识别检查解析后的完整主机和路径；其余站外链接交给系统浏览器。wenku8 响应从有大小限制的原始字节解码，按 HTTP charset、HTML meta charset、HTML http-equiv charset、GBK 的顺序选择编码。
+
+正文只读取 `#content`，标题优先读取 `#title`。清除脚本、样式、广告、导航及书签控件后，正文仍经共享的 `analyseComponents` 解析；图片相对地址以章节 URL 解析为 HTTPS wenku8 地址。缺少正文容器或正文过短时拒绝缓存。详情页的目录顺序优先于站外页面自己的上一页、下一页链接，因此跨来源翻章仍由 ESJ 目录决定。
+
+Cloudflare 挑战在正文解析和缓存之前识别。普通请求成功时无需 WebView；遇盾时前台可用一次隐藏 WebView 获取 clearance，重试仍失败才要求用户打开可见验证页。后台下载不启动 WebView，遇盾保留已下载文件并通知用户返回小说详情。
+
 ## 7. 评论解析
 
 主选择器：
