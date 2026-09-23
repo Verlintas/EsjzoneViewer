@@ -69,12 +69,12 @@ internal object PageResponsePolicy {
             if (resolveChapterSource(finalUrl) != ChapterSource.WENKU8) {
                 return PageValidation(false, "external chapter redirect outside allowed host")
             }
-            if (com.breakyuna.esjzone.network.external.CloudflareChallenge.isChallenge(
-                    statusCode, null, "cloudflare", body)) {
+            if (com.breakyuna.esjzone.network.external.CloudflareChallenge.hasChallengeDocumentMarkers(body)) {
                 return PageValidation(false, "access challenge or block page")
             }
             val content = Jsoup.parse(body, finalUrl).selectFirst("#content")
-            return if (content != null && content.text().trim().length >= 20) PageValidation(true)
+            return if (content != null &&
+                (content.text().trim().length >= 20 || content.select("img").isNotEmpty())) PageValidation(true)
             else PageValidation(false, "missing external chapter content")
         }
 

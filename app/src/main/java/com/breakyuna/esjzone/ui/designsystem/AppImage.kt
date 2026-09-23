@@ -20,6 +20,7 @@ import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.app.PresentationAccess
 import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
+import coil3.ImageLoader
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import me.saket.telephoto.zoomable.DoubleClickToZoomListener
@@ -28,6 +29,7 @@ import me.saket.telephoto.zoomable.ZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableState
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * Image loading seam; feature code must not depend on a concrete image-loader API.
@@ -44,12 +46,13 @@ fun AppImage(
     contentScale: ContentScale = ContentScale.Crop,
     alignment: Alignment = Alignment.Center,
     loading: (@Composable () -> Unit)? = null,
-    error: (@Composable () -> Unit)? = null
+    error: (@Composable () -> Unit)? = null,
+    imageLoader: ImageLoader = PresentationAccess.imageLoader
 ) {
     if (loading != null || error != null) {
         SubcomposeAsyncImage(
             model = model,
-            imageLoader = PresentationAccess.imageLoader,
+            imageLoader = imageLoader,
             contentDescription = contentDescription,
             modifier = modifier,
             contentScale = contentScale,
@@ -73,7 +76,7 @@ fun AppImage(
         }
         AsyncImage(
             model = imageRequest,
-            imageLoader = PresentationAccess.imageLoader,
+            imageLoader = imageLoader,
             contentDescription = contentDescription,
             error = painterResource(R.drawable.missing_cover),
             modifier = modifier,
@@ -140,13 +143,15 @@ fun AppReaderImage(
     loading: (@Composable () -> Unit)? = null,
     error: (@Composable () -> Unit)? = null
 ) {
+    val loader = readerImageLoader(model)
     AppImage(
         model = model,
         contentDescription = contentDescription,
         modifier = modifier,
         contentScale = contentScale,
         loading = loading,
-        error = error
+        error = error,
+        imageLoader = loader
     )
 }
 
@@ -172,10 +177,11 @@ fun AppReaderZoomableImage(
     onDoubleClick: DoubleClickToZoomListener = DoubleClickToZoomListener.cycle(),
     loading: @Composable () -> Unit = { AppImageLoading() }
 ) {
+    val loader = readerImageLoader(model)
     Box(modifier = modifier) {
         ZoomableAsyncImage(
             model = model,
-            imageLoader = PresentationAccess.imageLoader,
+            imageLoader = loader,
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
             state = state,
@@ -188,6 +194,16 @@ fun AppReaderZoomableImage(
             loading()
         }
     }
+}
+
+@Composable
+private fun readerImageLoader(model: Any?): ImageLoader {
+    val url = model as? String
+    val parsed = remember(url) { url?.toHttpUrlOrNull() }
+    return if (parsed?.isHttps == true && parsed.host == "www.wenku8.net" &&
+        parsed.username.isEmpty() && parsed.password.isEmpty()) {
+        PresentationAccess.wenkuImageLoader
+    } else PresentationAccess.imageLoader
 }
 
 /**

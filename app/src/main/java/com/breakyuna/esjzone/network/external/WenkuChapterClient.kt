@@ -41,10 +41,20 @@ internal class WenkuChapterClient(context: Context, userAgent: String) {
 
     fun userAgent(): String = userAgentHeader
 
-    fun imageClient(): OkHttpClient = client.newBuilder()
-        .readTimeout(60, TimeUnit.SECONDS)
-        .callTimeout(2, TimeUnit.MINUTES)
-        .build()
+    private val readerImageClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .addInterceptor { chain ->
+                chain.proceed(chain.request().newBuilder()
+                    .header("User-Agent", userAgentHeader)
+                    .header("Referer", "https://www.wenku8.net/")
+                    .build())
+            }
+            .readTimeout(60, TimeUnit.SECONDS)
+            .callTimeout(2, TimeUnit.MINUTES)
+            .build()
+    }
+
+    fun imageClient(): OkHttpClient = readerImageClient
 
     fun load(chapter: Chapter, url: String, forceRefresh: Boolean, allowAutoSolve: Boolean,
              onSecurityCheck: (() -> Unit)? = null): DetailedChapter {
@@ -67,6 +77,8 @@ internal class WenkuChapterClient(context: Context, userAgent: String) {
         val cachedDocument = org.jsoup.Jsoup.parse("<html><body><div id=title></div><div id=content></div></body></html>", url)
         cachedDocument.selectFirst("#title")?.text(detail.name)
         cachedDocument.selectFirst("#content")?.html(detail.contentHtml.orEmpty())
+        detail.previous?.let { cachedDocument.body().appendElement("a").attr("href", it.url).text("上一页") }
+        detail.next?.let { cachedDocument.body().appendElement("a").attr("href", it.url).text("下一页") }
         PageCache.write(key, cachedDocument.outerHtml())
         return detail
     }

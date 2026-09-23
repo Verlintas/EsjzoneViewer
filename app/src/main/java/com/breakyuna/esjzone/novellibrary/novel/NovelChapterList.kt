@@ -30,20 +30,22 @@ data class NovelChapterList(
         var toRead: Chapter? = null
         for (item in items) {
             if (item is ChapterItem) {
-                if (toRead == null && !item.chapter.isExternal)
+                val readable = !item.chapter.isExternal
+                if (toRead == null && readable)
                     toRead = item.chapter
-                if (item.chapter.isHistory && !item.chapter.isExternal) {
-                    if (!item.chapter.isExternal && toRead?.isHistory != true)
+                if (item.chapter.isHistory && readable) {
+                    if (toRead?.isHistory != true)
                         toRead = item.chapter
                     hasHistory = true
                     break
                 }
             } else if (item is ChapterListItem) {
                 for (chapter in item.chapters) {
-                    if (toRead == null && !chapter.isExternal)
+                    val readable = !chapter.isExternal
+                    if (toRead == null && readable)
                         toRead = chapter
-                    if (chapter.isHistory && !chapter.isExternal) {
-                        if (!chapter.isExternal && toRead?.isHistory != true)
+                    if (chapter.isHistory && readable) {
+                        if (toRead?.isHistory != true)
                             toRead = chapter
                         hasHistory = true
                         break

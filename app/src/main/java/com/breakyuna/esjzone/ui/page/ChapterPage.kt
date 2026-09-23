@@ -272,15 +272,66 @@ class ChapterPage(
                 )
             }
         val state by chapterPageModel.state.collectAsState()
-        var showWenkuVerification by remember { mutableStateOf(false) }
-        if (showWenkuVerification) {
-            WenkuVerificationDialog(
-                url = com.breakyuna.esjzone.network.EsjzoneUrls.resolve(requestedChapter.value.url),
-                onVerified = {
-                    showWenkuVerification = false
-                    chapterPageModel.openChapter(requestedChapter.value)
+        var wenkuVerificationChapter by remember { mutableStateOf<Chapter?>(null) }
+        var dismissedWenkuPrompt by remember { mutableStateOf<String?>(null) }
+        val pendingWenkuVerification = (state as? ChapterPageModel.State.Result)?.verificationChapter
+        val pendingWenkuResult = state as? ChapterPageModel.State.Result
+        if (pendingWenkuVerification != null &&
+            pendingWenkuVerification.url != dismissedWenkuPrompt && wenkuVerificationChapter == null) {
+            AlertDialog(
+                onDismissRequest = { dismissedWenkuPrompt = pendingWenkuVerification.url },
+                title = { Text(stringResource(R.string.wenku_verification_title)) },
+                text = { Text(stringResource(
+                    if (pendingWenkuResult?.verificationWebViewUnavailable == true)
+                        R.string.wenku_webview_unavailable_desc
+                    else if (pendingWenkuResult?.verificationStorageUnavailable == true)
+                        R.string.wenku_cookie_store_unavailable_desc
+                    else if (pendingWenkuResult?.verificationRejected == true)
+                        R.string.wenku_verification_rejected
+                    else R.string.wenku_verification_message
+                )) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        dismissedWenkuPrompt = pendingWenkuVerification.url
+                        if (pendingWenkuResult?.verificationWebViewUnavailable == true ||
+                            pendingWenkuResult?.verificationStorageUnavailable == true) {
+                            context.startActivity(Intent(Intent.ACTION_VIEW,
+                                Uri.parse(EsjzoneUrls.resolve(pendingWenkuVerification.url))))
+                        } else {
+                            wenkuVerificationChapter = pendingWenkuVerification
+                        }
+                    }) { Text(stringResource(
+                        if (pendingWenkuResult?.verificationWebViewUnavailable == true ||
+                            pendingWenkuResult?.verificationStorageUnavailable == true)
+                            R.string.wenku_open_browser else R.string.wenku_verification_open)) }
                 },
-                onDismiss = { showWenkuVerification = false }
+                dismissButton = {
+                    TextButton(onClick = { dismissedWenkuPrompt = pendingWenkuVerification.url }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
+        }
+        if (wenkuVerificationChapter != null) {
+            WenkuVerificationDialog(
+                url = EsjzoneUrls.resolve(wenkuVerificationChapter!!.url),
+                onVerified = {
+                    val verified = wenkuVerificationChapter
+                    wenkuVerificationChapter = null
+                    dismissedWenkuPrompt = null
+                    if (verified != null && pendingWenkuVerification?.url == verified.url) {
+                        chapterPageModel.retryPendingVerification()
+                    } else {
+                        chapterPageModel.openChapter(requestedChapter.value)
+                    }
+                },
+                onUnavailable = {
+                    val pending = pendingWenkuVerification
+                    wenkuVerificationChapter = null
+                    if (pending != null) chapterPageModel.markPendingStorageUnavailable()
+                    else chapterPageModel.openChapter(requestedChapter.value)
+                },
+                onDismiss = { wenkuVerificationChapter = null }
             )
         }
         var chapterPassword by remember { mutableStateOf("") }
@@ -582,6 +633,10 @@ class ChapterPage(
             retainedChapterOrder = currentLoadedOrder
         }
         val bookChapterOrder = currentLoadedOrder.ifEmpty { retainedChapterOrder }
+        fun belongsToCurrentNovel(target: Chapter): Boolean =
+            (novelId.isNotBlank() && novelId == target.novelId()) ||
+                (target.source == com.breakyuna.esjzone.novellibrary.novel.ChapterSource.WENKU8 &&
+                    bookChapterOrder.any { sameReaderChapter(it, target) })
         val bookChapterIndices = remember(bookChapterOrder) {
             bookChapterOrder.mapIndexed { index, item -> chapterIdentity(item) to index }.toMap()
         }
@@ -1098,7 +1153,7 @@ class ChapterPage(
                                     ),
                                     isError = false,
                                     actionLabel = stringResource(R.string.wenku_verification_open),
-                                    onAction = { showWenkuVerification = true }
+                                    onAction = { wenkuVerificationChapter = requestedChapter.value }
                                 )
                                 TextButton(onClick = { chapterPageModel.openChapter(requestedChapter.value) }) {
                                     Text(stringResource(R.string.retry))
@@ -1131,6 +1186,15 @@ class ChapterPage(
                             ReaderFeedbackState(
                                 title = stringResource(R.string.wenku_parse_failed),
                                 message = stringResource(R.string.wenku_parse_failed_desc),
+                                isError = true,
+                                onAction = { chapterPageModel.openChapter(requestedChapter.value) }
+                            )
+                        }
+
+                        is ChapterPageModel.State.ExternalStorageUnavailable -> item(key = "reader-external-storage-unavailable") {
+                            ReaderFeedbackState(
+                                title = stringResource(R.string.wenku_cookie_store_unavailable),
+                                message = stringResource(R.string.wenku_cookie_store_unavailable_desc),
                                 isError = true,
                                 onAction = { chapterPageModel.openChapter(requestedChapter.value) }
                             )
@@ -1190,6 +1254,24 @@ class ChapterPage(
 
                         is ChapterPageModel.State.Result -> {
                             val readerResult = state as ChapterPageModel.State.Result
+                            if (readerResult.verificationChapter != null && readerResult.verificationOffset < 0) {
+                                item(key = "reader-verification-previous") {
+                                    ReaderWenkuVerificationState(
+                                        rejected = readerResult.verificationRejected,
+                                        unavailable = readerResult.verificationWebViewUnavailable,
+                                        storageUnavailable = readerResult.verificationStorageUnavailable,
+                                        onVerify = { wenkuVerificationChapter = readerResult.verificationChapter },
+                                        onBrowser = {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW,
+                                                Uri.parse(EsjzoneUrls.resolve(readerResult.verificationChapter!!.url))))
+                                        },
+                                        onRetry = {
+                                            dismissedWenkuPrompt = null
+                                            chapterPageModel.retryPendingVerification()
+                                        }
+                                    )
+                                }
+                            }
                             items(items = displayItems, key = ReaderDisplayItem::key) { item ->
                                 if (item.ordinal == 0) {
                                     Column {
@@ -1202,6 +1284,25 @@ class ChapterPage(
                                 } else {
                                     ReaderBlocks(item.blocks, readerSettings, textMeasurer, density,
                                         readerContentColor, readerTextTransform)
+                                }
+                            }
+
+                            if (readerResult.verificationChapter != null && readerResult.verificationOffset > 0) {
+                                item(key = "reader-verification-next") {
+                                    ReaderWenkuVerificationState(
+                                        rejected = readerResult.verificationRejected,
+                                        unavailable = readerResult.verificationWebViewUnavailable,
+                                        storageUnavailable = readerResult.verificationStorageUnavailable,
+                                        onVerify = { wenkuVerificationChapter = readerResult.verificationChapter },
+                                        onBrowser = {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW,
+                                                Uri.parse(EsjzoneUrls.resolve(readerResult.verificationChapter!!.url))))
+                                        },
+                                        onRetry = {
+                                            dismissedWenkuPrompt = null
+                                            chapterPageModel.retryPendingVerification()
+                                        }
+                                    )
                                 }
                             }
 
@@ -1373,7 +1474,7 @@ class ChapterPage(
                                     nextEnabled = activeNext != null,
                                     onPrevious = {
                                         activePrevious?.let { previous ->
-                                            if (novelId == previous.novelId()) {
+                                            if (belongsToCurrentNovel(previous)) {
                                                 historyState.value = previous
                                             }
                                             dismissProgressPreview()
@@ -1382,7 +1483,7 @@ class ChapterPage(
                                     },
                                     onNext = {
                                         activeNext?.let { next ->
-                                            if (novelId == next.novelId()) {
+                                            if (belongsToCurrentNovel(next)) {
                                                 historyState.value = next
                                             }
                                             dismissProgressPreview()
@@ -1680,7 +1781,7 @@ class ChapterPage(
 
         LaunchedEffect(activeChapter?.chapter?.url) {
             activeChapter?.chapter?.let { current ->
-                if (novelId == current.novelId()) {
+                if (belongsToCurrentNovel(current)) {
                     historyState.value = current
                 }
             }
@@ -2068,6 +2169,35 @@ private fun ReaderProgressRail(
                 contentDescription = null
             )
         }
+    }
+}
+
+@Composable
+private fun ReaderWenkuVerificationState(
+    rejected: Boolean,
+    unavailable: Boolean,
+    storageUnavailable: Boolean,
+    onVerify: () -> Unit,
+    onBrowser: () -> Unit,
+    onRetry: () -> Unit
+) {
+    Column {
+        ReaderFeedbackState(
+            title = stringResource(R.string.wenku_verification_title),
+            message = stringResource(
+                if (storageUnavailable) R.string.wenku_cookie_store_unavailable_desc
+                else if (unavailable) R.string.wenku_webview_unavailable_desc
+                else if (rejected) R.string.wenku_verification_rejected
+                else R.string.wenku_verification_message
+            ),
+            isError = false,
+            actionLabel = stringResource(
+                if (unavailable || storageUnavailable) R.string.wenku_open_browser
+                else R.string.wenku_verification_open
+            ),
+            onAction = if (unavailable || storageUnavailable) onBrowser else onVerify
+        )
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
     }
 }
 

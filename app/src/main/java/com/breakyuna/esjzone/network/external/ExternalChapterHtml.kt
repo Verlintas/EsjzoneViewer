@@ -35,7 +35,7 @@ internal object ExternalChapterHtml {
         val document = Jsoup.parse(html, url)
         val content = document.selectFirst("#content") ?: throw ExternalChapterParseException()
         fun nav(labels: String): Chapter? = document.select("a[href]")
-            .firstOrNull { it.text().trim().matches(Regex(labels)) }
+            .lastOrNull { it.text().trim().matches(Regex(labels)) }
             ?.let { link ->
                 val resolved = EsjzoneUrls.resolve(link.attr("href"), url)
                 if (resolveChapterSource(resolved) == ChapterSource.WENKU8) {

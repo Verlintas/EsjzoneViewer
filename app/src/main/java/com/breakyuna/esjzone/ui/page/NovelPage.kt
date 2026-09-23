@@ -1262,6 +1262,10 @@ private fun NovelDownloadActions(
                 preflighting = false
                 downloading = false
                 wenkuVerificationUrl = probe?.url
+            } catch (error: com.breakyuna.esjzone.network.external.WenkuCookieStoreUnavailableException) {
+                preflighting = false
+                downloading = false
+                Toast.makeText(context, R.string.wenku_cookie_store_unavailable, Toast.LENGTH_LONG).show()
             } catch (error: Exception) {
                 preflighting = false
                 downloading = false
@@ -1275,6 +1279,10 @@ private fun NovelDownloadActions(
         WenkuVerificationDialog(
             url = EsjzoneUrls.resolve(url),
             onVerified = { wenkuVerificationUrl = null; enqueueDownload() },
+            onUnavailable = {
+                wenkuVerificationUrl = null
+                Toast.makeText(context, R.string.wenku_cookie_store_unavailable, Toast.LENGTH_LONG).show()
+            },
             onDismiss = { wenkuVerificationUrl = null }
         )
     }

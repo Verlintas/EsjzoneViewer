@@ -27,6 +27,7 @@ import com.breakyuna.esjzone.network.external.CloudflareChallengeRequiredExcepti
 import com.breakyuna.esjzone.network.external.CloudflareClearanceRejectedException
 import com.breakyuna.esjzone.network.external.CloudflareWebViewUnavailableException
 import com.breakyuna.esjzone.network.external.ExternalChapterParseException
+import com.breakyuna.esjzone.network.external.WenkuCookieStoreUnavailableException
 import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.novellibrary.novel.DetailedChapter
 import com.breakyuna.esjzone.novellibrary.novel.FavoriteNovel
@@ -70,6 +71,7 @@ class ChapterPageModel(
         data class VerificationRequired(val rejected: Boolean = false) : State()
         data object WebViewUnavailable : State()
         data object ExternalParseError : State()
+        data object ExternalStorageUnavailable : State()
         data class Error(val failure: LoadFailureKind) : State()
         data class Result(
             val chapters: List<ReaderChapter>,
@@ -78,7 +80,12 @@ class ChapterPageModel(
             val isLoadingNext: Boolean,
             val isLoadingPrevious: Boolean = false,
             val chapterOrder: List<Chapter> = emptyList(),
-            val isOffline: Boolean = false
+            val isOffline: Boolean = false,
+            val verificationChapter: Chapter? = null,
+            val verificationRejected: Boolean = false,
+            val verificationWebViewUnavailable: Boolean = false,
+            val verificationStorageUnavailable: Boolean = false,
+            val verificationOffset: Int = 0
         ) : State()
     }
 
@@ -105,6 +112,11 @@ class ChapterPageModel(
     private var failedAppendAtMillis = 0L
     private var failedPrependChapterKey: String? = null
     private var failedPrependAtMillis = 0L
+    private var verificationChapter: Chapter? = null
+    private var verificationOffset = 0
+    private var verificationRejected = false
+    private var verificationWebViewUnavailable = false
+    private var verificationStorageUnavailable = false
     /** Latest completed reader layout anchor; null means no safe trim point. */
     private var windowAnchor: ReaderWindowAnchor? = null
 
@@ -158,6 +170,11 @@ class ChapterPageModel(
             failedAppendChapterKey = null
             failedPrependChapterKey = null
             failedPrependAtMillis = 0L
+            verificationChapter = null
+            verificationOffset = 0
+            verificationRejected = false
+            verificationWebViewUnavailable = false
+            verificationStorageUnavailable = false
             windowAnchor = null
         }
         // Cancel outside the model lock: cancellation handlers may publish or
@@ -192,6 +209,9 @@ class ChapterPageModel(
                 return@launch
             } catch (error: ExternalChapterParseException) {
                 if (isCurrentSession(currentSession)) mutableState.value = State.ExternalParseError
+                return@launch
+            } catch (error: WenkuCookieStoreUnavailableException) {
+                if (isCurrentSession(currentSession)) mutableState.value = State.ExternalStorageUnavailable
                 return@launch
             } catch (error: Exception) {
                 if (isCurrentSession(currentSession)) {
@@ -299,7 +319,8 @@ class ChapterPageModel(
         var currentSession: Long? = null
         var nextChapter: Chapter? = null
         synchronized(lock) {
-            if (loadingNext || loadedChapters.isEmpty()) return
+            if (loadingNext || loadedChapters.isEmpty() ||
+                (verificationChapter != null && verificationOffset > 0)) return
             val last = loadedChapters.last()
             val candidate = adjacentChapter(last.chapter, 1, last.fallbackNext) ?: return
             if (chapterKey(candidate) == failedAppendChapterKey &&
@@ -331,6 +352,7 @@ class ChapterPageModel(
                             )
                             failedAppendChapterKey = null
                             failedAppendAtMillis = 0L
+                            clearVerificationLocked()
                             trimLoadedChaptersFromStart()
                         }
                     }
@@ -339,6 +361,14 @@ class ChapterPageModel(
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: CloudflareChallengeRequiredException) {
+                rememberVerification(session, chapterToLoad, 1)
+            } catch (e: CloudflareClearanceRejectedException) {
+                rememberVerification(session, chapterToLoad, 1, rejected = true)
+            } catch (e: CloudflareWebViewUnavailableException) {
+                rememberVerification(session, chapterToLoad, 1, unavailable = true)
+            } catch (e: WenkuCookieStoreUnavailableException) {
+                rememberVerification(session, chapterToLoad, 1, storageUnavailable = true)
             } catch (e: Exception) {
                 synchronized(lock) {
                     if (isCurrentSessionLocked(session)) {
@@ -378,7 +408,8 @@ class ChapterPageModel(
         var currentSession: Long? = null
         var previousChapter: Chapter? = null
         synchronized(lock) {
-            if (loadingPrevious || loadedChapters.isEmpty()) return
+            if (loadingPrevious || loadedChapters.isEmpty() ||
+                (verificationChapter != null && verificationOffset < 0)) return
             val first = loadedChapters.first()
             val candidate = adjacentChapter(first.chapter, -1, first.fallbackPrevious) ?: return
             if (chapterKey(candidate) == failedPrependChapterKey &&
@@ -413,6 +444,7 @@ class ChapterPageModel(
                             )
                             failedPrependChapterKey = null
                             failedPrependAtMillis = 0L
+                            clearVerificationLocked()
                             trimLoadedChaptersFromEnd()
                         }
                     }
@@ -421,6 +453,14 @@ class ChapterPageModel(
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: CloudflareChallengeRequiredException) {
+                rememberVerification(session, chapterToLoad, -1)
+            } catch (e: CloudflareClearanceRejectedException) {
+                rememberVerification(session, chapterToLoad, -1, rejected = true)
+            } catch (e: CloudflareWebViewUnavailableException) {
+                rememberVerification(session, chapterToLoad, -1, unavailable = true)
+            } catch (e: WenkuCookieStoreUnavailableException) {
+                rememberVerification(session, chapterToLoad, -1, storageUnavailable = true)
             } catch (e: Exception) {
                 synchronized(lock) {
                     if (isCurrentSessionLocked(session)) {
@@ -682,9 +722,57 @@ class ChapterPageModel(
                 isLoadingNext = loadingNext,
                 isLoadingPrevious = loadingPrevious,
                 chapterOrder = orderedChapters.toList(),
-                isOffline = snapshot.any(ReaderChapter::isOffline)
+                isOffline = snapshot.any(ReaderChapter::isOffline),
+                verificationChapter = verificationChapter,
+                verificationRejected = verificationRejected,
+                verificationWebViewUnavailable = verificationWebViewUnavailable,
+                verificationStorageUnavailable = verificationStorageUnavailable,
+                verificationOffset = verificationOffset
             )
         }
+    }
+
+    private fun rememberVerification(
+        session: Long, chapter: Chapter, offset: Int,
+        rejected: Boolean = false, unavailable: Boolean = false,
+        storageUnavailable: Boolean = false
+    ) {
+        synchronized(lock) {
+            if (!isCurrentSessionLocked(session)) return
+            verificationChapter = chapter
+            verificationOffset = offset
+            verificationRejected = rejected
+            verificationWebViewUnavailable = unavailable
+            verificationStorageUnavailable = storageUnavailable
+        }
+    }
+
+    private fun clearVerificationLocked() {
+        verificationChapter = null
+        verificationOffset = 0
+        verificationRejected = false
+        verificationWebViewUnavailable = false
+        verificationStorageUnavailable = false
+    }
+
+    fun markPendingStorageUnavailable() {
+        synchronized(lock) {
+            if (verificationChapter == null) return
+            verificationStorageUnavailable = true
+        }
+        publish()
+    }
+
+    fun retryPendingVerification() {
+        val offset = synchronized(lock) {
+            val pending = verificationChapter ?: return
+            val direction = verificationOffset
+            failedAppendChapterKey = null
+            failedPrependChapterKey = null
+            clearVerificationLocked()
+            direction.takeIf { it != 0 } ?: return
+        }
+        if (offset > 0) loadNextChapter() else loadPreviousChapter()
     }
 
     private fun isCurrentSession(currentSession: Long): Boolean =

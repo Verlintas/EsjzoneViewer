@@ -74,6 +74,23 @@ class WenkuChapterTest {
         }
     }
 
+    @Test fun imageOnlyChapterPassesCachePolicyAndParser() {
+        val html = "<html><body><div id=title>彩页</div><div id=content>" +
+            "<img src='96772.jpg'></div></body></html>"
+        assertTrue(PageResponsePolicy.validate(200, html, url, kind = PageKind.EXTERNAL_CHAPTER).trusted)
+        val detail = ExternalChapterHtml.parse(html, Chapter("彩页", url, false), url)
+        assertEquals("彩页", detail.name)
+        assertTrue(detail.contentHtml!!.contains("https://www.wenku8.net/novel/2/2552/96772.jpg"))
+    }
+
+    @Test fun footerNavigationWinsOverHeaderLinks() {
+        val html = "<html><body><a href='96773.htm'>下一页</a>" +
+            "<div id=content>正文内容足够长，用于验证目录缺失时页尾链接作为降级导航。</div>" +
+            "<a href='100485.htm'>下一页</a></body></html>"
+        val detail = ExternalChapterHtml.parse(html, Chapter("章节", url, false), url)
+        assertEquals("https://www.wenku8.net/novel/2/2552/100485.htm", detail.next?.url)
+    }
+
     @Test fun challengeIsNotOrdinaryHttpFailureAndCannotCache() {
         val challenge = "<html><body><title>Just a moment...</title>" +
             "<script src='/cdn-cgi/challenge-platform/start.js'></script></body></html>"
@@ -84,5 +101,6 @@ class WenkuChapterTest {
         assertFalse(CloudflareChallenge.isChallenge(429, null, "cloudflare", "rate limited"))
         assertFalse(CloudflareChallenge.isChallenge(500, null, "cloudflare", "server failure"))
         assertFalse(PageResponsePolicy.validate(200, challenge, url, kind = PageKind.EXTERNAL_CHAPTER).trusted)
+        assertTrue(CloudflareChallenge.hasChallengeDocumentMarkers(challenge))
     }
 }

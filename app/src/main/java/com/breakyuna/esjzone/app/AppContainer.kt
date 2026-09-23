@@ -5,6 +5,7 @@ import androidx.room.Room
 import coil3.ImageLoader
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.breakyuna.esjzone.data.settings.SettingsDataStore
 import com.breakyuna.esjzone.data.settings.ReaderSettingsDataStore
 import com.breakyuna.esjzone.data.repository.DatabaseBookmarkRepository
@@ -73,6 +74,17 @@ class AppContainer(context: Context) {
                 .build()
         }
         .build()
+
+    /** Reader images use the same cache and the isolated wenku CookieJar. */
+    val wenkuImageLoader: ImageLoader by lazy {
+        ImageLoader.Builder(appContext)
+            .memoryCache { imageLoader.memoryCache ?: error("Image memory cache unavailable") }
+            .diskCache { imageLoader.diskCache ?: error("Image disk cache unavailable") }
+            .components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { EsjzoneClient.wenkuImageClient() }))
+            }
+            .build()
+    }
 
     val session: SessionRepository = NetworkSessionRepository()
     val settingsDataStore = SettingsDataStore(appContext)

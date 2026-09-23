@@ -11,6 +11,7 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicLong
 import com.breakyuna.esjzone.network.external.WenkuChapterClient
+import com.breakyuna.esjzone.network.external.WenkuCookieStoreUnavailableException
 import com.breakyuna.esjzone.novellibrary.novel.Chapter
 import com.breakyuna.esjzone.novellibrary.novel.DetailedChapter
 import kotlinx.coroutines.CancellationException
@@ -86,9 +87,15 @@ object EsjzoneClient {
     fun initialize(context: Context) {
         if (initialized) return
         persistentCookieJar = PersistentCookieJar(context.applicationContext)
-        wenkuClient = runCatching {
+        val wenkuInitialization = runCatching {
             WenkuChapterClient(context.applicationContext, headers["User-Agent"].orEmpty())
-        }.getOrNull()
+        }
+        wenkuClient = wenkuInitialization.getOrNull()
+        wenkuInitialization.exceptionOrNull()?.let { error ->
+            com.breakyuna.esjzone.util.AppLogger.w(
+                "EsjzoneClient", "Wenku cookie storage unavailable (${error::class.java.simpleName})"
+            )
+        }
         PageCache.initialize(context.applicationContext)
         // PageCache owns response persistence. The shared client is intentionally kept
         // without OkHttp's URL-only HTTP cache so one account can never receive another
@@ -110,13 +117,14 @@ object EsjzoneClient {
 
     fun getWenkuChapter(chapter: Chapter, url: String, forceRefresh: Boolean, allowAutoSolve: Boolean,
                         onSecurityCheck: (() -> Unit)? = null): DetailedChapter =
-        (wenkuClient ?: throw IllegalStateException("External chapter client is not initialized"))
+        (wenkuClient ?: throw WenkuCookieStoreUnavailableException())
             .load(chapter, url, forceRefresh, allowAutoSolve, onSecurityCheck)
 
-    fun importWenkuBrowserCookies(raw: String?) { wenkuClient?.importBrowserCookies(raw) }
+    fun importWenkuBrowserCookies(raw: String?): Boolean =
+        wenkuClient?.let { runCatching { it.importBrowserCookies(raw) }.isSuccess } ?: false
     fun wenkuUserAgent(): String = wenkuClient?.userAgent() ?: headers["User-Agent"].orEmpty()
     fun wenkuImageClient(): OkHttpClient =
-        (wenkuClient ?: throw IllegalStateException("External chapter client is not initialized")).imageClient()
+        (wenkuClient ?: throw WenkuCookieStoreUnavailableException()).imageClient()
 
     /**
      * Download requests stream potentially large responses and therefore receive a

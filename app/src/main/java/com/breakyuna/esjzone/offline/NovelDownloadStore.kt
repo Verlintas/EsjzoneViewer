@@ -864,8 +864,8 @@ object NovelDownloadStore {
         ) ?: return@synchronized null
         if (com.breakyuna.esjzone.novellibrary.novel.resolveChapterSource(chapterUrl) ==
             com.breakyuna.esjzone.novellibrary.novel.ChapterSource.WENKU8 &&
-            com.breakyuna.esjzone.network.external.CloudflareChallenge.isChallenge(
-                200, null, "cloudflare", stored.contentHtml.orEmpty())) {
+            com.breakyuna.esjzone.network.external.CloudflareChallenge.hasChallengeDocumentMarkers(
+                stored.contentHtml.orEmpty())) {
             chapterFile.delete()
             return@synchronized null
         }

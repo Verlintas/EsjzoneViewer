@@ -41,6 +41,9 @@ object PresentationAccess {
     internal val imageLoader: ImageLoader
         get() = container.imageLoader
 
+    internal val wenkuImageLoader: ImageLoader
+        get() = container.wenkuImageLoader
+
     fun imageCacheSizeBytes(): Long = container.imageLoader.diskCache?.size ?: 0L
 
     fun clearImageCaches() {

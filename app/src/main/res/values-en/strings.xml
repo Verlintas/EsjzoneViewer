@@ -291,6 +291,8 @@
     <string name="wenku_open_browser">Open in browser</string>
     <string name="wenku_webview_unavailable">Android System WebView is unavailable</string>
     <string name="wenku_webview_unavailable_desc">Update or enable System WebView, then retry.</string>
+    <string name="wenku_cookie_store_unavailable">Wenku8 cookie storage is unavailable</string>
+    <string name="wenku_cookie_store_unavailable_desc">Verification cannot be saved. Check secure storage on this device and retry.</string>
     <string name="wenku_parse_failed">Could not read Wenku8 chapter content</string>
     <string name="wenku_parse_failed_desc">The page structure may have changed. Try again later.</string>
     <string name="wenku_security_check">Completing the site security check…</string>

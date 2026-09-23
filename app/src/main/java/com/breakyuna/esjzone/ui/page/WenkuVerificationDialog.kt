@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -20,19 +21,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.breakyuna.esjzone.R
 import com.breakyuna.esjzone.network.EsjzoneClient
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Composable
-internal fun WenkuVerificationDialog(url: String, onVerified: () -> Unit, onDismiss: () -> Unit) {
+internal fun WenkuVerificationDialog(
+    url: String,
+    onVerified: () -> Unit,
+    onUnavailable: () -> Unit,
+    onDismiss: () -> Unit
+) {
     val context = LocalContext.current
-    val browser = remember(url) { WebView(context) }
+    val browser = remember(url) { runCatching { WebView(context) }.getOrNull() }
+    val completed = remember(url) { AtomicBoolean(false) }
+    val active = remember(url) { AtomicBoolean(true) }
     DisposableEffect(browser) {
-        onDispose { browser.stopLoading(); browser.destroy() }
+        onDispose { active.set(false); browser?.stopLoading(); browser?.destroy() }
+    }
+    if (browser == null) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.wenku_webview_unavailable)) },
+            text = { Text(stringResource(R.string.wenku_webview_unavailable_desc)) },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+        )
+        return
     }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.wenku_verification_title)) },
         text = {
-            AndroidView(
+            key(url) { AndroidView(
                 factory = {
                     browser.apply {
                         settings.apply {
@@ -59,13 +77,17 @@ internal fun WenkuVerificationDialog(url: String, onVerified: () -> Unit, onDism
                             }
 
                             override fun onPageFinished(view: WebView, finishedUrl: String) {
+                                if (!active.get()) return
                                 val cookie = CookieManager.getInstance().getCookie(url)
                                 if (cookie?.split(';')?.any {
                                         it.trim().startsWith("cf_clearance=") && it.substringAfter('=').isNotBlank()
                                     } == true) {
                                     CookieManager.getInstance().flush()
-                                    EsjzoneClient.importWenkuBrowserCookies(cookie)
-                                    onVerified()
+                                    if (EsjzoneClient.importWenkuBrowserCookies(cookie)) {
+                                        if (completed.compareAndSet(false, true)) onVerified()
+                                    } else if (completed.compareAndSet(false, true)) {
+                                        onUnavailable()
+                                    }
                                 }
                             }
                         }
@@ -73,7 +95,7 @@ internal fun WenkuVerificationDialog(url: String, onVerified: () -> Unit, onDism
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(420.dp)
-            )
+            ) }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
