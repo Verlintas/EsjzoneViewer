@@ -315,14 +315,28 @@ class ChapterPage(
         if (wenkuVerificationChapter != null) {
             WenkuVerificationDialog(
                 url = EsjzoneUrls.resolve(wenkuVerificationChapter!!.url),
-                onVerified = {
+                acceptChapterContent = true,
+                onVerified = { html ->
                     val verified = wenkuVerificationChapter
+                    val retryPending = verified != null && pendingWenkuVerification?.url == verified.url
                     wenkuVerificationChapter = null
                     dismissedWenkuPrompt = null
-                    if (verified != null && pendingWenkuVerification?.url == verified.url) {
-                        chapterPageModel.retryPendingVerification()
-                    } else {
-                        chapterPageModel.openChapter(requestedChapter.value)
+                    scope.launch {
+                        if (verified != null && html != null) {
+                            val cached = withContext(Dispatchers.IO) {
+                                com.breakyuna.esjzone.network.EsjzoneClient.importWenkuBrowserChapter(
+                                    verified, EsjzoneUrls.resolve(verified.url), html)
+                            }
+                            if (!cached) com.breakyuna.esjzone.util.AppLogger.w(
+                                "ChapterPageModel",
+                                "Browser-loaded chapter could not be validated or cached; retrying network"
+                            )
+                        }
+                        if (retryPending) {
+                            chapterPageModel.retryPendingVerification()
+                        } else {
+                            chapterPageModel.openChapter(requestedChapter.value)
+                        }
                     }
                 },
                 onUnavailable = {

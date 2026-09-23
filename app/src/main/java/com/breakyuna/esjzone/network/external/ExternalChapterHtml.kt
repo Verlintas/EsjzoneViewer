@@ -11,6 +11,8 @@ import java.nio.charset.Charset
 import org.jsoup.Jsoup
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
+internal const val MAX_BROWSER_CHAPTER_HTML_BYTES = 4 * 1024 * 1024
+
 class ExternalChapterParseException : IOException("External chapter content could not be recognized")
 class UnsupportedExternalChapterException : IOException("Unsupported external chapter")
 
@@ -66,5 +68,14 @@ internal object ExternalChapterHtml {
             title, analyseComponents(content), previous, next,
             content.html(), url
         )
+    }
+
+    fun cacheDocument(detail: DetailedChapter, url: String): String {
+        val document = Jsoup.parse("<html><body><div id=title></div><div id=content></div></body></html>", url)
+        document.selectFirst("#title")?.text(detail.name)
+        document.selectFirst("#content")?.html(detail.contentHtml.orEmpty())
+        detail.previous?.let { document.body().appendElement("a").attr("href", it.url).text("上一页") }
+        detail.next?.let { document.body().appendElement("a").attr("href", it.url).text("下一页") }
+        return document.outerHtml()
     }
 }

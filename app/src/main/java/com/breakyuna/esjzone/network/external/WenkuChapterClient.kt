@@ -39,6 +39,15 @@ internal class WenkuChapterClient(context: Context, userAgent: String) {
 
     fun importBrowserCookies(raw: String?) = jar.importBrowserCookies(raw)
 
+    /** Save a chapter already rendered by the verified, same-host browser. Call on IO. */
+    fun importBrowserChapter(chapter: Chapter, url: String, html: String): Boolean {
+        if (resolveChapterSource(url) != ChapterSource.WENKU8 ||
+            html.toByteArray(Charsets.UTF_8).size > MAX_BROWSER_CHAPTER_HTML_BYTES) return false
+        val detail = runCatching { validateAndParse(html, chapter, url) }.getOrNull() ?: return false
+        val cachedDocument = cacheChapter(url, detail)
+        return PageCache.read(cacheKey(url), PageCacheTtl.CHAPTER) == cachedDocument
+    }
+
     fun userAgent(): String = userAgentHeader
 
     private val readerImageClient: OkHttpClient by lazy {
@@ -59,7 +68,7 @@ internal class WenkuChapterClient(context: Context, userAgent: String) {
     fun load(chapter: Chapter, url: String, forceRefresh: Boolean, allowAutoSolve: Boolean,
              onSecurityCheck: (() -> Unit)? = null): DetailedChapter {
         if (resolveChapterSource(url) != ChapterSource.WENKU8) throw UnsupportedExternalChapterException()
-        val key = "wenku8|${EsjzoneUrls.canonicalPageKey(url)}"
+        val key = cacheKey(url)
         if (!forceRefresh) PageCache.read(key, PageCacheTtl.CHAPTER)?.let { cached ->
             runCatching { validateAndParse(cached, chapter, url) }.getOrNull()?.let { return it }
             PageCache.remove(key)
@@ -74,14 +83,14 @@ internal class WenkuChapterClient(context: Context, userAgent: String) {
         }
         if (result.status !in 200..299) throw NetworkHttpException("https://www.wenku8.net/", result.status)
         val detail = validateAndParse(result.html, chapter, url)
-        val cachedDocument = org.jsoup.Jsoup.parse("<html><body><div id=title></div><div id=content></div></body></html>", url)
-        cachedDocument.selectFirst("#title")?.text(detail.name)
-        cachedDocument.selectFirst("#content")?.html(detail.contentHtml.orEmpty())
-        detail.previous?.let { cachedDocument.body().appendElement("a").attr("href", it.url).text("上一页") }
-        detail.next?.let { cachedDocument.body().appendElement("a").attr("href", it.url).text("下一页") }
-        PageCache.write(key, cachedDocument.outerHtml())
+        cacheChapter(url, detail)
         return detail
     }
+
+    private fun cacheKey(url: String): String = "wenku8|${EsjzoneUrls.canonicalPageKey(url)}"
+
+    private fun cacheChapter(url: String, detail: DetailedChapter): String =
+        ExternalChapterHtml.cacheDocument(detail, url).also { PageCache.write(cacheKey(url), it) }
 
     private fun validateAndParse(html: String, chapter: Chapter, url: String): DetailedChapter {
         if (!PageResponsePolicy.validate(200, html, url, kind = PageKind.EXTERNAL_CHAPTER).trusted) {

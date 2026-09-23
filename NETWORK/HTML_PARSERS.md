@@ -191,6 +191,8 @@ ESJ 目录中形如 `https://www.wenku8.net/novel/{bookGroup}/{bookId}/{chapterI
 
 Cloudflare 挑战在正文解析和缓存之前识别。普通请求成功时无需 WebView；遇盾时前台可用一次隐藏 WebView 获取 clearance，重试仍失败才要求用户打开可见验证页。后台下载不启动 WebView，遇盾保留已下载文件并通知用户返回小说详情。
 
+挑战判定优先使用 `cf-mitigated: challenge` 响应头及实际挑战页标题、控件和安全提示标题。Cloudflare 的 `/cdn-cgi/challenge-platform/` 脚本也可能出现在含有效 `#content` 的正常章节页中，不能仅凭该脚本把章节判成挑战页。可见 WebView 在检测到新 `cf_clearance` 后继续等待章节正文最多 20 秒；检查 60 秒仍无结果时会提示用户重试，若刚检测到 clearance 则允许等满正文等待时间。WebView 加载到同一路径的有效章节正文时，只捕获标题、正文和章节导航，分 32 KiB 小块传回应用，并先经过原有解析与清理再写入本地页面缓存；UTF-8 正文超过 4 MiB 时记录不含页面数据的诊断并回退网络请求。
+
 ## 7. 评论解析
 
 主选择器：

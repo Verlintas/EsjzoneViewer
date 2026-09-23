@@ -122,6 +122,9 @@ object EsjzoneClient {
 
     fun importWenkuBrowserCookies(raw: String?): Boolean =
         wenkuClient?.let { runCatching { it.importBrowserCookies(raw) }.isSuccess } ?: false
+    fun importWenkuBrowserChapter(chapter: Chapter, url: String, html: String): Boolean =
+        wenkuClient?.let { runCatching { it.importBrowserChapter(chapter, url, html) }.getOrDefault(false) }
+            ?: false
     fun wenkuUserAgent(): String = wenkuClient?.userAgent() ?: headers["User-Agent"].orEmpty()
     fun wenkuImageClient(): OkHttpClient =
         (wenkuClient ?: throw WenkuCookieStoreUnavailableException()).imageClient()

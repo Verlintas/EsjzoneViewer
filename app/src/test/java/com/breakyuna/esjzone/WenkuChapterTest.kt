@@ -103,4 +103,51 @@ class WenkuChapterTest {
         assertFalse(PageResponsePolicy.validate(200, challenge, url, kind = PageKind.EXTERNAL_CHAPTER).trusted)
         assertTrue(CloudflareChallenge.hasChallengeDocumentMarkers(challenge))
     }
+
+    @Test fun cloudflareScriptDoesNotHideReadableChapter() {
+        val html = "<html><head><title>序章</title></head><body>" +
+            "<div id=content>这是可以正常阅读的章节正文，长度足以通过正文校验。</div>" +
+            "<script src='/cdn-cgi/challenge-platform/scripts/jsd/main.js'></script>" +
+            "</body></html>"
+        assertFalse(CloudflareChallenge.hasChallengeDocumentMarkers(html))
+        assertFalse(CloudflareChallenge.isChallenge(200, null, "cloudflare", html))
+        assertTrue(PageResponsePolicy.validate(200, html, url, kind = PageKind.EXTERNAL_CHAPTER).trusted)
+        assertTrue(CloudflareChallenge.isChallenge(200, "challenge", "cloudflare", html))
+        val chapterWithCaptchaHeading = html.replace(
+            "<div id=content>", "<div id=content><h1>验证码的历史与原理</h1>"
+        )
+        assertFalse(CloudflareChallenge.hasChallengeDocumentMarkers(chapterWithCaptchaHeading))
+        val activeChallenge = html.replace("<div id=content>", "<div id=challenge-stage></div><div id=content>")
+        assertTrue(CloudflareChallenge.hasChallengeDocumentMarkers(activeChallenge))
+        assertFalse(PageResponsePolicy.validate(200, activeChallenge, url,
+            kind = PageKind.EXTERNAL_CHAPTER).trusted)
+        val challengeScriptWithContent = html.replace(
+            "/scripts/jsd/main.js", "/scripts/chl_page/v1"
+        )
+        assertTrue(CloudflareChallenge.hasChallengeDocumentMarkers(challengeScriptWithContent))
+        val challengeWithContent = html.replace("<div id=content>",
+            "<h1>Verify you are human</h1><div id=content>")
+        assertTrue(CloudflareChallenge.hasChallengeDocumentMarkers(challengeWithContent))
+        assertFalse(PageResponsePolicy.validate(200, challengeWithContent, url,
+            kind = PageKind.EXTERNAL_CHAPTER).trusted)
+    }
+
+    @Test fun browserChapterCanBeCachedForNativeReader() {
+        val browserHtml = "<html><head><title>序章</title></head><body>" +
+            "<div id=title>序章</div><div id=content>" +
+            "<p>这是浏览器已经加载完成的章节正文，可供原生阅读器使用。</p>" +
+            "<img src='96772.jpg'><script>tracking()</script></div>" +
+            "<script src='/cdn-cgi/challenge-platform/scripts/jsd/main.js'></script>" +
+            "</body></html>"
+        assertTrue(PageResponsePolicy.validate(200, browserHtml, url,
+            kind = PageKind.EXTERNAL_CHAPTER).trusted)
+        val detail = ExternalChapterHtml.parse(browserHtml, Chapter("fallback", url, false), url)
+        val cached = ExternalChapterHtml.cacheDocument(detail, url)
+        assertFalse(cached.contains("<script"))
+        assertTrue(PageResponsePolicy.validate(200, cached, url,
+            kind = PageKind.EXTERNAL_CHAPTER).trusted)
+        val restored = ExternalChapterHtml.parse(cached, Chapter("fallback", url, false), url)
+        assertEquals(detail.name, restored.name)
+        assertEquals(detail.contentHtml, restored.contentHtml)
+    }
 }

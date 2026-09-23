@@ -1278,7 +1278,7 @@ private fun NovelDownloadActions(
     wenkuVerificationUrl?.let { url ->
         WenkuVerificationDialog(
             url = EsjzoneUrls.resolve(url),
-            onVerified = { wenkuVerificationUrl = null; enqueueDownload() },
+            onVerified = { _ -> wenkuVerificationUrl = null; enqueueDownload() },
             onUnavailable = {
                 wenkuVerificationUrl = null
                 Toast.makeText(context, R.string.wenku_cookie_store_unavailable, Toast.LENGTH_LONG).show()
