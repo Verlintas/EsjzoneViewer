@@ -1027,12 +1027,14 @@ private class ForumPostPageModel(
 ) : AppStateViewModel<CommunityState<ForumPost>>(CommunityState.Loading) {
     private var loadJob: Job? = null
     private var loadStarted = false
+    @Volatile private var loadGeneration = 0L
 
     fun retry() = load(forceRefresh = true)
 
     fun load(forceRefresh: Boolean = false) {
         if (!forceRefresh && loadStarted) return
         loadStarted = true
+        val generation = ++loadGeneration
         loadJob?.cancel()
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             val currentResult = mutableState.value as? CommunityState.Result
@@ -1071,6 +1073,7 @@ private class ForumPostPageModel(
                     isSyncing = false
                 )
             } catch (error: CancellationException) {
+                if (generation != loadGeneration) throw error
                 val existing = mutableState.value as? CommunityState.Result
                 if (existing != null) {
                     mutableState.value = existing.copy(
@@ -1083,6 +1086,7 @@ private class ForumPostPageModel(
                 }
                 throw error
             } catch (error: Exception) {
+                if (generation != loadGeneration) return@launch
                 AppLogger.e(
                     "ForumPostPageModel",
                     "Failed to load forum topic ${topic.id}",
@@ -1099,7 +1103,7 @@ private class ForumPostPageModel(
                     mutableState.value = CommunityState.Error(error.loadFailureKind())
                 }
             } finally {
-                loadStarted = false
+                if (generation == loadGeneration) loadStarted = false
             }
         }
     }

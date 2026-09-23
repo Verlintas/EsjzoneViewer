@@ -133,6 +133,10 @@ class FavoritePageModel(private val authorization: Authorization) :
 
     private val _deleteState = MutableStateFlow<DeleteState>(DeleteState.Idle)
     val deleteState: StateFlow<DeleteState> = _deleteState
+    private val _legacyBookshelfCount = MutableStateFlow(0)
+    val legacyBookshelfCount: StateFlow<Int> = _legacyBookshelfCount
+    private val _legacyRecoveryFailed = MutableStateFlow(false)
+    val legacyRecoveryFailed: StateFlow<Boolean> = _legacyRecoveryFailed
 
     fun sync(manualRetry: Boolean = true) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -158,10 +162,25 @@ class FavoritePageModel(private val authorization: Authorization) :
         initialized = true
         viewModelScope.launch(Dispatchers.IO) {
             BookshelfRepository.migrateLegacyScopeIfNeeded(authorization)
+            _legacyBookshelfCount.value = BookshelfRepository.pendingLegacyBookshelfCount(authorization)
         }
         scheduleMetadataSupplement()
         refreshDownloaded()
         autoCheck()
+    }
+
+    fun claimLegacyBookshelf() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                BookshelfRepository.claimLegacyBookshelf(authorization)
+                _legacyBookshelfCount.value = 0
+                _legacyRecoveryFailed.value = false
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _legacyRecoveryFailed.value = true
+            }
+        }
     }
 
     fun autoCheck() {

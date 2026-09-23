@@ -1,6 +1,5 @@
 package com.breakyuna.esjzone
 
-import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Resources
@@ -42,8 +41,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineScope
 import com.breakyuna.esjzone.ui.app.App
@@ -84,15 +81,20 @@ class MainActivity : ComponentActivity() {
             pendingNovelUrlState.value = url
         }
 
-        private val startupState = MutableStateFlow<StartupState>(StartupState.Starting)
-        val startup = startupState.asStateFlow()
-        private val initMutex = Mutex()
+        private val startupCoordinator = StartupCoordinator(
+            mapFailure = { error ->
+                AppLogger.sanitizeForDisplay(error.message ?: error.javaClass.simpleName)
+            },
+            onFailure = { error ->
+                AppLogger.e("MainActivity", "Failed to initialize database or settings", error)
+            }
+        )
+        val startup = startupCoordinator.state
         private val initScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-        private suspend fun initializeOnce(context: android.content.Context) = initMutex.withLock {
-            if (startupState.value is StartupState.Ready) return@withLock
+        private suspend fun initializeOnce(context: android.content.Context) {
             val appContext = context.applicationContext
-            try {
+            startupCoordinator.initializeOnce {
                 AppLogger.init(appContext)
                 CrashHandler.init(appContext)
                 val container = (appContext as EsjzoneApplication).container
@@ -101,10 +103,6 @@ class MainActivity : ComponentActivity() {
                 val settings = container.settingsDataStore
                 settings.migrateFromLegacy(container.database)
                 container.readerSettingsDataStore.migrateFromLegacy(appContext)
-                startupState.value = StartupState.Ready
-            } catch (e: Exception) {
-                AppLogger.e("MainActivity", "Failed to initialize database or settings", e)
-                startupState.value = StartupState.Failed(AppLogger.sanitizeForDisplay(e.message ?: e.javaClass.simpleName))
             }
         }
 
@@ -139,7 +137,10 @@ class MainActivity : ComponentActivity() {
                         App()
                         ReleaseUpdateDialog()
                     } else {
-                        StartupContent(state) { startupState.value = StartupState.Starting; initScope.launch { initializeOnce(appContext) } }
+                        StartupContent(state) {
+                            startupCoordinator.retry()
+                            initScope.launch { initializeOnce(appContext) }
+                        }
                     }
                 }
             }
@@ -161,12 +162,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-}
-
-sealed interface StartupState {
-    data object Starting : StartupState
-    data object Ready : StartupState
-    data class Failed(val reason: String) : StartupState
 }
 
 @Composable

@@ -60,7 +60,9 @@ fun EsjzoneClient.getChapterDetail(
             PageKind.CHAPTER
         )
     } catch (error: Exception) {
-        NovelDownloadStore.readChapter(targetUrl)?.let { downloaded ->
+        NovelDownloadStore.readChapter(targetUrl)
+            ?.takeUnless { isPasswordProtectedChapterHtml(it.contentHtml.orEmpty(), targetUrl) }
+            ?.let { downloaded ->
             AppLogger.w(
                 "GetChapterDetail",
                 "Network unavailable; falling back to downloaded chapter: $targetUrl",

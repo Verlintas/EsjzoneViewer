@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import com.breakyuna.esjzone.network.Authorization
 import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.network.LoadFailureKind
@@ -52,6 +54,7 @@ class ChapterPageModel(
         const val APPEND_RETRY_COOLDOWN_MILLIS = 3_000L
         /** A consumed chapter must finish saving even after the reader entry is popped. */
         val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val persistenceSemaphore = Semaphore(2)
     }
 
     sealed class State {
@@ -93,6 +96,7 @@ class ChapterPageModel(
     private var failedAppendChapterKey: String? = null
     private var failedAppendAtMillis = 0L
     private var failedPrependChapterKey: String? = null
+    private var failedPrependAtMillis = 0L
     /** Latest completed reader layout anchor; null means no safe trim point. */
     private var windowAnchor: ReaderWindowAnchor? = null
 
@@ -145,6 +149,7 @@ class ChapterPageModel(
             offlineChapterKeys.clear()
             failedAppendChapterKey = null
             failedPrependChapterKey = null
+            failedPrependAtMillis = 0L
             windowAnchor = null
         }
         // Cancel outside the model lock: cancellation handlers may publish or
@@ -356,7 +361,8 @@ class ChapterPageModel(
             if (loadingPrevious || loadedChapters.isEmpty()) return
             val first = loadedChapters.first()
             val candidate = adjacentChapter(first.chapter, -1, first.fallbackPrevious) ?: return
-            if (chapterKey(candidate) == failedPrependChapterKey) return
+            if (chapterKey(candidate) == failedPrependChapterKey &&
+                System.currentTimeMillis() - failedPrependAtMillis < APPEND_RETRY_COOLDOWN_MILLIS) return
             if (loadedChapters.any { sameChapter(it.chapter, candidate) }) return
             previousChapter = candidate
             loadingPrevious = true
@@ -386,6 +392,7 @@ class ChapterPageModel(
                                 )
                             )
                             failedPrependChapterKey = null
+                            failedPrependAtMillis = 0L
                             trimLoadedChaptersFromEnd()
                         }
                     }
@@ -398,6 +405,7 @@ class ChapterPageModel(
                 synchronized(lock) {
                     if (isCurrentSessionLocked(session)) {
                         failedPrependChapterKey = chapterKey(chapterToLoad)
+                        failedPrependAtMillis = System.currentTimeMillis()
                     }
                 }
                 AppLogger.e(
@@ -517,30 +525,20 @@ class ChapterPageModel(
     /** Disk manifest work must not hold up publication of the reader window. */
     private fun queueChapterPersistence(chapter: Chapter, detail: DetailedChapter) {
         if (!PresentationAccess.settings.readerAutoSaveFlow.value) return
+        if (detail.content.isEmpty()) return
         val orderSnapshot = synchronized(lock) { orderedChapters.toList() }
+        val novelIdSnapshot = novelId
+        val novelNameSnapshot = novelName
+        val novelUrlSnapshot = novelUrl
+        val novelCoverUrlSnapshot = novelCoverUrl
+        val authorizationSnapshot = authorization
         persistenceScope.launch {
-            persistLoadedChapter(chapter, detail, orderSnapshot)
-        }
-    }
-
-    /** Saves successfully loaded reader content without delaying UI publication. */
-    private fun persistLoadedChapter(chapter: Chapter, detail: DetailedChapter, orderSnapshot: List<Chapter>) {
-        val targetNovelUrl = novelUrl.trim().takeIf { it.isNotBlank() }
-            ?.let { EsjzoneUrls.resolve(it) }
-            ?: if (novelId.isBlank()) "" else "${EsjzoneUrls.Base}/detail/$novelId.html"
-        if (targetNovelUrl.isBlank()) return
-        runCatching {
-            PresentationAccess.downloads.saveChapter(
-                novelName = novelName,
-                novelUrl = targetNovelUrl,
-                coverUrl = novelCoverUrl,
-                chapterOrder = orderSnapshot,
-                chapter = chapter,
-                detail = detail,
-                authorization = authorization
-            )
-        }.onFailure { error ->
-            AppLogger.w("ChapterPageModel", "Failed to auto-save chapter ${chapter.name}", error)
+            persistenceSemaphore.withPermit {
+                persistLoadedChapter(
+                    chapter, detail, orderSnapshot, novelIdSnapshot, novelNameSnapshot,
+                    novelUrlSnapshot, novelCoverUrlSnapshot, authorizationSnapshot
+                )
+            }
         }
     }
 
@@ -702,6 +700,36 @@ class ChapterPageModel(
             protectedKeys = protectedKeys
         ).toSet()
         loadedChapters.retainAll { chapterKey(it.chapter) in retainedKeys }
+    }
+}
+
+/** Saves a value snapshot without retaining the reader ViewModel after navigation. */
+private fun persistLoadedChapter(
+    chapter: Chapter,
+    detail: DetailedChapter,
+    orderSnapshot: List<Chapter>,
+    novelId: String,
+    novelName: String,
+    novelUrl: String,
+    novelCoverUrl: String,
+    authorization: Authorization
+) {
+    val targetNovelUrl = novelUrl.trim().takeIf { it.isNotBlank() }
+        ?.let { EsjzoneUrls.resolve(it) }
+        ?: if (novelId.isBlank()) "" else "${EsjzoneUrls.Base}/detail/$novelId.html"
+    if (targetNovelUrl.isBlank()) return
+    runCatching {
+        PresentationAccess.downloads.saveChapter(
+            novelName = novelName,
+            novelUrl = targetNovelUrl,
+            coverUrl = novelCoverUrl,
+            chapterOrder = orderSnapshot,
+            chapter = chapter,
+            detail = detail,
+            authorization = authorization
+        )
+    }.onFailure { error ->
+        AppLogger.w("ChapterPageModel", "Failed to auto-save chapter ${chapter.name}", error)
     }
 }
 

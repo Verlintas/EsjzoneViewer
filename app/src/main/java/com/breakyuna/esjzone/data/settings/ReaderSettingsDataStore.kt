@@ -20,6 +20,8 @@ import com.breakyuna.esjzone.ui.reader.ReaderSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -46,6 +48,7 @@ class ReaderSettingsDataStore(
     )
 
     private val migrationMutex = Mutex()
+    private var pendingReaderSave: Job? = null
 
     val settings: StateFlow<ReaderSettings> = dataStore.data
         .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
@@ -64,6 +67,21 @@ class ReaderSettingsDataStore(
                 save(settings)
             } catch (e: IOException) {
                 AppLogger.e("ReaderSettingsDataStore", "Failed to save reader settings in background", e)
+            }
+        }
+    }
+
+    /** Debounces slider changes in the store's scope so leaving the reader does not discard them. */
+    fun saveDebounced(settings: ReaderSettings) {
+        synchronized(this) {
+            pendingReaderSave?.cancel()
+            pendingReaderSave = scope.launch {
+                delay(250)
+                try {
+                    save(settings)
+                } catch (e: IOException) {
+                    AppLogger.e("ReaderSettingsDataStore", "Failed to save reader settings", e)
+                }
             }
         }
     }

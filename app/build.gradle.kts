@@ -1,5 +1,6 @@
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -12,6 +13,13 @@ plugins {
 
 val app_version_index = project.properties["app_version_index"].toString().toInt()
 val app_version = project.properties["app_version"].toString()
+val localDebugSigningDirectory = File(System.getProperty("user.home"), ".secrets/esjzoneviewer")
+val localDebugSigningPropertiesFile = localDebugSigningDirectory.resolve("signing.properties")
+val localDebugSigningProperties = Properties().apply {
+    if (localDebugSigningPropertiesFile.isFile) {
+        localDebugSigningPropertiesFile.inputStream().use { load(it) }
+    }
+}
 
 android {
     namespace = "com.breakyuna.esjzone"
@@ -42,10 +50,28 @@ android {
 
     signingConfigs {
         create("debugConfig") {
-            storeFile = file("${rootDir}/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            if (localDebugSigningPropertiesFile.isFile) {
+                val requiredProperties = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+                val missingProperties = requiredProperties.filter {
+                    localDebugSigningProperties.getProperty(it).isNullOrBlank()
+                }
+                check(missingProperties.isEmpty()) {
+                    "Missing local debug signing properties: ${missingProperties.joinToString()}"
+                }
+                val localKeystore = localDebugSigningDirectory.resolve(
+                    localDebugSigningProperties.getProperty("storeFile")
+                )
+                check(localKeystore.isFile) { "Local debug keystore not found: $localKeystore" }
+                storeFile = localKeystore
+                storePassword = localDebugSigningProperties.getProperty("storePassword")
+                keyAlias = localDebugSigningProperties.getProperty("keyAlias")
+                keyPassword = localDebugSigningProperties.getProperty("keyPassword")
+            } else {
+                storeFile = file("${rootDir}/debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
     }
 
@@ -131,7 +157,6 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
-    testImplementation("org.robolectric:robolectric:4.12.2")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

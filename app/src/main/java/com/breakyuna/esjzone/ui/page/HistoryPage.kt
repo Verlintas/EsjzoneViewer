@@ -140,6 +140,8 @@ object HistoryPage : AppDestination {
         var localSelected by remember { mutableStateOf<Set<String>>(emptySet()) }
         var pendingLocalDelete by remember { mutableStateOf<Set<String>>(emptySet()) }
         var showLocalDeleteDialog by remember { mutableStateOf(false) }
+        var localDeleteError by remember { mutableStateOf(false) }
+        var deletingLocal by remember { mutableStateOf(false) }
         var showCloudSyncStatusMenu by remember { mutableStateOf(false) }
 
         BackHandler(enabled = localEditing && !showLocalDeleteDialog) {
@@ -180,6 +182,7 @@ object HistoryPage : AppDestination {
 
         fun requestLocalDelete() {
             pendingLocalDelete = localSelected
+            localDeleteError = false
             showLocalDeleteDialog = localSelected.isNotEmpty()
         }
 
@@ -292,11 +295,24 @@ object HistoryPage : AppDestination {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showLocalDeleteDialog = false },
                 title = { Text(stringResource(R.string.history_local_delete_title, pendingLocalDelete.size)) },
-                text = { Text(stringResource(R.string.history_local_delete_confirm)) },
+                text = {
+                    Column {
+                        Text(stringResource(R.string.history_local_delete_confirm))
+                        if (localDeleteError) Text(
+                            stringResource(R.string.history_local_delete_failed),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
                 confirmButton = {
-                    TextButton(onClick = {
-                        localModel.delete(pendingLocalDelete)
-                        finishLocalEditing()
+                    TextButton(enabled = !deletingLocal, onClick = {
+                        deletingLocal = true
+                        localDeleteError = false
+                        localModel.delete(pendingLocalDelete) { succeeded ->
+                            deletingLocal = false
+                            if (succeeded) finishLocalEditing()
+                            else localDeleteError = true
+                        }
                     }) {
                         Text(stringResource(R.string.history_local_delete_confirm_action), color = MaterialTheme.colorScheme.error)
                     }
@@ -725,13 +741,20 @@ class LocalHistoryPageModel(private val authorization: Authorization) : AppState
 
     fun clear() { viewModelScope.launch(Dispatchers.IO) { runCatching { PresentationAccess.database.localReadingActivityDao().deleteAll() }.onFailure { AppLogger.e("LocalHistoryPageModel", "Failed to clear local history", it) } } }
 
-    fun delete(activityIds: Set<String>) {
-        if (activityIds.isEmpty()) return
+    fun delete(activityIds: Set<String>, onComplete: (Boolean) -> Unit) {
+        if (activityIds.isEmpty()) {
+            onComplete(true)
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            try {
                 PresentationAccess.database.localReadingActivityDao().deleteByIds(activityIds.toList())
-            }.onFailure {
-                AppLogger.e("LocalHistoryPageModel", "Failed to delete selected local history", it)
+                withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.e("LocalHistoryPageModel", "Failed to delete selected local history", e)
+                withContext(Dispatchers.Main) { onComplete(false) }
             }
         }
     }

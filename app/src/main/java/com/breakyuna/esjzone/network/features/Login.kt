@@ -94,6 +94,7 @@ fun EsjzoneClient.login(email: String, password: String): Authorization? {
         }
 
         loginResponseUrl?.let { responseUrl ->
+            activateAccountScope(responseUrl.host, email, key)
             rotatePageCacheScope(responseUrl.host)
             persistCookies(responseUrl, cookies)
         }

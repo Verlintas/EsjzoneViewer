@@ -1528,7 +1528,13 @@ private fun NovelDownloadActions(
                                 val detail = PresentationAccess.client.unlockPasswordProtectedChapter(
                                     authorization,
                                     Chapter(record.name, record.url, false),
-                                    submittedPassword
+                                    submittedPassword,
+                                    baseUrl = EsjzoneUrls.resolve(
+                                        novel.url,
+                                        EsjzoneUrls.baseForDomain(
+                                            authorization.domain.ifBlank { EsjzoneUrls.BaseWithoutProtocol }
+                                        )
+                                    )
                                 )
                                 PresentationAccess.downloads.saveChapter(
                                     novelName = novel.name,

@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.breakyuna.esjzone.database.entity.Cache
 
@@ -35,6 +36,17 @@ interface CacheDao {
     @Query("SELECT EXISTS(SELECT * FROM cache WHERE cache_key = :key)")
     fun exists(key: String): Boolean
 
+    @Transaction
+    fun putAtomic(key: String, value: String) {
+        val cache = findByKey(key)
+        if (cache == null) {
+            insertAll(Cache(key = key, value = value))
+        } else if (cache.value != value) {
+            cache.value = value
+            update(cache)
+        }
+    }
+
 }
 
 /**
@@ -42,11 +54,5 @@ interface CacheDao {
  * damaged data, or a previous database migration.
  */
 fun CacheDao.put(key: String, value: String) {
-    val cache = findByKey(key)
-    if (cache == null) {
-        insertAll(Cache(key = key, value = value))
-    } else if (cache.value != value) {
-        cache.value = value
-        update(cache)
-    }
+    putAtomic(key, value)
 }

@@ -164,6 +164,8 @@ URL：/forum/{novelId}/{postId}.html
 3. 图片 URL 用 img[src] 提取，并保留 alt/class。
 4. 评论区不并入正文，只取 .forum-content.mt-3。
 
+离线任务读取章节及提交章节密码时，URL 均以任务入队时保存的站点基址解析；前台切换镜像不改变该任务的请求主机。
+
 ### 6.2 元数据和导航
 
 | 字段 | 选择器 |

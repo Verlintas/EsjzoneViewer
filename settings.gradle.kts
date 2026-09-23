@@ -22,4 +22,3 @@ dependencyResolutionManagement {
 rootProject.name = "EsjzoneApplication"
 include(":app")
 include(":baselineprofile")
-include(":macrobenchmark")

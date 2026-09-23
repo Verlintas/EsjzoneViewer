@@ -87,6 +87,8 @@ object BookmarksPage : AppDestination {
         var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
         var pendingDelete by remember { mutableStateOf<List<LocalBookmark>>(emptyList()) }
         var showDeleteDialog by remember { mutableStateOf(false) }
+        var deleteError by remember { mutableStateOf(false) }
+        var deleting by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) { model.load() }
 
         val bookmarks = (state as? BookmarksPageModel.State.Result)?.bookmarks.orEmpty()
@@ -95,6 +97,7 @@ object BookmarksPage : AppDestination {
 
         fun requestDelete(bookmarksToDelete: List<LocalBookmark>) {
             pendingDelete = bookmarksToDelete
+            deleteError = false
             showDeleteDialog = bookmarksToDelete.isNotEmpty()
         }
 
@@ -197,12 +200,26 @@ object BookmarksPage : AppDestination {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
                 title = { Text(stringResource(R.string.bookmark_delete_title, pendingDelete.size)) },
-                text = { Text(stringResource(R.string.bookmark_delete_confirm)) },
+                text = {
+                    Column {
+                        Text(stringResource(R.string.bookmark_delete_confirm))
+                        if (deleteError) Text(
+                            stringResource(R.string.bookmark_delete_failed),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
                 confirmButton = {
-                    TextButton(onClick = {
-                        model.delete(pendingDelete)
-                        showDeleteDialog = false
-                        exitEditing()
+                    TextButton(enabled = !deleting, onClick = {
+                        deleting = true
+                        deleteError = false
+                        model.delete(pendingDelete) { succeeded ->
+                            deleting = false
+                            if (succeeded) {
+                                showDeleteDialog = false
+                                exitEditing()
+                            } else deleteError = true
+                        }
                     }) {
                         Text(stringResource(R.string.bookmark_delete_action), color = MaterialTheme.colorScheme.error)
                     }
@@ -319,18 +336,24 @@ private class BookmarksPageModel : AppStateViewModel<BookmarksPageModel.State>(S
         load()
     }
 
-    fun delete(bookmarks: List<LocalBookmark>) {
-        if (bookmarks.isEmpty()) return
+    fun delete(bookmarks: List<LocalBookmark>, onComplete: (Boolean) -> Unit) {
+        if (bookmarks.isEmpty()) {
+            onComplete(true)
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 PresentationAccess.database.bookmarkDao().deleteAll(bookmarks)
                 bookmarks.forEach { bookmark ->
-                    BookmarkCoverStore.cleanupIfUnused(bookmark.novelId, bookmark.chapterUrl)
+                    runCatching { BookmarkCoverStore.cleanupIfUnused(bookmark.novelId, bookmark.chapterUrl) }
+                        .onFailure { AppLogger.w("BookmarksPageModel", "Failed to clean up bookmark cover", it) }
                 }
+                withContext(Dispatchers.Main) { onComplete(true) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 AppLogger.e("BookmarksPageModel", "Failed to delete local bookmark", e)
+                withContext(Dispatchers.Main) { onComplete(false) }
             }
         }
     }

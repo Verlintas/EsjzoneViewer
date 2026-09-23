@@ -142,6 +142,8 @@ object FavoritePage : AppDestination {
         val downloaded by model.downloadedBookKeys.collectAsStateWithLifecycle()
         val syncState by model.state.collectAsStateWithLifecycle()
         val deleteState by model.deleteState.collectAsStateWithLifecycle()
+        val legacyBookshelfCount by model.legacyBookshelfCount.collectAsStateWithLifecycle()
+        val legacyRecoveryFailed by model.legacyRecoveryFailed.collectAsStateWithLifecycle()
         val adult by PresentationAccess.settings.adult
         val snackbar = remember { SnackbarHostState() }
         val listState = rememberLazyListState()
@@ -152,6 +154,7 @@ object FavoritePage : AppDestination {
         var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
         var pendingDelete by remember { mutableStateOf<List<BookshelfEntry>>(emptyList()) }
         var showDeleteDialog by remember { mutableStateOf(false) }
+        var showLegacyRecoveryDialog by remember { mutableStateOf(false) }
         var showSyncStatusMenu by remember { mutableStateOf(false) }
         var showSortMenu by remember { mutableStateOf(false) }
         var lastHandledSyncEventId by rememberSaveable { mutableStateOf(0L) }
@@ -478,6 +481,28 @@ object FavoritePage : AppDestination {
                                     }
                                 }
                             }
+                            if (!editing && legacyBookshelfCount > 0) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    shape = AppShapes.standard
+                                ) {
+                                    Column(Modifier.padding(AppSpacing.md)) {
+                                        Text(
+                                            stringResource(R.string.bookshelf_legacy_recovery_message, legacyBookshelfCount),
+                                            style = AppTypography.bodyMedium
+                                        )
+                                        if (legacyRecoveryFailed) {
+                                            Text(
+                                                stringResource(R.string.bookshelf_legacy_recovery_failed),
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                        TextButton(onClick = { showLegacyRecoveryDialog = true }) {
+                                            Text(stringResource(R.string.bookshelf_legacy_recovery_action))
+                                        }
+                                    }
+                                }
+                            }
                             if (!editing && recentReads.isNotEmpty()) {
                                 AppBookshelfRecentReads(
                                     books = recentReads,
@@ -559,6 +584,24 @@ object FavoritePage : AppDestination {
             }
         }
 
+        if (showLegacyRecoveryDialog) {
+            AlertDialog(
+                onDismissRequest = { showLegacyRecoveryDialog = false },
+                title = { Text(stringResource(R.string.bookshelf_legacy_recovery_title)) },
+                text = { Text(stringResource(R.string.bookshelf_legacy_recovery_confirm)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showLegacyRecoveryDialog = false
+                        model.claimLegacyBookshelf()
+                    }) { Text(stringResource(R.string.bookshelf_legacy_recovery_action)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLegacyRecoveryDialog = false }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                }
+            )
+        }
         if (showDeleteDialog) {
             AlertDialog(
                 onDismissRequest = { if (!deleting) showDeleteDialog = false },

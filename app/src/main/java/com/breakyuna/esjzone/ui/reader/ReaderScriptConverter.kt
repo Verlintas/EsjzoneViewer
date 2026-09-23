@@ -25,7 +25,7 @@ object ReaderScriptConverter {
 
     private val transliteratorLock = Any()
 
-    /** Pre-warms the cache on background threads so UI rendering never encounters synchronous transliterator locks. */
+    /** Converts on the caller's thread; callers should use a background dispatcher. */
     fun preload(texts: Iterable<String>, script: ReaderScript) {
         if (script == ReaderScript.ORIGINAL) return
         for (text in texts) {
@@ -56,6 +56,35 @@ object ReaderScriptConverter {
                 else -> Unit
             }
         }
+    }
+
+    /** Builds a complete immutable transform table before a reader window is rendered. */
+    fun snapshot(
+        documents: Iterable<com.breakyuna.esjzone.domain.reader.ReaderChapterDocument>,
+        script: ReaderScript
+    ): Map<String, String> {
+        if (script == ReaderScript.ORIGINAL) return emptyMap()
+        val result = HashMap<String, String>()
+        fun add(value: String?) {
+            if (!value.isNullOrEmpty() && value !in result) result[value] = convert(value, script)
+        }
+        documents.forEach { document ->
+            add(document.chapter.name)
+            document.blocks.forEach { block ->
+                when (block) {
+                    is com.breakyuna.esjzone.domain.reader.ReaderBlock.Paragraph -> block.parts.forEach { part ->
+                        add(part.value)
+                        add(part.ruby?.reading)
+                    }
+                    is com.breakyuna.esjzone.domain.reader.ReaderBlock.Text -> {
+                        add(block.value)
+                        add(block.ruby?.reading)
+                    }
+                    else -> Unit
+                }
+            }
+        }
+        return result
     }
 
     fun convert(text: String, script: ReaderScript): String = when (script) {

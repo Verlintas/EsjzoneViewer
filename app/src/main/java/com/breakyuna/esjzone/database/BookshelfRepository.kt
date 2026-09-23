@@ -56,7 +56,7 @@ private data class MetadataSupplementItem(
  * Single owner of the local-first shelf state machine. UI reads only its Room
  * flow; all remote work is serialized here and writes back into Room.
  *
- * Rows are scoped by account cache identity and domain, providing complete
+ * Rows are scoped by account identity and domain, providing complete
  * isolation across account switches while preserving offline data across
  * transparent cookie rotations. Legacy domain-only scopes are smoothly migrated
  * on first access for single-account upgrades.
@@ -116,6 +116,21 @@ object BookshelfRepository {
         }
     }
 
+    /** An old cache-scoped shelf can only be assigned after the user explicitly claims it. */
+    suspend fun pendingLegacyBookshelfCount(authorization: Authorization): Int {
+        val oldScope = EsjzoneClient.pendingLegacyBookshelfScope(authorization) ?: return 0
+        return requireDao().count(oldScope)
+    }
+
+    suspend fun claimLegacyBookshelf(authorization: Authorization): Int = intentMutex.withLock {
+        val oldScope = EsjzoneClient.pendingLegacyBookshelfScope(authorization) ?: return@withLock 0
+        val targetScope = scopeFor(authorization)
+        val moved = requireDao().migrateScope(oldScope, targetScope)
+        EsjzoneClient.clearPendingLegacyBookshelfScope(authorization)
+        if (moved > 0) scheduleSync(authorization)
+        moved
+    }
+
     fun keyFor(url: String): String =
         EsjzoneUrls.canonicalPageKey(url).ifBlank { EsjzoneUrls.resolve(url).substringBefore('#') }
 
@@ -171,8 +186,14 @@ object BookshelfRepository {
                 ?: fallbackCover
             val author = current?.author?.takeIf { it.isNotBlank() } ?: crossScope?.author.orEmpty()
             val isAdult = current?.isAdult ?: crossScope?.isAdult ?: false
+            val base = current ?: BookshelfEntry(
+                scope = scope,
+                bookKey = key,
+                url = EsjzoneUrls.resolve(novel.url).substringBefore('#'),
+                title = novel.name
+            )
             val next = if (desired) {
-                BookshelfEntry(
+                base.copy(
                     scope = scope,
                     bookKey = key,
                     novelId = current?.novelId?.takeIf { it.isNotBlank() } ?: novelIdFor(novel.url),
@@ -197,7 +218,7 @@ object BookshelfRepository {
                     operationVersion = nextVersion
                 )
             } else {
-                BookshelfEntry(
+                base.copy(
                     scope = scope,
                     bookKey = key,
                     novelId = current?.novelId?.takeIf { it.isNotBlank() } ?: novelIdFor(novel.url),

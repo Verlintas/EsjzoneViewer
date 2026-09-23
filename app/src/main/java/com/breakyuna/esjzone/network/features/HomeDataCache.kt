@@ -2,6 +2,7 @@ package com.breakyuna.esjzone.network.features
 
 import android.content.Context
 import com.breakyuna.esjzone.EsjzoneApplication
+import com.breakyuna.esjzone.network.EsjzoneUrls
 import com.breakyuna.esjzone.novellibrary.data.HomeData
 import com.breakyuna.esjzone.novellibrary.data.WeeklyUpdateDay
 import com.breakyuna.esjzone.novellibrary.data.WeeklyPopularNovel
@@ -31,40 +32,57 @@ object HomeDataCache {
     private var memoryCache: HomeData? = null
 
     @Volatile
+    private var memoryDomain: String? = null
+
+    @Volatile
     private var storageDir: File? = null
 
     fun initialize(context: Context) {
         val dir = context.applicationContext.filesDir
         storageDir = dir
-        if (memoryCache == null) {
-            synchronized(ioLock) {
-                if (memoryCache == null) {
-                    memoryCache = loadFromDisk(dir)
+        synchronized(ioLock) {
+            if (memoryDomain == null) {
+                loadFromDisk(dir)?.let { (domain, data) ->
+                    memoryDomain = domain
+                    memoryCache = data
                 }
             }
         }
     }
 
-    fun readSnapshot(): HomeData? {
-        memoryCache?.let { return it }
+    private fun normalizeDomain(domain: String): String {
+        val effective = domain.ifBlank { EsjzoneUrls.BaseWithoutProtocol }
+        return effective.trim().lowercase().removePrefix("www.")
+    }
+
+    fun readSnapshot(domain: String): HomeData? {
+        val normalizedDomain = normalizeDomain(domain)
         val dir = storageDir ?: runCatching {
             EsjzoneApplication.instance.filesDir
         }.getOrNull() ?: return null
 
         return synchronized(ioLock) {
-            memoryCache ?: loadFromDisk(dir)?.also { memoryCache = it }
+            if (memoryDomain == normalizedDomain) {
+                memoryCache
+            } else {
+                loadFromDisk(dir)?.let { (diskDomain, data) ->
+                    memoryDomain = diskDomain
+                    memoryCache = data
+                    if (diskDomain == normalizedDomain) data else null
+                }
+            }
         }
     }
 
-    fun writeSnapshot(data: HomeData) {
-        memoryCache = data
+    fun writeSnapshot(domain: String, data: HomeData) {
+        val normalizedDomain = normalizeDomain(domain)
         val dir = storageDir ?: runCatching {
             EsjzoneApplication.instance.filesDir
         }.getOrNull() ?: return
 
         synchronized(ioLock) {
             try {
-                val snapshot = data.toSnapshot()
+                val snapshot = data.toSnapshot(normalizedDomain)
                 val json = gson.toJson(snapshot)
                 val targetFile = File(dir, FILE_NAME)
                 val tempFile = File(dir, "$FILE_NAME.tmp")
@@ -83,19 +101,24 @@ object HomeDataCache {
                         StandardCopyOption.REPLACE_EXISTING
                     )
                 }
+                memoryDomain = normalizedDomain
+                memoryCache = data
             } catch (e: Exception) {
                 AppLogger.w("HomeDataCache", "Failed to write home data snapshot", e)
             }
         }
     }
 
-    private fun loadFromDisk(dir: File): HomeData? {
+    private fun loadFromDisk(dir: File): Pair<String, HomeData>? {
         val file = File(dir, FILE_NAME)
         if (!file.isFile) return null
         return try {
             val json = file.readText(StandardCharsets.UTF_8)
             val snapshot = gson.fromJson(json, HomeDataSnapshot::class.java)
-            snapshot?.toHomeData()
+            val data = snapshot?.toHomeData() ?: return null
+            val domain = snapshot.domain?.takeIf(String::isNotBlank)?.let(::normalizeDomain)
+                ?: normalizeDomain("")
+            domain to data
         } catch (e: Exception) {
             AppLogger.w("HomeDataCache", "Failed to read home data snapshot", e)
             runCatching { file.delete() }
@@ -103,7 +126,8 @@ object HomeDataCache {
         }
     }
 
-    private fun HomeData.toSnapshot(): HomeDataSnapshot = HomeDataSnapshot(
+    private fun HomeData.toSnapshot(domain: String): HomeDataSnapshot = HomeDataSnapshot(
+        domain = domain,
         recentlyUpdateTranslated = recentlyUpdateTranslated.map(::toImpl),
         recentlyUpdateOriginal = recentlyUpdateOriginal.map(::toImpl),
         recentlyUpdateTranslatedR18 = recentlyUpdateTranslatedR18.map(::toImpl),
@@ -137,6 +161,8 @@ object HomeDataCache {
 }
 
 internal data class HomeDataSnapshot(
+    @SerializedName("domain")
+    val domain: String? = null,
     @SerializedName("recentlyUpdateTranslated")
     val recentlyUpdateTranslated: List<CoveredNovelImpl>? = null,
     @SerializedName("recentlyUpdateOriginal")

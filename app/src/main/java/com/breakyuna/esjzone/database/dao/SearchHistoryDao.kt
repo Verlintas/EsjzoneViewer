@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.breakyuna.esjzone.database.entity.SearchHistory
 
@@ -25,5 +26,12 @@ interface SearchHistoryDao {
 
     @Delete
     fun delete(vararg histories: SearchHistory)
+
+    @Transaction
+    fun saveKeyword(keyword: String, time: String) {
+        val history = findByKeyword(keyword) ?: SearchHistory(keyword = keyword, time = time)
+        history.time = time
+        insertAll(history)
+    }
 
 }

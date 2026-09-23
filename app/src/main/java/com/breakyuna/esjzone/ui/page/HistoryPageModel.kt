@@ -26,6 +26,7 @@ class HistoryPageModel(
 
     private var loadJob: Job? = null
     private var loadStarted = false
+    @Volatile private var loadGeneration = 0L
 
     sealed class State {
         data object Loading : State()
@@ -41,6 +42,7 @@ class HistoryPageModel(
     fun getNovels(forceRefresh: Boolean = false) {
         if (loadStarted) return
         loadStarted = true
+        val generation = ++loadGeneration
         loadJob?.cancel()
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             val visibleData = mutableState.value as? State.Result
@@ -65,6 +67,7 @@ class HistoryPageModel(
                     lastSyncFailure = null
                 )
             } catch (e: CancellationException) {
+                if (generation != loadGeneration) throw e
                 val current = mutableState.value
                 if (current is State.Result) {
                     mutableState.value = current.copy(
@@ -77,6 +80,7 @@ class HistoryPageModel(
                 }
                 throw e
             } catch (e: Exception) {
+                if (generation != loadGeneration) return@launch
                 if (visibleData == null) {
                     mutableState.value = State.Error(e.loadFailureKind())
                 } else {
@@ -88,7 +92,7 @@ class HistoryPageModel(
                 }
                 AppLogger.e("HistoryPageModel", "Failed to load cloud histories", e)
             } finally {
-                loadStarted = false
+                if (generation == loadGeneration) loadStarted = false
             }
         }
     }

@@ -235,6 +235,7 @@
     <string name="history_local_delete_title">确认删除 %1$d 条本地记录？</string>
     <string name="history_local_delete_confirm">删除后将无法恢复，但不会影响书架、云端历史、下载内容或书签。</string>
     <string name="history_local_delete_confirm_action">删除记录</string>
+    <string name="history_local_delete_failed">Could not delete the selected history. Please try again.</string>
     <string name="history_cloud_sync">同步云端历史</string>
     <string name="history_cloud_sync_running">云端历史同步中</string>
     <string name="history_cloud_sync_success">云端历史已同步</string>
@@ -489,6 +490,12 @@
     <string name="bookmark_delete_title">确认删除 %1$d 个书签？</string>
     <string name="bookmark_delete_confirm">删除后将无法恢复。</string>
     <string name="bookmark_delete_action">删除</string>
+    <string name="bookmark_delete_failed">Could not delete the selected bookmarks. Please try again.</string>
+    <string name="bookshelf_legacy_recovery_message">发现 %1$d 本旧版应用保存的书架作品。</string>
+    <string name="bookshelf_legacy_recovery_title">恢复旧书架？</string>
+    <string name="bookshelf_legacy_recovery_confirm">请确认这些作品属于当前账号。恢复后，本地书架会同步到当前账号。</string>
+    <string name="bookshelf_legacy_recovery_action">恢复旧书架</string>
+    <string name="bookshelf_legacy_recovery_failed">恢复失败，请重试。</string>
     <string name="local_cache">本地缓存</string>
     <string name="local_cache_description">已打开的小说页面会保存在本机，便于再次阅读</string>
     <string name="local_cache_pages">页面：%1$s · %2$d 个文件</string>

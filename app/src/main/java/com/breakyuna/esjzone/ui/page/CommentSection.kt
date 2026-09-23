@@ -1103,6 +1103,7 @@ internal class CommentPageModel(
 ) : AppStateViewModel<CommunityState<List<Comment>>>(CommunityState.Loading) {
     private var loadJob: Job? = null
     private var loadStarted = false
+    @Volatile private var loadGeneration = 0L
 
     val isSubmitting = mutableStateOf(false)
     val submitError = mutableStateOf<CommentSubmitError?>(null)
@@ -1116,6 +1117,7 @@ internal class CommentPageModel(
     fun load(forceRefresh: Boolean = false) {
         if (!forceRefresh && loadStarted) return
         loadStarted = true
+        val generation = ++loadGeneration
         loadJob?.cancel()
         loadJob = viewModelScope.launch(Dispatchers.IO) {
             val currentResult = mutableState.value as? CommunityState.Result
@@ -1158,6 +1160,7 @@ internal class CommentPageModel(
                     )
                 }
             } catch (error: CancellationException) {
+                if (generation != loadGeneration) throw error
                 val existing = mutableState.value as? CommunityState.Result
                 if (existing != null) {
                     mutableState.value = existing.copy(
@@ -1170,6 +1173,7 @@ internal class CommentPageModel(
                 }
                 throw error
             } catch (error: Exception) {
+                if (generation != loadGeneration) return@launch
                 AppLogger.e("CommentPageModel", "Failed to load comments", error)
                 val existing = mutableState.value as? CommunityState.Result
                 if (existing != null) {
@@ -1182,7 +1186,7 @@ internal class CommentPageModel(
                     mutableState.value = CommunityState.Error(error.loadFailureKind())
                 }
             } finally {
-                loadStarted = false
+                if (generation == loadGeneration) loadStarted = false
             }
         }
     }

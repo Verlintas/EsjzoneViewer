@@ -314,6 +314,10 @@ object NovelDownloadStore {
         onProgress: (current: Int, total: Int) -> Unit = { _, _ -> }
     ): BatchUnlockResult {
         val trimmed = commonPassword.trim()
+        val unlockBaseUrl = EsjzoneUrls.resolve(
+            novel.url,
+            EsjzoneUrls.baseForDomain(authorization.domain.ifBlank { EsjzoneUrls.BaseWithoutProtocol })
+        ).ifBlank { EsjzoneUrls.baseForDomain(authorization.domain.ifBlank { EsjzoneUrls.BaseWithoutProtocol }) }
         val directory = directoryFor(novel.url, create = true)
             ?: return BatchUnlockResult(0, 0, 0, null)
         val writeGuard = newWriteGuard(directory)
@@ -341,13 +345,16 @@ object NovelDownloadStore {
         val total = pending.size
 
         for ((idx, record) in pending.withIndex()) {
+            currentCoroutineContext().ensureActive()
             onProgress(idx + 1, total)
             try {
                 val detail = EsjzoneClient.unlockPasswordProtectedChapter(
                     authorization = authorization,
                     chapter = Chapter(record.name, record.url, false),
-                    password = trimmed
+                    password = trimmed,
+                    baseUrl = unlockBaseUrl
                 )
+                currentCoroutineContext().ensureActive()
                 saveChapter(
                     novelName = novel.name,
                     novelUrl = novel.url,
@@ -357,7 +364,10 @@ object NovelDownloadStore {
                     detail = detail,
                     authorization = authorization
                 )
+                currentCoroutineContext().ensureActive()
                 unlocked++
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 AppLogger.w("NovelDownloadStore", "Common password unlock failed for chapter ${record.name}", e)
                 failed++
@@ -766,18 +776,6 @@ object NovelDownloadStore {
 
         reportProgress("", force = true)
 
-        if (!currentManifest.complete) {
-            synchronized(ioLock) {
-                currentManifest = manifestFrom(
-                    novel = novel,
-                    records = currentRecords.toList(),
-                    downloadedAt = System.currentTimeMillis(),
-                    complete = true,
-                    commonPassword = previousCommonPassword
-                )
-                writeManifest(directory, currentManifest, writeGuard)
-            }
-        }
         return currentManifest
     }
 
@@ -793,7 +791,8 @@ object NovelDownloadStore {
             EsjzoneClient.unlockPasswordProtectedChapter(
                 authorization = authorization,
                 chapter = Chapter(record.name, record.url, false),
-                password = password
+                password = password,
+                baseUrl = baseUrl
             )
         } else {
             EsjzoneClient.getChapterDetail(

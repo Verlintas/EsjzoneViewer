@@ -376,6 +376,17 @@ object EsjzoneClient {
         persistentCookieJar?.rotateCacheScope(host)
     }
 
+    internal fun activateAccountScope(host: String, email: String, ewsKey: String) {
+        persistentCookieJar?.activateAccountScope(host, email, ewsKey)
+    }
+
+    fun pendingLegacyBookshelfScope(authorization: Authorization): String? =
+        persistentCookieJar?.pendingLegacyScopeFor(authorization.domain, authorization.ewsKey)
+
+    fun clearPendingLegacyBookshelfScope(authorization: Authorization) {
+        persistentCookieJar?.clearPendingLegacyScope(authorization.domain, authorization.ewsKey)
+    }
+
     internal fun wasAuthorizationVerifiedRecently(
         authorization: Authorization,
         maxAgeMillis: Long
@@ -388,7 +399,7 @@ object EsjzoneClient {
     fun accountScope(authorization: Authorization): String {
         val host = authorization.domain.ifBlank { EsjzoneUrls.BaseWithoutProtocol }
         return if (authorization.hasCredentials()) {
-            val accountId = persistentCookieJar?.cacheScopeFor(host) ?: MessageDigest.getInstance("SHA-256")
+            val accountId = persistentCookieJar?.accountScopeFor(host, authorization.ewsKey) ?: MessageDigest.getInstance("SHA-256")
                 .digest(
                     "${authorization.ewsKey}:${authorization.ewsToken}"
                         .toByteArray(StandardCharsets.UTF_8)

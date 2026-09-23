@@ -2,9 +2,9 @@ package com.breakyuna.esjzone.ui.tab
 
 import androidx.lifecycle.viewModelScope
 import com.breakyuna.esjzone.app.PresentationAccess
+import com.breakyuna.esjzone.database.entity.SearchHistory
 
 import com.breakyuna.esjzone.ui.navigation.AppStateViewModel
-import com.breakyuna.esjzone.database.entity.SearchHistory
 import com.breakyuna.esjzone.util.AppLogger
 import com.breakyuna.esjzone.util.currentDateString
 import kotlinx.coroutines.CancellationException
@@ -37,10 +37,7 @@ class SearchHistoryModel : AppStateViewModel<SearchHistoryModel.State>(State()) 
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val dao = PresentationAccess.database.searchHistoryDao()
-                val history = dao.findByKeyword(keyword)
-                    ?: SearchHistory(keyword = keyword, time = currentDateString())
-                history.time = currentDateString()
-                dao.insertAll(history)
+                dao.saveKeyword(keyword, currentDateString())
                 mutableState.value = State(dao.getAll(), loading = false)
             } catch (e: CancellationException) {
                 throw e

@@ -235,6 +235,7 @@
     <string name="history_local_delete_title">Delete %1$d local record(s)?</string>
     <string name="history_local_delete_confirm">Deleted records cannot be recovered. Bookshelf, cloud history, downloads, and bookmarks are not affected.</string>
     <string name="history_local_delete_confirm_action">Delete records</string>
+    <string name="history_local_delete_failed">Could not delete the selected history. Please try again.</string>
     <string name="history_cloud_sync">Sync cloud history</string>
     <string name="history_cloud_sync_running">Syncing cloud history</string>
     <string name="history_cloud_sync_success">Cloud history synced</string>
@@ -489,6 +490,12 @@
     <string name="bookmark_delete_title">Delete %1$d bookmark(s)?</string>
     <string name="bookmark_delete_confirm">Deleted bookmarks cannot be recovered.</string>
     <string name="bookmark_delete_action">Delete</string>
+    <string name="bookmark_delete_failed">Could not delete the selected bookmarks. Please try again.</string>
+    <string name="bookshelf_legacy_recovery_message">Found %1$d books saved by an older app version.</string>
+    <string name="bookshelf_legacy_recovery_title">Restore the old bookshelf?</string>
+    <string name="bookshelf_legacy_recovery_confirm">Confirm these books belong to this account. The restored local bookshelf will sync with this account.</string>
+    <string name="bookshelf_legacy_recovery_action">Restore old bookshelf</string>
+    <string name="bookshelf_legacy_recovery_failed">Could not restore the old bookshelf. Please try again.</string>
     <string name="local_cache">Local cache</string>
     <string name="local_cache_description">Previously opened novel pages are kept on this device</string>
     <string name="local_cache_pages">Pages: %1$s · %2$d files</string>

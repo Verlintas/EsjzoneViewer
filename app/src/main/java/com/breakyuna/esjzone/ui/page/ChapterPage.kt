@@ -119,7 +119,6 @@ import com.breakyuna.esjzone.ui.navigation.rememberAppViewModel
 import com.breakyuna.esjzone.ui.navigation.AppDestination
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -157,6 +156,12 @@ import com.breakyuna.esjzone.ui.designsystem.AppSpacing
 import com.breakyuna.esjzone.ui.designsystem.rememberAppAdaptiveMetrics
 import com.breakyuna.esjzone.ui.designsystem.glass.AppGlassSurface
 import com.breakyuna.esjzone.util.AppLogger
+
+private data class ReaderTextSnapshot(
+    val script: ReaderScript,
+    val chapters: List<ReaderChapter>?,
+    val values: Map<String, String>
+)
 
 class ChapterPage(
     private val novelId: String,
@@ -245,13 +250,7 @@ class ChapterPage(
 
         fun updateReaderSettings(settings: ReaderSettings) {
             readerSettings = settings
-        }
-
-        // Coalesce rapid slider updates into one DataStore write after the
-        // user pauses dragging, rather than writing for every pointer event.
-        LaunchedEffect(readerSettings) {
-            delay(250)
-            PresentationAccess.readerSettings.saveInBackground(readerSettings)
+            PresentationAccess.readerSettings.saveDebounced(settings)
         }
 
         val requestedChapter = rememberSaveable {
@@ -453,19 +452,36 @@ class ChapterPage(
                 isProgrammaticScroll = false
             }
         }
-        val readerTextTransform: (String) -> String = remember(readerSettings.script) {
-            { text -> ReaderScriptConverter.convert(text, readerSettings.script) }
+        var convertedText by remember { mutableStateOf<ReaderTextSnapshot?>(null) }
+        val readerTextTransform: (String) -> String = remember(readerSettings.script, result?.chapters, convertedText) {
+            val script = readerSettings.script
+            val snapshot = convertedText?.takeIf {
+                it.script == script && it.chapters == result?.chapters
+            }?.values
+            val transform: (String) -> String = { text ->
+                if (script == ReaderScript.ORIGINAL) text
+                else snapshot?.get(text) ?: text
+            }
+            transform
         }
         LaunchedEffect(readerSettings.script, result?.chapters) {
             val script = readerSettings.script
             val chapters = result?.chapters.orEmpty()
-            if (script != com.breakyuna.esjzone.ui.reader.ReaderScript.ORIGINAL && chapters.isNotEmpty()) {
-                withContext(Dispatchers.Default) {
-                    chapters.forEach { readerChapter ->
-                        ReaderScriptConverter.preload(readerChapter.document, script)
-                    }
-                }
+            if (script == ReaderScript.ORIGINAL || chapters.isEmpty()) {
+                convertedText = null
+                return@LaunchedEffect
             }
+            val values = withContext(Dispatchers.Default) {
+                ReaderScriptConverter.snapshot(chapters.map { it.document }, script).toMutableMap().apply {
+                    chapters.forEach { entry ->
+                        val name = entry.chapter.name
+                        if (name.isNotBlank() && name !in this) {
+                            this[name] = ReaderScriptConverter.convert(name, script)
+                        }
+                    }
+                }.toMap()
+            }
+            convertedText = ReaderTextSnapshot(script, result?.chapters, values)
         }
         var retainedActiveChapterKey by rememberSaveable {
             mutableStateOf(chapterIdentity(chapter))
@@ -837,7 +853,7 @@ class ChapterPage(
                 return@LaunchedEffect
             }
             val current = result?.chapters?.firstOrNull {
-                sameReaderChapter(it.chapter, chapter)
+                sameReaderChapter(it.chapter, requestedChapter.value)
             }?.chapter ?: return@LaunchedEffect
             pendingSeekLocation = ReaderBookLocation(
                 chapter = current,
