@@ -1148,8 +1148,12 @@ class ChapterPage(
                                     title = stringResource(R.string.external_link_not_supported),
                                     message = stringResource(R.string.external_link_not_supported_desc),
                                     isError = false,
-                                    actionLabel = null,
-                                    onAction = null
+                                    actionLabel = stringResource(R.string.open_in_app_browser),
+                                    onAction = {
+                                        InAppBrowserActivity.open(
+                                            context, EsjzoneUrls.resolve(requestedChapter.value.url)
+                                        )
+                                    }
                                 )
                             }
                         }
