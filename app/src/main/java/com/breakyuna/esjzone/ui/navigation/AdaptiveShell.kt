@@ -195,6 +195,9 @@ fun AdaptiveAppShell(
         selectedTab = defaultTabId.name
     }
 
+    val isRootOfDefaultTab = tab == defaultTabId && (selectedStack.size <= 1 || selectedStack.lastOrNull() == tab.route)
+    AppExitBackHandler(enabled = isRootOfDefaultTab)
+
     var lastHistoryTabClickTime by remember { mutableStateOf(0L) }
     var autoResumeHandled by rememberSaveable { mutableStateOf(false) }
 

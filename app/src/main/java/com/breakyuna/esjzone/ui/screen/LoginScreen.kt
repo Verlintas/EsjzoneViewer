@@ -73,11 +73,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import com.breakyuna.esjzone.ui.navigation.AppExitBackHandler
+import com.breakyuna.esjzone.ui.navigation.LocalAppNavigator
+
 object LoginScreen : AppDestination {
     private fun readResolve(): Any = LoginScreen
 
     @Composable
     override fun Content() {
+        AppExitBackHandler()
         val navigator = LocalAppNavigator.current ?: error("Navigation 3 root is not provided")
         val scope = rememberCoroutineScope()
         val currentDomain by PresentationAccess.settings.domain

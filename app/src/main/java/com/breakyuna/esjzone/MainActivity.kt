@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.os.LocaleList
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -128,6 +129,7 @@ class MainActivity : ComponentActivity() {
             }
 
             CompositionLocalProvider(
+                LocalActivity provides this@MainActivity,
                 LocalActivityResultRegistryOwner provides this@MainActivity,
                 LocalContext provides localizedContext,
                 LocalConfiguration provides localizedConfiguration

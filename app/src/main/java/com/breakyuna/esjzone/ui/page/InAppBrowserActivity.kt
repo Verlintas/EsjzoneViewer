@@ -145,7 +145,11 @@ class InAppBrowserActivity : ComponentActivity() {
         fun open(context: Context, url: String) {
             val target = url.trim()
             if (!isWebUrl(target)) return
-            context.startActivity(Intent(context, InAppBrowserActivity::class.java).putExtra(EXTRA_URL, target))
+            context.startActivity(
+                Intent(context, InAppBrowserActivity::class.java)
+                    .putExtra(EXTRA_URL, target)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
         }
 
         private fun isWebUrl(url: String): Boolean = Uri.parse(url).scheme?.lowercase() in setOf("http", "https") &&

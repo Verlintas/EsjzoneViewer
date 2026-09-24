@@ -7,6 +7,7 @@
     <string name="update_later">Later</string>
     <string name="update_browser_unavailable">No app available to open the release page</string>
     <string name="app_name">Esjzone</string>
+    <string name="app_exit_confirm">Press back again to exit</string>
     <string name="navigation_home">Home</string>
     <string name="navigation_profile">Profile</string>
     <string name="email">E-Mail</string>
@@ -266,6 +267,7 @@
     <string name="profile_settings_description">Theme, content preferences and site connection</string>
     <string name="profile_about_description">Version, contributors and open source licenses</string>
     <string name="about">About</string>
+    <string name="about_disclaimer">EsjzoneViewer is not affiliated with esjzone.cc/esjzone.one.</string>
     <string name="about_powered_by">Powered by </string>
     <string name="about_designed_with">Designed with </string>
     <string name="about_design_system">Material 3 and the EsjzoneViewer Design System</string>

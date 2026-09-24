@@ -7,6 +7,7 @@
     <string name="update_later">稍后</string>
     <string name="update_browser_unavailable">没有可打开发布页面的应用</string>
     <string name="app_name">Esjzone</string>
+    <string name="app_exit_confirm">再返回一次退出程序</string>
     <string name="navigation_home">主页</string>
     <string name="navigation_profile">个人资料</string>
     <string name="email">电子邮箱</string>
@@ -266,6 +267,7 @@
     <string name="profile_settings_description">主题、内容偏好与网络站点</string>
     <string name="profile_about_description">版本信息、贡献者与开源许可</string>
     <string name="about">关于</string>
+    <string name="about_disclaimer">EsjzoneViewer 和 esjzone.cc/esjzone.one 无任何联系</string>
     <string name="about_powered_by">由 </string>
     <string name="about_designed_with">设计采用 </string>
     <string name="about_design_system">Material 3 与 EsjzoneViewer Design System</string>

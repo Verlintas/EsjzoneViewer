@@ -470,6 +470,15 @@ object SettingsPage : AppDestination {
                     LinkRow(Icons.Filled.BugReport, stringResource(R.string.system_logs), stringResource(R.string.settings_logs_description)) { navigator?.pushIfNotCurrent(LogsPage) }
                 }
                 SettingsSection(Icons.Filled.Info, stringResource(R.string.about)) {
+                    Text(
+                        text = stringResource(R.string.about_disclaimer),
+                        style = com.breakyuna.esjzone.ui.designsystem.AppTypography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
