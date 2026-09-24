@@ -3,6 +3,7 @@ package com.breakyuna.esjzone
 import com.breakyuna.esjzone.offline.DownloadedChapterRecord
 import com.breakyuna.esjzone.offline.DownloadedNovelManifest
 import com.breakyuna.esjzone.offline.NovelDownloadManager
+import com.breakyuna.esjzone.offline.ChapterSelectionCodec
 import com.breakyuna.esjzone.offline.NovelDownloadStore
 import com.google.gson.Gson
 import org.junit.Assert.assertEquals
@@ -12,6 +13,26 @@ import org.junit.Test
 
 /** Pure contracts for resumable manifests and WorkManager's unique-work key. */
 class NovelDownloadContractTest {
+
+    @Test
+    fun chapterSelection_survivesCompactWorkerInputForLargeTableOfContents() {
+        val urls = (1..782).map { "/forum/9001/$it.html" }.toSet()
+        val encoded = ChapterSelectionCodec.encode(urls)
+
+        assertTrue(encoded.length < 8_000)
+        assertEquals(urls, ChapterSelectionCodec.decode(encoded))
+    }
+
+    @Test
+    fun chapterSelection_requiresEveryRequestedChapterInRefreshedContents() {
+        val available = listOf("/forum/9001/1.html", "/forum/9001/2.html")
+        assertEquals(null, NovelDownloadStore.selectionKeys(available, null))
+        assertEquals(setOf(NovelDownloadStore.chapterKey(available[1])),
+            NovelDownloadStore.selectionKeys(available, setOf(available[1])))
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            NovelDownloadStore.selectionKeys(available, setOf("/forum/9001/3.html"))
+        }
+    }
 
     @Test
     fun uniqueWorkName_isStableAcrossAliasesAndFragments() {

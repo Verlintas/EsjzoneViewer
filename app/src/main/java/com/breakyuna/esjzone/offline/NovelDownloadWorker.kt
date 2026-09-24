@@ -37,6 +37,11 @@ import com.breakyuna.esjzone.novellibrary.novel.DetailedNovel
 import com.breakyuna.esjzone.util.AppLogger
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.Base64
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -50,14 +55,31 @@ data class BackgroundDownloadStatus(
     val cancelled: Boolean = false
 )
 
+/** Compresses large tables of contents to fit WorkManager's 10 KiB input limit. */
+internal object ChapterSelectionCodec {
+    fun encode(urls: Set<String>): String {
+        val output = ByteArrayOutputStream()
+        GZIPOutputStream(output).use { it.write(urls.sorted().joinToString("\u0000").toByteArray(Charsets.UTF_8)) }
+        return Base64.getEncoder().encodeToString(output.toByteArray()).also {
+            require(it.length <= 8_000) { "Too many chapters selected for one download task" }
+        }
+    }
+
+    fun decode(value: String): Set<String> = GZIPInputStream(
+        ByteArrayInputStream(Base64.getDecoder().decode(value))
+    ).use { it.readBytes().toString(Charsets.UTF_8).split('\u0000').filter(String::isNotBlank).toSet() }
+}
+
 /** Schedules resumable novel downloads independently from any Compose page. */
 object NovelDownloadManager {
 
     fun enqueue(
         context: Context,
         authorization: Authorization,
-        novel: DetailedNovel
+        novel: DetailedNovel,
+        selectedChapterUrls: Set<String>? = null
     ): UUID {
+        require(selectedChapterUrls == null || selectedChapterUrls.isNotEmpty())
         // A session's domain is authoritative for queued work.  The DataStore
         // value is only the fallback for sessions that predate domain capture.
         val domain = authorization.domain.trim().ifBlank {
@@ -80,7 +102,8 @@ object NovelDownloadManager {
                     NovelDownloadWorker.KEY_URL to novel.url,
                     NovelDownloadWorker.KEY_FORUM_URL to novel.forumUrl,
                     NovelDownloadWorker.KEY_DOMAIN to domain,
-                    NovelDownloadWorker.KEY_CONCURRENCY to concurrency
+                    NovelDownloadWorker.KEY_CONCURRENCY to concurrency,
+                    NovelDownloadWorker.KEY_SELECTED_CHAPTERS to selectedChapterUrls?.let(ChapterSelectionCodec::encode).orEmpty()
                 )
             )
             .addTag(TAG)
@@ -180,6 +203,8 @@ class NovelDownloadWorker(
         val rawUrl = inputData.getString(KEY_URL)?.trim().orEmpty()
         val forumUrl = inputData.getString(KEY_FORUM_URL)?.trim().orEmpty()
         val domain = inputData.getString(KEY_DOMAIN)?.trim().orEmpty()
+        val selectedChapterUrls = inputData.getString(KEY_SELECTED_CHAPTERS)?.takeIf { it.isNotEmpty() }
+            ?.let(ChapterSelectionCodec::decode)
         val concurrency = inputData.getInt(
             KEY_CONCURRENCY,
             NovelDownloadStore.DEFAULT_DOWNLOAD_CONCURRENCY
@@ -218,7 +243,8 @@ class NovelDownloadWorker(
                 forceRefresh = true,
                 baseUrl = actualBaseUrl
             )
-            val manifest = NovelDownloadStore.download(authorization, detail, actualBaseUrl, concurrency) { next ->
+            val manifest = NovelDownloadStore.download(authorization, detail, actualBaseUrl, concurrency,
+                selectedChapterUrls) { next ->
                 setProgressAsync(next.toWorkData())
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                     ContextCompat.checkSelfPermission(
@@ -230,8 +256,12 @@ class NovelDownloadWorker(
                         .notify(notificationId(), createNotification(name, next))
                 }
             }
-            if (manifest.pendingPasswordChapters.isNotEmpty()) {
-                sendPasswordRequiredNotification(name, rawUrl, manifest.pendingPasswordChapters.size)
+            val selectedKeys = selectedChapterUrls?.map(NovelDownloadStore::chapterKey)?.toSet()
+            val pendingPasswordCount = manifest.pendingPasswordChapters.count { record ->
+                selectedKeys == null || NovelDownloadStore.chapterKey(record.url) in selectedKeys
+            }
+            if (pendingPasswordCount > 0) {
+                sendPasswordRequiredNotification(name, rawUrl, pendingPasswordCount)
             }
             Result.success()
         } catch (error: CancellationException) {
@@ -386,6 +416,7 @@ class NovelDownloadWorker(
         internal const val KEY_FORUM_URL = "forum_url"
         internal const val KEY_DOMAIN = "domain"
         internal const val KEY_CONCURRENCY = "download_concurrency"
+        internal const val KEY_SELECTED_CHAPTERS = "selected_chapters"
         internal const val KEY_COMPLETED = "completed"
         internal const val KEY_TOTAL = "total"
         internal const val KEY_CHAPTER = "chapter"

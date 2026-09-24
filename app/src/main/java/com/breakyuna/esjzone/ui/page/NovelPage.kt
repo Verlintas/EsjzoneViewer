@@ -1178,6 +1178,9 @@ private fun NovelDownloadActions(
     var requestedWorkId by rememberSaveable(novel.url) { mutableStateOf<String?>(null) }
     var deletingDownload by remember(novel.url) { mutableStateOf(false) }
     var showDeleteDownloadDialog by rememberSaveable(novel.url) { mutableStateOf(false) }
+    var showChapterSelection by rememberSaveable(novel.url) { mutableStateOf(false) }
+    var selectedChapterUrls by rememberSaveable(novel.url) { mutableStateOf<Set<String>>(emptySet()) }
+    var verificationSelection by remember(novel.url) { mutableStateOf<Set<String>?>(null) }
     val downloadScope = rememberCoroutineScope()
 
     LaunchedEffect(novel.url) {
@@ -1227,19 +1230,25 @@ private fun NovelDownloadActions(
         }
     }
 
-    fun enqueueDownload() {
+    fun enqueueDownload(selectedUrls: Set<String>? = null) {
         if (downloading || preflighting || novel.chapterList.orderedChapters.isEmpty()) return
         pausing = false
-        val existingCompleted = downloaded?.chapters?.count { it.downloaded } ?: 0
+        val targetChapters = novel.chapterList.orderedChapters.filter { chapter ->
+            !chapter.isExternal && (selectedUrls == null || chapter.url in selectedUrls)
+        }.distinctBy { com.breakyuna.esjzone.offline.NovelDownloadStore.chapterKey(it.url) }
+        if (targetChapters.isEmpty()) return
+        val existingCompleted = downloaded?.chapters?.count { record ->
+            record.downloaded && (selectedUrls == null || record.url in selectedUrls)
+        } ?: 0
         progress = DownloadProgress(
             completed = existingCompleted,
-            total = novel.chapterList.orderedChapters.size,
+            total = targetChapters.size,
             chapterName = ""
         )
         downloading = true
         preflighting = true
         downloadScope.launch {
-            val probe = novel.chapterList.orderedChapters.firstOrNull {
+            val probe = targetChapters.firstOrNull {
                 it.source == com.breakyuna.esjzone.novellibrary.novel.ChapterSource.WENKU8
             }
             try {
@@ -1248,7 +1257,7 @@ private fun NovelDownloadActions(
                         authorization, probe, preferDownloaded = false, forceRefresh = true
                     )
                 }
-                requestedWorkId = NovelDownloadManager.enqueue(context, authorization, novel).toString()
+                requestedWorkId = NovelDownloadManager.enqueue(context, authorization, novel, selectedUrls).toString()
                 preflighting = false
             } catch (error: CancellationException) {
                 preflighting = false
@@ -1257,6 +1266,7 @@ private fun NovelDownloadActions(
             } catch (error: com.breakyuna.esjzone.network.external.CloudflareChallengeRequiredException) {
                 preflighting = false
                 downloading = false
+                verificationSelection = selectedUrls
                 wenkuVerificationUrl = probe?.url
             } catch (error: com.breakyuna.esjzone.network.external.WenkuCookieStoreUnavailableException) {
                 preflighting = false
@@ -1274,7 +1284,7 @@ private fun NovelDownloadActions(
     wenkuVerificationUrl?.let { url ->
         WenkuVerificationDialog(
             url = EsjzoneUrls.resolve(url),
-            onVerified = { _ -> wenkuVerificationUrl = null; enqueueDownload() },
+            onVerified = { _ -> wenkuVerificationUrl = null; enqueueDownload(verificationSelection) },
             onUnavailable = {
                 wenkuVerificationUrl = null
                 Toast.makeText(context, R.string.wenku_cookie_store_unavailable, Toast.LENGTH_LONG).show()
@@ -1407,7 +1417,11 @@ private fun NovelDownloadActions(
             batchProgress = batchProgress,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             onDismiss = { showSheet = false },
-            onDownload = ::enqueueDownload,
+            onDownload = { enqueueDownload() },
+            onSelectChapters = {
+                selectedChapterUrls = emptySet()
+                showChapterSelection = true
+            },
             onPauseDownload = ::pauseDownload,
             onDeleteDownload = {
                 if (!downloading && !deletingDownload && downloaded != null) {
@@ -1433,6 +1447,80 @@ private fun NovelDownloadActions(
                 }
             },
             onClearCommonPassword = ::clearCommonPassword
+        )
+    }
+
+    if (showChapterSelection) {
+        val selectable = novel.chapterList.orderedChapters.filter { !it.isExternal }
+            .distinctBy { com.breakyuna.esjzone.offline.NovelDownloadStore.chapterKey(it.url) }
+        val downloadedKeys = downloaded?.chapters.orEmpty().filter { it.downloaded }
+            .map { com.breakyuna.esjzone.offline.NovelDownloadStore.chapterKey(it.url) }.toSet()
+        AlertDialog(
+            onDismissRequest = { showChapterSelection = false },
+            title = { Text(stringResource(R.string.novel_download_select_chapters)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.novel_download_selected_count, selectedChapterUrls.size))
+                    Row {
+                        TextButton(onClick = { selectedChapterUrls = selectable.map { it.url }.toSet() }) {
+                            Text(stringResource(R.string.novel_download_select_all))
+                        }
+                        TextButton(onClick = { selectedChapterUrls = emptySet() }) {
+                            Text(stringResource(R.string.novel_download_clear_selection))
+                        }
+                    }
+                    LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+                        novel.chapterList.items.filterIsInstance<com.breakyuna.esjzone.novellibrary.component.ChapterListItem>()
+                            .forEachIndexed { groupIndex, group ->
+                                val groupUrls = group.chapters.filter { !it.isExternal }
+                                    .map { it.url }.toSet()
+                                if (groupUrls.isNotEmpty()) {
+                                    item(key = "group:$groupIndex") {
+                                        TextButton(onClick = {
+                                            selectedChapterUrls = selectedChapterUrls + groupUrls
+                                        }) {
+                                            Text(stringResource(R.string.novel_download_select_group,
+                                                group.name.text, groupUrls.size))
+                                        }
+                                    }
+                                }
+                            }
+                        items(selectable, key = { it.url }) { chapter ->
+                            val checked = chapter.url in selectedChapterUrls
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    selectedChapterUrls = if (checked) selectedChapterUrls - chapter.url
+                                    else selectedChapterUrls + chapter.url
+                                },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(checked = checked, onCheckedChange = { value ->
+                                    selectedChapterUrls = if (value) selectedChapterUrls + chapter.url
+                                    else selectedChapterUrls - chapter.url
+                                })
+                                Column {
+                                    Text(chapter.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    if (com.breakyuna.esjzone.offline.NovelDownloadStore.chapterKey(chapter.url) in downloadedKeys) {
+                                        Text(stringResource(R.string.novel_download_already_saved), style = AppTypography.bodySmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val selected = selectedChapterUrls
+                    showChapterSelection = false
+                    enqueueDownload(selected)
+                }, enabled = selectedChapterUrls.isNotEmpty()) {
+                    Text(stringResource(R.string.novel_download_selected_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChapterSelection = false }) { Text(stringResource(R.string.close)) }
+            }
         )
     }
 
@@ -1626,6 +1714,7 @@ private fun NovelDownloadSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onDownload: () -> Unit,
+    onSelectChapters: () -> Unit,
     onPauseDownload: () -> Unit,
     onDeleteDownload: () -> Unit,
     onExportTxt: () -> Unit,
@@ -1923,6 +2012,11 @@ private fun NovelDownloadSheet(
                     Text(text = stringResource(R.string.novel_download_pause))
                 }
             } else {
+                OutlinedButton(
+                    enabled = total > 0,
+                    onClick = onSelectChapters,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)
+                ) { Text(stringResource(R.string.novel_download_select_chapters)) }
                 FilledTonalButton(
                     enabled = total > 0,
                     onClick = onDownload,

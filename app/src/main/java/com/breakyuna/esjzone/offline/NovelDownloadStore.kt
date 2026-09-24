@@ -582,12 +582,14 @@ object NovelDownloadStore {
         novel: DetailedNovel,
         baseUrl: String? = null,
         concurrency: Int = DEFAULT_DOWNLOAD_CONCURRENCY,
+        selectedChapterUrls: Set<String>? = null,
         onProgress: (DownloadProgress) -> Unit = {}
     ): DownloadedNovelManifest {
         val orderedChapters = novel.chapterList.orderedChapters
             .filter { !it.isExternal }
             .distinctBy { chapterKey(it.url) }
         require(orderedChapters.isNotEmpty()) { "This novel has no downloadable chapters" }
+        val selectedKeys = selectionKeys(orderedChapters.map { it.url }, selectedChapterUrls)
 
         val directory = directoryFor(novel.url, create = true)
             ?: error("Novel download storage is unavailable")
@@ -626,8 +628,9 @@ object NovelDownloadStore {
         )
         synchronized(ioLock) { writeManifest(directory, currentManifest, writeGuard) }
 
-        val totalCount = currentRecords.size
-        val completedCounter = AtomicInteger(currentRecords.count { it.downloaded })
+        val targetRecords = currentRecords.filter { selectedKeys == null || chapterKey(it.url) in selectedKeys }
+        val totalCount = targetRecords.size
+        val completedCounter = AtomicInteger(targetRecords.count { it.downloaded })
         val lastProgressTime = AtomicLong(0L)
 
         fun reportProgress(chapterName: String, force: Boolean = false) {
@@ -642,7 +645,7 @@ object NovelDownloadStore {
 
         reportProgress("", force = true)
 
-        val pendingChapters = currentRecords.filter { !it.downloaded }
+        val pendingChapters = targetRecords.filter { !it.downloaded }
         if (pendingChapters.isNotEmpty()) {
             val wenkuBlocked = java.util.concurrent.atomic.AtomicBoolean(false)
             val semaphore = Semaphore(concurrency.coerceAtLeast(1))
@@ -734,7 +737,7 @@ object NovelDownloadStore {
                                                 novel = novel,
                                                 records = currentRecords.toList(),
                                                 downloadedAt = System.currentTimeMillis(),
-                                                complete = finished == totalCount,
+                                                complete = currentRecords.all { it.downloaded },
                                                 commonPassword = previousCommonPassword
                                             )
                                             writeManifest(directory, currentManifest, writeGuard)
@@ -772,7 +775,7 @@ object NovelDownloadStore {
                             novel = novel,
                             records = currentRecords.toList(),
                             downloadedAt = System.currentTimeMillis(),
-                            complete = completedCounter.get() == totalCount,
+                            complete = currentRecords.all { it.downloaded },
                             commonPassword = previousCommonPassword
                         )
                         writeManifest(directory, currentManifest, writeGuard)
@@ -1388,6 +1391,15 @@ object NovelDownloadStore {
         val fragment = resolved.substringAfter('#', "").trim()
         val page = canonicalKey(resolved)
         return if (fragment.isBlank()) page else "$page#$fragment"
+    }
+
+    internal fun selectionKeys(availableUrls: List<String>, selectedUrls: Set<String>?): Set<String>? {
+        val selected = selectedUrls?.map(::chapterKey)?.toSet() ?: return null
+        val available = availableUrls.map(::chapterKey).toSet()
+        require(selected.isNotEmpty() && selected.all { it in available }) {
+            "Selected chapters are no longer available in the novel table of contents"
+        }
+        return selected
     }
 
     private fun digest(value: String): String = MessageDigest.getInstance("SHA-256")
